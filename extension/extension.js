@@ -72,20 +72,90 @@ function perImpressionNet() {
 }
 function currentAds() {
   const blocked = (cfg().get("blockedCategories", []) || []).map((c) => String(c).toLowerCase());
-  const list = ADS.filter((a) => !blocked.includes(a.cat));
-  return list.length ? list : ADS;
+  const source = serverAds || ADS;
+  const list = source.filter((a) => !blocked.includes(a.cat));
+  return list.length ? list : source;
+}
+
+// ---- server mode (optional) ----
+// When betterbacks.serverUrl is set, ads come from the live auction and
+// impressions/clicks are batched to the API so real money settles. With no
+// server (or offline), the bundled inventory keeps everything working locally.
+let serverAds = null;
+const pendingEvents = new Map(); // campaignId -> { impressions, clicks }
+let flushTimer = null;
+
+function serverUrl() {
+  return (cfg().get("serverUrl", "") || "").trim().replace(/\/+$/, "");
+}
+
+function trackEvent(field) {
+  if (!serverAds) return; // local mode: nothing to settle server-side
+  const ads = currentAds();
+  const ad = ads[adIdx % ads.length];
+  if (!ad || !ad.id) return;
+  const p = pendingEvents.get(ad.id) || { impressions: 0, clicks: 0 };
+  p[field]++;
+  pendingEvents.set(ad.id, p);
+}
+
+async function flushEvents() {
+  const url = serverUrl();
+  const creds = ctx.globalState.get("bb.device");
+  if (!url || !creds || !pendingEvents.size) return;
+  const events = [...pendingEvents.entries()].map(([campaignId, c]) => ({ campaignId, ...c }));
+  try {
+    const res = await fetch(url + "/v1/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deviceId: creds.deviceId,
+        deviceKey: creds.deviceKey,
+        batchKey: require("crypto").randomUUID(),
+        events,
+      }),
+    });
+    if (res.ok) pendingEvents.clear();
+  } catch (_) {
+    // offline — keep the batch and retry next flush
+  }
+}
+
+async function startServerMode() {
+  const url = serverUrl();
+  if (!url) return;
+  try {
+    let creds = ctx.globalState.get("bb.device");
+    if (!creds) {
+      const r = await fetch(url + "/v1/devices/register", { method: "POST" });
+      if (!r.ok) return;
+      creds = await r.json();
+      await ctx.globalState.update("bb.device", creds);
+    }
+    const r = await fetch(url + "/v1/ads");
+    if (!r.ok) return;
+    const data = await r.json();
+    if (Array.isArray(data.ads) && data.ads.length) {
+      serverAds = data.ads.map((a) => ({ ...a, brand: a.brand || a.line }));
+    }
+    flushTimer = setInterval(flushEvents, 60000);
+  } catch (_) {
+    // unreachable server — bundled ads keep working
+  }
 }
 
 function recordImpression() {
   const s = getState();
   ctx.globalState.update("bb.impressions", s.impressions + 1);
   ctx.globalState.update("bb.earnings", s.earnings + perImpressionNet());
+  trackEvent("impressions");
 }
 function recordClick() {
   const s = getState();
   ctx.globalState.update("bb.clicks", s.clicks + 1);
   // a click is worth 50x an impression
   ctx.globalState.update("bb.earnings", s.earnings + perImpressionNet() * 50);
+  trackEvent("clicks");
 }
 
 // ---- Status bar rendering ----
@@ -263,11 +333,14 @@ function activate(context) {
   );
 
   wireTerminalAutoShow();
+  startServerMode();
   renderIdle();
 }
 
 function deactivate() {
   stopThinking();
+  if (flushTimer) clearInterval(flushTimer);
+  flushEvents(); // best-effort final settle
 }
 
 module.exports = { activate, deactivate };

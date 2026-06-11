@@ -2,7 +2,7 @@
   "name": "betterbacks-ai",
   "displayName": "Betterbacks.ai — Get paid for waiting",
   "description": "Turns the Claude Code & Codex loading spinner into a tiny ad marketplace. You keep 90% of the revenue.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "betterbacks",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -87,6 +87,11 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically show a sponsored line while an integrated terminal is focused (where your agent runs)."
+        },
+        "betterbacks.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Betterbacks API base URL (e.g. https://api.betterbacks.ai). When set, ads come from the live auction and your earnings settle for real. Leave empty for offline/demo mode."
         }
       }
     }

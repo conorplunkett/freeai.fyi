@@ -1,0 +1,179 @@
+# Betterbacks API — the money loop 🤑
+
+Node + Postgres backend that makes the 90% split real: a live ad auction,
+an append-only ledger, Stripe Checkout for money **in**, Stripe Connect for
+money **out**.
+
+```
+  ADVERTISER                          DEVELOPER (VS Code extension)
+      │                                        │
+      │ POST /v1/checkout                      │ POST /v1/devices/register
+      ▼                                        │ GET  /v1/ads  (auction-ranked)
+  Stripe Checkout ──(webhook)──► campaign      │ POST /v1/events (batched, idempotent)
+  pays $blocks×price            activated      ▼
+                                     └──► LEDGER (millicents, append-only)
+                                              90% → device   10% → platform
+                                                    │
+                                          POST /v1/admin/payouts (weekly sweep)
+                                                    ▼
+                                          Stripe Connect transfer → dev's bank
+```
+
+## Why these pieces
+
+- **Postgres** is the source of truth. Balances are *never* stored — they're
+  always `SUM(ledger)`, so the books can't drift. Amounts are integer
+  **millicents** (1/1000¢) so the 90% of a half-cent impression is exact.
+- **No framework** — plain `node:http`, one dependency (`pg`). The Stripe
+  client is ~100 lines over `fetch`, because Stripe's API is just HTTPS +
+  form-encoded bodies. Everything is dependency-injected, which is why the
+  test suite can run the real routes against a real database with a fake
+  Stripe transport.
+
+## The Stripe APIs, concretely
+
+### Money in — advertiser pays for blocks (Checkout)
+
+1. `POST /v1/checkout` validates the bid (3–60 char ad line, https URL,
+   ≥ $1/block), creates a `pending_payment` campaign, then calls
+   **`POST https://api.stripe.com/v1/checkout/sessions`** with:
+   - `mode=payment`, `line_items[0][quantity]=<blocks>`,
+     `line_items[0][price_data][unit_amount]=<price_per_block_cents>`
+   - `metadata[campaign_id]=<our id>` ← how the webhook finds the campaign
+   - `success_url` / `cancel_url` back to the site
+2. The advertiser pays on Stripe's hosted page. We never touch card data
+   (no PCI scope).
+3. Stripe fires **`checkout.session.completed`** at `POST /v1/webhooks/stripe`.
+   We verify the `Stripe-Signature` header (HMAC-SHA256 of `"{t}.{rawBody}"`
+   with the webhook secret, 5-minute tolerance, timing-safe compare), then
+   activate the campaign: status → `active`, impressions funded
+   (`blocks × 1000`), and a `campaign_credit` ledger entry.
+
+### Money out — developer payouts (Connect Express)
+
+Connect Express is the piece that keeps you out of the money-transmission
+business: Stripe handles KYC, bank accounts, and tax forms (1099s).
+
+1. `POST /v1/connect/onboard` links the device to a user (by email) and calls
+   **`POST /v1/accounts`** with `type=express`,
+   `capabilities[transfers][requested]=true`, then
+   **`POST /v1/account_links`** with `type=account_onboarding` →
+   returns a hosted onboarding URL where the developer enters identity + bank.
+2. Stripe fires **`account.updated`** webhooks as onboarding progresses; we
+   flip `users.payouts_enabled` when `charges_enabled && payouts_enabled`.
+3. The payout sweep (`POST /v1/admin/payouts`, or `npm run payouts` on a cron)
+   finds every enabled user at/over the threshold (default $10) and calls
+   **`POST /v1/transfers`** with `amount=<whole cents>`, `currency=usd`,
+   `destination=<acct_...>`. A `payout_debit` ledger entry + `payouts` row
+   record it; sub-cent dust stays on the balance.
+
+### Stripe setup checklist (test mode first)
+
+1. Stripe Dashboard → enable **Connect**, choose **Express**.
+2. Developers → API keys → copy `sk_test_...` → `STRIPE_SECRET_KEY`.
+3. Developers → Webhooks → add endpoint
+   `https://api.betterbacks.ai/v1/webhooks/stripe`, subscribe to
+   `checkout.session.completed` and `account.updated` → copy the signing
+   secret → `STRIPE_WEBHOOK_SECRET`.
+   Locally: `stripe listen --forward-to localhost:8787/v1/webhooks/stripe`.
+4. Test cards: `4242 4242 4242 4242`. Test Connect onboarding accepts fake
+   SSN/bank values in test mode.
+5. Going live: flip to live keys, fill out the Connect platform profile, and
+   expect Stripe to review the platform (ads/revenue-share platforms are
+   allowed; be accurate in the description).
+
+## The fraud math (why the caps exist)
+
+The moment dollars flow, idling a fake spinner 24/7 becomes a job. Defenses
+built in:
+
+- **Idempotent batches** — every `POST /v1/events` carries a unique
+  `batchKey`; replays are acknowledged, never re-paid.
+- **Daily device cap** — default 5,000 impressions/day (~7h of serving);
+  excess batches get `429`.
+- **Budget locks** — campaigns are row-locked on billing and can never be
+  billed past `impressions_remaining`; they flip to `exhausted` atomically.
+- **Held payouts** — the $10 threshold + weekly sweep gives a review window.
+- Next (not built): only count impressions while a real agent process is
+  attached, per-IP device limits, click-rate anomaly detection.
+
+## Run it
+
+```bash
+cd server
+docker compose up -d db            # local Postgres 16
+cp .env.example .env               # fill in Stripe test keys
+npm install
+npm run migrate                    # applies db/schema.sql
+npm start                          # api on :8787
+```
+
+Smoke it:
+
+```bash
+curl localhost:8787/healthz
+curl -X POST localhost:8787/v1/devices/register
+curl -X POST localhost:8787/v1/checkout -H 'content-type: application/json' \
+  -d '{"email":"ads@linear.app","adLine":"Linear — issue tracking built for speed","url":"https://linear.app/","pricePerBlock":5,"blocks":2}'
+# -> { campaignId, checkoutUrl: "https://checkout.stripe.com/..." }
+```
+
+### Tests
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/betterbacks npm test
+```
+
+15 end-to-end checks drive the real routes against a real Postgres (isolated
+schema per run) with only the Stripe transport faked: checkout → webhook
+activation → auction ranking → 90% impression/click credits → idempotency →
+caps → budget exhaustion → Connect onboarding → payout sweep.
+
+## Wiring the extension
+
+Set one setting in VS Code:
+
+```json
+{ "betterbacks.serverUrl": "https://api.betterbacks.ai" }
+```
+
+The extension then registers a device, pulls auction-ranked ads from
+`GET /v1/ads`, and batches impressions/clicks to `POST /v1/events` every 60s
+(offline-safe: failed batches retry, and with no server it falls back to the
+bundled demo inventory).
+
+## Deploying
+
+- **API**: any Node host — Fly.io / Railway / Render. One process, no build
+  step. Point `DATABASE_URL` at Neon/Supabase/RDS.
+- **DB**: Neon free tier is plenty to start; `npm run migrate` is idempotent.
+- **Site**: static — Cloudflare Pages / Vercel / Netlify + the
+  `betterbacks.ai` domain; point the bid form's submit at `POST /v1/checkout`
+  and redirect to the returned `checkoutUrl`.
+- **Cron**: weekly `npm run payouts` (or hit `POST /v1/admin/payouts` with the
+  admin key).
+
+## Endpoints
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| GET | `/healthz` | — | liveness |
+| GET | `/v1/ads` | — | auction-ranked active ads |
+| GET | `/v1/leaderboard` | — | public bid market |
+| POST | `/v1/devices/register` | — | mint device credentials |
+| POST | `/v1/events` | device | batched impressions/clicks → ledger credits |
+| POST | `/v1/checkout` | — | create campaign + Stripe Checkout URL |
+| POST | `/v1/webhooks/stripe` | signature | payment + Connect account events |
+| POST | `/v1/connect/onboard` | device | Stripe Express onboarding URL |
+| GET | `/v1/me/earnings` | device | earned / paid out / balance |
+| POST | `/v1/admin/payouts` | admin key | run the payout sweep |
+
+## What's deliberately NOT here yet
+
+- **Site ↔ API wiring** — the bid form still simulates checkout client-side;
+  it needs a `fetch` to `/v1/checkout` (one small PR).
+- **Real auth** — devices are anonymous bearer credentials; payout linking is
+  by email without verification. Add magic-link or GitHub OAuth before launch.
+- **Click verification** — clicks are client-reported; route them through a
+  redirect endpoint (`/go/:campaignId`) so the server counts them.
+- **Rate limiting / WAF** at the edge.

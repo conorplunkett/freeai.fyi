@@ -1,0 +1,19 @@
+{
+  "name": "betterbacks-server",
+  "version": "0.1.0",
+  "description": "Betterbacks.ai backend — ad auction, impression ledger, Stripe money in/out. Developers keep 90%.",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "migrate": "node src/migrate.js",
+    "test": "node test/run.js",
+    "payouts": "node -e \"require('./src/boot').boot().then(({deps}) => require('./src/payouts').runPayouts(deps)).then(r => {console.log(r); process.exit(0)})\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.12.0"
+  }
+}

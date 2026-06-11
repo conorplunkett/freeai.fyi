@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- Server mode: set `betterbacks.serverUrl` to pull auction-ranked ads from the
+  live API and batch impressions/clicks to it (idempotent, offline-safe).
+  Empty by default — local/demo mode unchanged.
+
 ## 0.1.0
 
 - Initial release. 🤑

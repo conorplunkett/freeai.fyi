@@ -15,6 +15,7 @@ whose machine showed the ad.
 | [`index.html`](index.html) · [`styles.css`](styles.css) · [`script.js`](script.js) | The marketing site — hero, live bid market, advertiser checkout, leaderboard. A faithful clone of kickbacks.ai with a 90% split. |
 | [`privacy.html`](privacy.html) | Privacy policy. |
 | [`extension/`](extension/) | The **VS Code extension** that serves sponsored lines in the Claude Code / Codex spinner and tracks your earnings. The main focus. |
+| [`server/`](server/) | The **backend** — Node + Postgres ad auction, append-only money ledger, Stripe Checkout (money in) and Stripe Connect (payouts out). See [`server/README.md`](server/README.md). |
 | [`storage/`](storage/) | Shelved pieces — currently the Chrome extension for web agents (works, on ice for now). |
 
 ## Run the site locally

@@ -111,10 +111,33 @@ const context = {
   subscriptions: [],
 };
 
+// ---------- fetch spy (server mode) ----------
+const fetchCalls = [];
+global.fetch = async (url, opts = {}) => {
+  fetchCalls.push({ url, opts });
+  if (url.endsWith("/v1/devices/register"))
+    return { ok: true, json: async () => ({ deviceId: "dev-1", deviceKey: "key-1" }) };
+  if (url.endsWith("/v1/ads"))
+    return {
+      ok: true,
+      json: async () => ({
+        revenueShare: 0.9,
+        ads: [{ id: "c1", brand: "TestCo", line: "TESTAD — served from the live auction", url: "https://t.co", cat: "devtools" }],
+      }),
+    };
+  if (url.endsWith("/v1/events")) return { ok: true, json: async () => ({ ok: true }) };
+  return { ok: false, json: async () => ({}) };
+};
+
 // ---------- run ----------
 const ext = require(path.join(__dirname, "..", "extension.js"));
 let pass = 0;
-const check = (name, fn) => { fn(); pass++; console.log("  ✓ " + name); };
+const check = (name, fn) => {
+  const done = () => { pass++; console.log("  ✓ " + name); };
+  const r = fn();
+  if (r && typeof r.then === "function") return r.then(done);
+  done();
+};
 
 console.log("betterbacks verification\n");
 
@@ -180,6 +203,43 @@ check("blocked categories are never served", () => {
 });
 
 (async () => {
+  const tickAsync = () => new Promise((r) => setImmediate(r));
+
+  check("server mode stays off without a serverUrl (no network calls)", () => {
+    assert.strictEqual(fetchCalls.length, 0, "unexpected fetches: " + JSON.stringify(fetchCalls.map((c) => c.url)));
+  });
+
+  // flip on server mode and re-activate
+  config.set("serverUrl", "http://api.fake");
+  ext.activate(context);
+  await tickAsync();
+  await tickAsync();
+
+  check("server mode registers the device and pulls live auction ads", () => {
+    const urls = fetchCalls.map((c) => c.url);
+    assert.ok(urls.includes("http://api.fake/v1/devices/register"), "no device registration");
+    assert.ok(urls.includes("http://api.fake/v1/ads"), "ads not fetched");
+    assert.deepStrictEqual(store.get("bb.device"), { deviceId: "dev-1", deviceKey: "key-1" });
+  });
+
+  check("live auction ad serves in the spinner", () => {
+    commands.get("betterbacks.simulateAgent")();
+    advance(200);
+    assert.ok(statusBar.text.includes("TESTAD"), "live ad not serving: " + statusBar.text);
+  });
+
+  await check("impressions batch to POST /v1/events with device credentials", async () => {
+    advance(60000); // accrue impressions, then the 60s flush fires
+    await tickAsync();
+    const post = fetchCalls.find((c) => c.url === "http://api.fake/v1/events");
+    assert.ok(post, "no events batch posted");
+    const body = JSON.parse(post.opts.body);
+    assert.strictEqual(body.deviceId, "dev-1");
+    assert.ok(body.batchKey, "missing idempotency batchKey");
+    assert.ok(body.events.length === 1 && body.events[0].campaignId === "c1", JSON.stringify(body.events));
+    assert.ok(body.events[0].impressions > 0, "no impressions in batch");
+  });
+
   // the reset command awaits globalState updates, so await it before asserting
   await commands.get("betterbacks.resetEarnings")();
   check("reset zeroes the counters", () => {
