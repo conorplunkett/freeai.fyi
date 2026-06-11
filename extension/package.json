@@ -1,0 +1,101 @@
+{
+  "name": "betterbacks-ai",
+  "displayName": "Betterbacks.ai — Get paid for waiting",
+  "description": "Turns the Claude Code & Codex loading spinner into a tiny ad marketplace. You keep 90% of the revenue.",
+  "version": "0.1.0",
+  "publisher": "betterbacks",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "claude code",
+    "codex",
+    "ads",
+    "earn",
+    "spinner",
+    "kickbacks"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conorplunkett/betterbacks.ai"
+  },
+  "homepage": "https://betterbacks.ai",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "betterbacks.toggle",
+        "title": "Betterbacks: Enable / Disable earning",
+        "category": "Betterbacks"
+      },
+      {
+        "command": "betterbacks.simulateAgent",
+        "title": "Betterbacks: Show me the money (simulate an agent run)",
+        "category": "Betterbacks"
+      },
+      {
+        "command": "betterbacks.showEarnings",
+        "title": "Betterbacks: Open earnings dashboard",
+        "category": "Betterbacks"
+      },
+      {
+        "command": "betterbacks.openCurrentAd",
+        "title": "Betterbacks: Open the currently shown ad",
+        "category": "Betterbacks"
+      },
+      {
+        "command": "betterbacks.resetEarnings",
+        "title": "Betterbacks: Reset earnings (testing)",
+        "category": "Betterbacks"
+      }
+    ],
+    "configuration": {
+      "title": "Betterbacks",
+      "properties": {
+        "betterbacks.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show sponsored lines in the spinner and earn while you wait."
+        },
+        "betterbacks.revenueShare": {
+          "type": "number",
+          "default": 0.9,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Your cut of ad revenue. Betterbacks pays 90% — the better split."
+        },
+        "betterbacks.grossCpm": {
+          "type": "number",
+          "default": 12,
+          "description": "Effective gross revenue per 1,000 five-second impressions (USD), before your share."
+        },
+        "betterbacks.blockedCategories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Ad categories to never show (e.g. \"crypto\", \"gambling\")."
+        },
+        "betterbacks.autoShowOnTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically show a sponsored line while an integrated terminal is focused (where your agent runs)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package",
+    "lint": "node -c extension.js && echo \"syntax ok\""
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.84.0"
+  }
+}

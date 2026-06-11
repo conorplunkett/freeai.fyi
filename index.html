@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Betterbacks.ai — Get paid for waiting</title>
+  <meta name="description" content="We turned “Discombobulating…” into an ad marketplace. 90% of the revenue goes to you — the developer watching the spinner." />
+  <meta property="og:title" content="Betterbacks.ai — Get paid for waiting" />
+  <meta property="og:description" content="90% of the revenue goes to you. Bid live for the most-watched spinner on Earth." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%233fb265'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EB$%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <!-- NAV -->
+  <header class="nav">
+    <a class="brand" href="#top">
+      <span class="logo">B$</span>
+      <span class="brand-name">Betterbacks.ai</span>
+    </a>
+    <nav class="nav-btns">
+      <a href="#advertisers" class="navbtn">Advertisers</a>
+      <a href="#install" class="navbtn">Users</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- HERO -->
+    <section class="hero">
+      <h1>Get paid for waiting.</h1>
+      <p class="sub">
+        We turned “Discombobulating…” into an ad marketplace.<br />
+        <strong>90%</strong> of the <span class="hl">revenue</span> goes to you.
+      </p>
+
+      <!-- BEFORE / AFTER DEMO -->
+      <div class="demo">
+        <div class="demo-card">
+          <span class="demo-label">Stock Claude Code</span>
+          <div class="demo-line"><span class="ast">✳</span> <span id="word-stock">Baking</span>…</div>
+        </div>
+        <div class="demo-chevs">⌄</div>
+        <div class="demo-card">
+          <span class="demo-label">With Betterbacks</span>
+          <div class="demo-line">
+            <span class="brandchip">R</span>
+            <span class="ad-text" id="ad-rotator">Ramp · save time and money</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSTALL CARD -->
+      <a href="#install" class="install-card">
+        <span class="money">🤑</span>
+        <span class="install-title">Install the VS Code extension</span>
+        <span class="install-pill" id="earn-pill">$76.71<span class="per">/mo</span></span>
+      </a>
+
+      <p class="hero-note">
+        Works best inside the <strong>VS Code &amp; IDE extensions</strong> of Claude
+        Code &amp; Codex — the terminal CLI works too. Apologies, terminal jockeys.
+      </p>
+
+      <a href="#advertisers" class="jump">
+        <span class="jump-dot"></span> FOR ADVERTISERS · BID ON THIS LINE
+        <div class="jump-chev">⌄</div>
+      </a>
+    </section>
+
+    <!-- ADVERTISERS -->
+    <section id="advertisers" class="advertisers">
+      <div class="adv-card">
+        <span class="eyebrow">Advertisers</span>
+        <h2>Bid live for the most-watched spinner on Earth.</h2>
+        <p class="adv-intro">
+          Each block buys 1,000 five-second impressions in the Claude Code spinner.
+          Clicks are billed at 50× the impression rate. Highest bid serves first; bid
+          any amount from $1 — outbid the top to take #1, or queue up behind it.
+          <strong>90% of every dollar settles to the developer whose machine showed the ad.</strong>
+        </p>
+
+        <form class="adform" onsubmit="return false;">
+          <label class="field">
+            <span class="flabel">Email <em>(required)</em></span>
+            <input type="email" placeholder="you@example.com" required />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Ad line · 3–60 char <em class="count" id="adline-count">0 / 60</em></span>
+            <input type="text" id="adline" maxlength="60" placeholder="Try Linear — issue tracking built for speed" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Destination URL (https://)</span>
+            <input type="url" placeholder="https://linear.app/" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Brand name <em>(optional, shown on leaderboard)</em></span>
+            <input type="text" placeholder="Linear" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Brand icon <em>(optional, PNG/JPG/WebP ≤ 64 KB)</em></span>
+            <div class="dropzone">Drop an image here or click to browse</div>
+          </label>
+
+          <label class="checkrow">
+            <input type="checkbox" checked />
+            <span>Show me on the public leaderboard</span>
+          </label>
+
+          <div class="grid2">
+            <label class="field">
+              <span class="flabel">Price per block <em>(min $1.00)</em></span>
+              <input type="number" id="price" min="1" step="0.01" value="5.00" />
+            </label>
+            <label class="field">
+              <span class="flabel">Number of blocks</span>
+              <input type="number" id="blocks" min="1" step="1" value="1" />
+            </label>
+          </div>
+
+          <!-- ESTIMATED TOTAL -->
+          <div class="estimate">
+            <span class="est-head">Estimated total</span>
+            <span class="est-sub" id="est-sub">1 block at $5.00</span>
+            <span class="est-total" id="est-total">$5.00</span>
+            <div class="est-rows">
+              <div class="est-row"><strong id="est-per">$5.00</strong><span>per block</span></div>
+              <div class="est-row"><strong id="est-blocks">1</strong><span>block</span></div>
+              <div class="est-row"><strong id="est-imp">1,000</strong><span>impressions</span></div>
+            </div>
+            <p class="est-note">
+              Top bid is <strong>$110.00 per 1,000 impressions</strong> — bid above it to
+              take #1, or any amount from $1.00 to join the queue.
+            </p>
+          </div>
+
+          <button class="stripe-btn" type="submit">
+            Checkout now on <span class="stripe-word">stripe</span>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section id="leaderboard" class="leaderboard">
+      <span class="bidmarket">Bid market</span>
+      <ol class="board" id="board">
+        <li><span class="rk">1</span> Fluidstack — building 10GW of compute. Join us.</li>
+        <li><span class="rk">2</span> Tell your agent: “publish this to here.now” for free</li>
+        <li><span class="rk">3</span> Incredible engineer in NYC? Come build with us :)</li>
+        <li><span class="rk">4</span> you spend enough on tokens. don't spend on legal</li>
+        <li><span class="rk">5</span> Pair with Tuple — how developers build taste</li>
+        <li><span class="rk">6</span> Try Tuple: because calling someone is faster than typing</li>
+        <li><span class="rk">7</span> Stop wasting tokens. Save $ direct from your codebase</li>
+        <li><span class="rk">8</span> Meet Francesco; Italian lifestyle and AI rants</li>
+        <li><span class="rk">9</span> Build an AI business</li>
+        <li><span class="rk">10</span> querybear.com — Talk to your database with MCP.</li>
+        <li><span class="rk">11</span> Build an AI business</li>
+        <li><span class="rk">12</span> Solo — a better place to run your agents</li>
+        <li><span class="rk">13</span> Liner Search — The most performant &amp; affordable</li>
+        <li><span class="rk">14</span> eth.zig — the best Ethereum client for Zig</li>
+        <li><span class="rk">15</span> waitcoin</li>
+      </ol>
+    </section>
+
+    <!-- INSTALL -->
+    <section id="install" class="install-section">
+      <h2>The spinner is already running.<br />Might as well get paid.</h2>
+      <div class="install-cmd">
+        <code>ext install betterbacks.betterbacks-ai</code>
+        <button class="copy-btn" data-copy="ext install betterbacks.betterbacks-ai">Copy</button>
+      </div>
+      <div class="install-actions">
+        <a href="#" class="btn-green">Add to VS Code</a>
+        <a href="#advertisers" class="btn-outline">I want to advertise</a>
+      </div>
+      <p class="install-fine">Free for developers, forever. <strong>You keep 90%.</strong> Opt out any time.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 Betterbacks.ai · <a href="privacy.html">Privacy</a> · <a href="#">Terms</a></p>
+    <p class="fdim">Built for people who watch spinners professionally. Like kickbacks.ai, but better.</p>
+    <p class="fdim tiny">Not affiliated with Anthropic or OpenAI.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
