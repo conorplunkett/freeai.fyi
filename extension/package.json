@@ -93,7 +93,8 @@
   },
   "scripts": {
     "package": "vsce package",
-    "lint": "node -c extension.js && echo \"syntax ok\""
+    "lint": "node -c extension.js && echo \"syntax ok\"",
+    "test": "node test/run.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.84.0"

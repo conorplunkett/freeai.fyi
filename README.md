@@ -14,8 +14,8 @@ whose machine showed the ad.
 | --- | --- |
 | [`index.html`](index.html) · [`styles.css`](styles.css) · [`script.js`](script.js) | The marketing site — hero, live bid market, advertiser checkout, leaderboard. A faithful clone of kickbacks.ai with a 90% split. |
 | [`privacy.html`](privacy.html) | Privacy policy. |
-| [`extension/`](extension/) | The **VS Code extension** that serves sponsored lines in the Claude Code / Codex spinner and tracks your earnings. |
-| [`chrome-extension/`](chrome-extension/) | The **Chrome extension** that does the same for web agents (claude.ai, ChatGPT, Gemini…). |
+| [`extension/`](extension/) | The **VS Code extension** that serves sponsored lines in the Claude Code / Codex spinner and tracks your earnings. The main focus. |
+| [`storage/`](storage/) | Shelved pieces — currently the Chrome extension for web agents (works, on ice for now). |
 
 ## Run the site locally
 
@@ -35,13 +35,18 @@ Then run **"Betterbacks: Show me the money"** from the Command Palette to watch
 sponsored lines serve and your earnings tick up. See
 [`extension/README.md`](extension/README.md) for full docs.
 
-## Run the Chrome extension locally
+## Verify it works without VS Code
 
-1. Open `chrome://extensions` → enable **Developer mode**
-2. **Load unpacked** → select the [`chrome-extension/`](chrome-extension/) folder
-3. Open **claude.ai** or **chatgpt.com** and ask something — the sponsored line
-   appears while it thinks. Or click the toolbar icon → **"Show me the money"** for
-   a 30s demo. Full docs in [`chrome-extension/README.md`](chrome-extension/README.md).
+```bash
+cd extension
+npm test        # runs the mock-vscode harness: activates the extension,
+                # simulates an agent run, and asserts the 90% revenue math
+```
+
+## Chrome extension?
+
+Built and working, but shelved for now while we nail the VS Code replica — see
+[`storage/`](storage/).
 
 ## The kicker
 
