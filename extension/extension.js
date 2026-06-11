@@ -153,9 +153,42 @@ function recordImpression() {
 function recordClick() {
   const s = getState();
   ctx.globalState.update("bb.clicks", s.clicks + 1);
-  // a click is worth 50x an impression
+  // a click is worth 50x an impression (local UI counter; server mode settles
+  // the real click via the /clicks/intent + /go redirect, not the event batch)
   ctx.globalState.update("bb.earnings", s.earnings + perImpressionNet() * 50);
-  trackEvent("clicks");
+}
+
+// escape untrusted ad text before putting it in the webview HTML
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Open the current ad. In server mode, clicks are counted server-side: we
+// request a single-use tracking URL and open that (so the click can't be
+// forged). In local/demo mode, open the ad URL directly.
+async function openCurrentAd() {
+  const ads = currentAds();
+  const ad = ads[adIdx % ads.length];
+  if (!ad) return;
+  recordClick(); // local UI counter
+  let target = ad.url;
+  const url = serverUrl();
+  const creds = ctx.globalState.get("bb.device");
+  if (serverAds && url && creds && ad.id) {
+    try {
+      const res = await fetch(url + "/v1/clicks/intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId: creds.deviceId, deviceKey: creds.deviceKey, campaignId: ad.id }),
+      });
+      if (res.ok) target = (await res.json()).trackingUrl || target;
+    } catch (_) {
+      /* offline — fall back to the direct URL */
+    }
+  }
+  vscode.env.openExternal(vscode.Uri.parse(target));
+  renderIdle();
 }
 
 // ---- Status bar rendering ----
@@ -241,7 +274,7 @@ function showEarnings() {
   const rows = currentAds()
     .map(
       (a, i) =>
-        `<tr><td class="rk">${i + 1}</td><td>${a.line}</td><td class="brand">${a.brand}</td></tr>`
+        `<tr><td class="rk">${i + 1}</td><td>${esc(a.line)}</td><td class="brand">${esc(a.brand)}</td></tr>`
     )
     .join("");
 
@@ -316,13 +349,7 @@ function activate(context) {
       startThinking(30000);
     }),
     vscode.commands.registerCommand("betterbacks.showEarnings", showEarnings),
-    vscode.commands.registerCommand("betterbacks.openCurrentAd", () => {
-      const ads = currentAds();
-      const ad = ads[adIdx % ads.length];
-      recordClick();
-      vscode.env.openExternal(vscode.Uri.parse(ad.url));
-      renderIdle();
-    }),
+    vscode.commands.registerCommand("betterbacks.openCurrentAd", openCurrentAd),
     vscode.commands.registerCommand("betterbacks.resetEarnings", async () => {
       await context.globalState.update("bb.impressions", 0);
       await context.globalState.update("bb.clicks", 0);

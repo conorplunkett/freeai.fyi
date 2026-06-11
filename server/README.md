@@ -153,6 +153,17 @@ bundled demo inventory).
 - **Cron**: weekly `npm run payouts` (or hit `POST /v1/admin/payouts` with the
   admin key).
 
+## Campaign lifecycle
+
+```
+pending_payment ──(Stripe webhook: paid)──► pending_review ──(admin approve)──► active ──► exhausted
+                                                  └──(admin reject)──► rejected (auto-refund)
+```
+
+Money is funded into the ledger at payment, but an ad **does not serve until a
+human approves it** at `/admin` — which also keeps the listing marketplace-policy
+clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
+
 ## Endpoints
 
 | Method | Path | Auth | Purpose |
@@ -161,19 +172,52 @@ bundled demo inventory).
 | GET | `/v1/ads` | — | auction-ranked active ads |
 | GET | `/v1/leaderboard` | — | public bid market |
 | POST | `/v1/devices/register` | — | mint device credentials |
-| POST | `/v1/events` | device | batched impressions/clicks → ledger credits |
+| POST | `/v1/events` | device | batched impressions → ledger credits |
+| POST | `/v1/clicks/intent` | device | mint a single-use click-tracking URL |
+| GET | `/v1/go/:token` | token | record a verified click, 302 to the advertiser |
 | POST | `/v1/checkout` | — | create campaign + Stripe Checkout URL |
-| POST | `/v1/webhooks/stripe` | signature | payment + Connect account events |
-| POST | `/v1/connect/onboard` | device | Stripe Express onboarding URL |
+| POST | `/v1/webhooks/stripe` | signature | payment + Connect events (deduped) |
+| POST | `/v1/auth/request-link` | device | email a magic-link |
+| GET | `/v1/auth/verify` | token | verify email, link device |
+| POST | `/v1/connect/onboard` | device + verified | Stripe Express onboarding URL |
 | GET | `/v1/me/earnings` | device | earned / paid out / balance |
+| GET | `/v1/admin/campaigns` | admin key | moderation queue |
+| POST | `/v1/admin/campaigns/approve` | admin key | approve → active |
+| POST | `/v1/admin/campaigns/reject` | admin key | reject + refund |
+| GET | `/admin` | admin key | minimal moderation UI |
 | POST | `/v1/admin/payouts` | admin key | run the payout sweep |
 
-## What's deliberately NOT here yet
+## Hardening that's now built in
 
-- **Site ↔ API wiring** — the bid form still simulates checkout client-side;
-  it needs a `fetch` to `/v1/checkout` (one small PR).
-- **Real auth** — devices are anonymous bearer credentials; payout linking is
-  by email without verification. Add magic-link or GitHub OAuth before launch.
-- **Click verification** — clicks are client-reported; route them through a
-  redirect endpoint (`/go/:campaignId`) so the server counts them.
-- **Rate limiting / WAF** at the edge.
+- **Server-side clicks** — clicks can't be forged by editing the ad URL. The
+  extension requests an authenticated single-use token; the ad link is
+  `/v1/go/:token`, which records the click once and 302s onward.
+- **Email-gated payouts** — onboarding requires a verified email (magic-link,
+  pluggable mailer; `console` transport in dev, Resend in prod).
+- **Moderation** — paid campaigns wait in `pending_review` until approved at
+  `/admin`; reject auto-refunds.
+- **Exactly-once webhooks** — Stripe event ids are deduped, so retries can't
+  double-fund or double-enable.
+- **XSS-safe rendering** — advertiser text is intake-validated (no `< >`,
+  3–60 printable chars) and escaped on every render path (site, `/admin`,
+  extension webview).
+- **Ops guards** — token-bucket rate limiting per IP, 64 KB request body cap,
+  CORS locked to the site origin, structured request logging, graceful
+  shutdown.
+
+## CI & deploy artifacts
+
+- **`.github/workflows/ci.yml`** — runs the extension harness, packages the
+  `.vsix` (uploaded as an artifact), spins up a Postgres service to run these
+  15+ API checks, and syntax-checks the site, on every push/PR.
+- **`Dockerfile`** — production image; runs `migrate` then `index.js` on boot.
+- **`fly.toml`** — `fly launch --no-deploy`, set secrets, `fly deploy`.
+
+## What's still left for launch (your accounts)
+
+- Real Stripe account + Connect enablement; swap test keys for live.
+- Pick hosts (Neon + Fly + Cloudflare Pages are the defaults assumed here) and
+  point `betterbacks.ai` / `api.betterbacks.ai` DNS.
+- Set `MAIL_PROVIDER=resend` + `RESEND_API_KEY` for real verification emails.
+- Optional next: GitHub OAuth instead of email-only identity, per-IP device
+  limits and click anomaly detection, edge WAF.

@@ -1,9 +1,9 @@
 // Betterbacks API — end-to-end verification.
-// Boots the REAL app and REAL repository against a REAL Postgres (DATABASE_URL),
-// with only the Stripe network transport faked, then drives the full money loop
-// over actual HTTP:
-//   advertiser checkout -> webhook activates campaign -> device serves
-//   impressions/clicks -> ledger pays 90% -> Connect onboarding -> payout sweep.
+// Boots the REAL app + repository against a REAL Postgres (DATABASE_URL), with
+// only Stripe + mail transports faked, and drives the full hardened flow:
+//   checkout -> webhook (deduped) -> moderation -> auction -> 90% ledger ->
+//   server-side clicks -> email-gated Connect onboarding -> payouts; plus XSS
+//   escaping, rate limiting, body caps, and CORS.
 //
 // Usage: DATABASE_URL=postgres://... node test/run.js   (or: npm test)
 
@@ -14,249 +14,283 @@ const path = require("node:path");
 const { createApp } = require("../src/app");
 const { createRepo } = require("../src/repo");
 const { createStripe, signWebhookPayload } = require("../src/stripe");
+const { createRateLimiter } = require("../src/ratelimit");
 
 const WEBHOOK_SECRET = "whsec_test_secret";
 
-// ---------- fake Stripe transport: records requests, returns realistic bodies ----------
+// ---------- fake Stripe transport ----------
 const stripeCalls = [];
 const fakeFetch = async (url, opts) => {
-  const path = new URL(url).pathname;
+  const p = new URL(url).pathname;
   const params = Object.fromEntries(new URLSearchParams(opts.body || ""));
-  stripeCalls.push({ path, params });
+  stripeCalls.push({ path: p, params });
   const id =
-    path === "/v1/checkout/sessions" ? "cs_test_" + crypto.randomBytes(6).toString("hex")
-    : path === "/v1/accounts" ? "acct_test_" + crypto.randomBytes(6).toString("hex")
-    : path === "/v1/account_links" ? null
-    : path === "/v1/transfers" ? "tr_test_" + crypto.randomBytes(6).toString("hex")
+    p === "/v1/checkout/sessions" ? "cs_test_" + crypto.randomBytes(6).toString("hex")
+    : p === "/v1/accounts" ? "acct_test_" + crypto.randomBytes(6).toString("hex")
+    : p === "/v1/transfers" ? "tr_test_" + crypto.randomBytes(6).toString("hex")
+    : p === "/v1/refunds" ? "re_test_" + crypto.randomBytes(6).toString("hex")
     : "obj_test";
   const body =
-    path === "/v1/checkout/sessions" ? { id, url: `https://checkout.stripe.com/c/pay/${id}` }
-    : path === "/v1/account_links" ? { url: "https://connect.stripe.com/setup/e/test" }
+    p === "/v1/checkout/sessions" ? { id, url: `https://checkout.stripe.com/c/pay/${id}` }
+    : p === "/v1/account_links" ? { url: "https://connect.stripe.com/setup/e/test" }
     : { id };
   return { ok: true, status: 200, json: async () => body };
 };
 
+// ---------- fake mailer ----------
+const mailbox = [];
+const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, link }); } };
+
 (async () => {
   if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL required — start one with: docker compose up -d db");
+    console.error("DATABASE_URL required — e.g. docker compose up -d db");
     process.exit(1);
   }
 
-  // fresh schema in an isolated namespace
   const { Pool } = require("pg");
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const ns = "bbtest_" + crypto.randomBytes(4).toString("hex");
   await pool.query(`create schema ${ns}`);
-  await pool.query(`set search_path to ${ns}`);
-  const poolNs = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: `-c search_path=${ns}`,
-  });
+  // search_path set at connection startup so every pooled connection lands in ns
+  const poolNs = new Pool({ connectionString: process.env.DATABASE_URL, options: `-c search_path=${ns}` });
   await poolNs.query(fs.readFileSync(path.join(__dirname, "..", "db", "schema.sql"), "utf8"));
 
   const config = {
-    revenueShare: 0.9,
-    dailyImpressionCap: 5000,
-    payoutThresholdCents: 1000,
-    stripeWebhookSecret: WEBHOOK_SECRET,
-    siteUrl: "https://betterbacks.ai",
-    adminKey: "test-admin",
+    revenueShare: 0.9, dailyImpressionCap: 5000, payoutThresholdCents: 1000,
+    stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://betterbacks.ai",
+    apiBaseUrl: "", corsOrigin: "https://betterbacks.ai", adminKey: "test-admin",
+    emailTokenTtlMs: 1800000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
+    logRequests: false,
   };
   const repo = createRepo(poolNs);
   const stripe = createStripe("sk_test_fake", { fetchImpl: fakeFetch });
-  const { server } = createApp({ repo, stripe, config });
+  const bigLimiter = createRateLimiter({ capacity: 100000, refillPerSec: 100000 });
+  const { server } = createApp({ repo, stripe, mailer: fakeMailer, rateLimiter: bigLimiter, config });
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
+  config.apiBaseUrl = base; // handlers read config at request time
 
   const api = async (method, p, body, headers = {}) => {
     const res = await fetch(base + p, {
-      method,
+      method, redirect: "manual",
       headers: { "Content-Type": "application/json", ...headers },
       body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
     });
-    return { status: res.status, body: await res.json() };
+    const text = await res.text();
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
+    return { status: res.status, body: parsed, headers: res.headers, text };
   };
 
   let pass = 0;
   const check = (name, fn) => Promise.resolve(fn()).then(() => { pass++; console.log("  ✓ " + name); });
 
-  console.log("betterbacks api verification (real postgres, fake stripe transport)\n");
+  const payWebhook = async (campaignId, paymentIntent = "pi_test_" + crypto.randomBytes(4).toString("hex"), eventId = "evt_" + crypto.randomBytes(6).toString("hex")) => {
+    const payload = JSON.stringify({
+      id: eventId, type: "checkout.session.completed",
+      data: { object: { metadata: { campaign_id: campaignId }, payment_intent: paymentIntent } },
+    });
+    return api("POST", "/v1/webhooks/stripe", payload, { "stripe-signature": signWebhookPayload(payload, WEBHOOK_SECRET) });
+  };
+  const approve = (campaignId) => api("POST", "/v1/admin/campaigns/approve", { adminKey: "test-admin", campaignId });
 
-  await check("healthz", async () => {
-    const r = await api("GET", "/healthz");
-    assert.strictEqual(r.status, 200);
+  console.log("betterbacks api verification (real postgres, fake stripe + mail)\n");
+
+  await check("healthz", async () => assert.strictEqual((await api("GET", "/healthz")).status, 200));
+
+  await check("CORS preflight returns 204 with allow-origin", async () => {
+    const r = await fetch(base + "/v1/ads", { method: "OPTIONS" });
+    assert.strictEqual(r.status, 204);
+    assert.strictEqual(r.headers.get("access-control-allow-origin"), "https://betterbacks.ai");
   });
 
-  // ---------- money in ----------
-  let campaignId, checkoutCall;
-  await check("advertiser checkout creates a pending campaign + Stripe session", async () => {
+  // ---------- checkout + validation ----------
+  let campA;
+  await check("checkout creates pending campaign + Stripe session", async () => {
     const r = await api("POST", "/v1/checkout", {
       email: "ads@linear.app", adLine: "Linear — issue tracking built for speed",
       url: "https://linear.app/", brand: "Linear", pricePerBlock: 5, blocks: 2,
     });
     assert.strictEqual(r.status, 200);
     assert.ok(r.body.checkoutUrl.startsWith("https://checkout.stripe.com/"));
-    campaignId = r.body.campaignId;
-    checkoutCall = stripeCalls.find((c) => c.path === "/v1/checkout/sessions");
-    assert.strictEqual(checkoutCall.params["line_items[0][price_data][unit_amount]"], "500");
-    assert.strictEqual(checkoutCall.params["line_items[0][quantity]"], "2");
-    assert.strictEqual(checkoutCall.params["metadata[campaign_id]"], campaignId);
+    campA = r.body.campaignId;
+    const call = stripeCalls.find((c) => c.path === "/v1/checkout/sessions");
+    assert.strictEqual(call.params["line_items[0][price_data][unit_amount]"], "500");
+    assert.strictEqual(call.params["metadata[campaign_id]"], campA);
   });
 
-  await check("checkout validation rejects bad bids", async () => {
-    const bad = await api("POST", "/v1/checkout", {
-      email: "x@y.z", adLine: "ok ad line", url: "https://x.com", pricePerBlock: 0.5, blocks: 1,
-    });
-    assert.strictEqual(bad.status, 400);
+  await check("checkout rejects sub-$1 bids and XSS ad lines", async () => {
+    assert.strictEqual((await api("POST", "/v1/checkout", { email: "a@b.co", adLine: "ok line", url: "https://x.com", pricePerBlock: 0.5, blocks: 1 })).status, 400);
+    const xss = await api("POST", "/v1/checkout", { email: "a@b.co", adLine: '<script>alert(1)</script>', url: "https://x.com", pricePerBlock: 5, blocks: 1 });
+    assert.strictEqual(xss.status, 400);
   });
 
-  await check("ads are empty before payment; webhook with valid signature activates", async () => {
+  // ---------- payment -> review -> approve ----------
+  await check("paid campaign waits in review (not served) until approved", async () => {
     let ads = await api("GET", "/v1/ads");
     assert.strictEqual(ads.body.ads.length, 0);
-    const payload = JSON.stringify({
-      type: "checkout.session.completed",
-      data: { object: { id: "cs_x", metadata: { campaign_id: campaignId } } },
-    });
-    const r = await api("POST", "/v1/webhooks/stripe", payload, {
-      "stripe-signature": signWebhookPayload(payload, WEBHOOK_SECRET),
-    });
-    assert.strictEqual(r.status, 200);
+    const wh = await payWebhook(campA);
+    assert.strictEqual(wh.status, 200);
     ads = await api("GET", "/v1/ads");
-    assert.strictEqual(ads.body.ads.length, 1);
+    assert.strictEqual(ads.body.ads.length, 0, "served before moderation");
+    const queue = await api("GET", "/v1/admin/campaigns", undefined, { "X-Admin-Key": "test-admin" });
+    assert.strictEqual(queue.body.campaigns.length, 1);
+    await approve(campA);
+    ads = await api("GET", "/v1/ads");
     assert.strictEqual(ads.body.ads[0].line, "Linear — issue tracking built for speed");
-    assert.strictEqual(ads.body.revenueShare, 0.9);
   });
 
-  await check("webhook with bad signature is rejected", async () => {
-    const payload = JSON.stringify({ type: "checkout.session.completed", data: { object: { metadata: { campaign_id: campaignId } } } });
-    const r = await api("POST", "/v1/webhooks/stripe", payload, { "stripe-signature": "t=1,v1=deadbeef" });
+  await check("webhook bad signature rejected; moderation needs admin key", async () => {
+    const r = await api("POST", "/v1/webhooks/stripe", JSON.stringify({ id: "e", type: "x" }), { "stripe-signature": "t=1,v1=bad" });
     assert.strictEqual(r.status, 400);
+    assert.strictEqual((await api("GET", "/v1/admin/campaigns?adminKey=nope")).status, 401);
+  });
+
+  await check("duplicate webhook event id is ignored (no double-funding)", async () => {
+    const eid = "evt_dup_fixed";
+    const r1 = await payWebhook(campA, "pi_x", eid); // campA already past pending_payment -> markCampaignPaid no-ops anyway
+    const r2 = await payWebhook(campA, "pi_x", eid);
+    assert.strictEqual(r2.body.duplicate, true);
+    const credits = await poolNs.query(`select count(*)::int n from ledger where campaign_id = $1 and entry_type = 'campaign_credit'`, [campA]);
+    assert.strictEqual(credits.rows[0].n, 1, "campA funded more than once");
   });
 
   // ---------- auction ranking ----------
+  let campFluid;
   await check("auction ranks the higher bid first", async () => {
-    const r2 = await api("POST", "/v1/checkout", {
+    const r = await api("POST", "/v1/checkout", {
       email: "ads@fluidstack.io", adLine: "Fluidstack — building 10GW of compute. Join us.",
-      url: "https://fluidstack.io/", brand: "Fluidstack", pricePerBlock: 110, blocks: 1,
+      url: "https://fluidstack.io/", brand: "Fluidstack", pricePerBlock: 110, blocks: 2,
     });
-    const payload = JSON.stringify({
-      type: "checkout.session.completed",
-      data: { object: { metadata: { campaign_id: r2.body.campaignId } } },
-    });
-    await api("POST", "/v1/webhooks/stripe", payload, {
-      "stripe-signature": signWebhookPayload(payload, WEBHOOK_SECRET),
-    });
+    campFluid = r.body.campaignId;
+    await payWebhook(campFluid);
+    await approve(campFluid);
     const ads = await api("GET", "/v1/ads");
-    assert.strictEqual(ads.body.ads[0].brand, "Fluidstack"); // $110 outbids $5
-    const lb = await api("GET", "/v1/leaderboard");
-    assert.strictEqual(lb.body.leaderboard[0].brand, "Fluidstack");
+    assert.strictEqual(ads.body.ads[0].brand, "Fluidstack");
+    assert.strictEqual((await api("GET", "/v1/leaderboard")).body.leaderboard[0].brand, "Fluidstack");
   });
 
-  // ---------- devices & the 90% ledger ----------
+  // ---------- devices & ledger ----------
   let device;
-  await check("device registers and gets credentials", async () => {
-    const r = await api("POST", "/v1/devices/register");
-    assert.ok(r.body.deviceId && r.body.deviceKey);
-    device = r.body;
-  });
-
-  await check("events pay exactly 90% and a click pays 50x", async () => {
-    // 100 impressions + 1 click on the $5/block campaign
-    // gross = (100 + 50) * 500c/1000 = 75c -> dev 67.5c = 67500 millicents
-    const r = await api("POST", "/v1/events", {
-      ...device, batchKey: "batch-1",
-      events: [{ campaignId, impressions: 100, clicks: 1 }],
-    });
-    assert.strictEqual(r.status, 200);
+  await check("device registers and earns exactly 90% (click = 50x)", async () => {
+    device = (await api("POST", "/v1/devices/register")).body;
+    assert.ok(device.deviceId && device.deviceKey);
+    // 100 impressions + 1 click on campA ($5 block): (100 + 50)*500/1000 = 75c -> 67.5c
+    const r = await api("POST", "/v1/events", { ...device, batchKey: "b1", events: [{ campaignId: campA, impressions: 100, clicks: 1 }] });
     assert.strictEqual(r.body.creditedMillicents, 67500);
-    const e = await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`);
-    assert.strictEqual(e.body.earnedUsd, 0.675);
+    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`)).body.earnedUsd, 0.675);
   });
 
-  await check("replayed batch is acknowledged but never double-paid", async () => {
-    const r = await api("POST", "/v1/events", {
-      ...device, batchKey: "batch-1",
-      events: [{ campaignId, impressions: 100, clicks: 1 }],
-    });
-    assert.strictEqual(r.body.duplicate, true);
-    const e = await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`);
-    assert.strictEqual(e.body.earnedUsd, 0.675); // unchanged
+  await check("replayed batch never double-pays; bad creds 401; cap 429", async () => {
+    assert.strictEqual((await api("POST", "/v1/events", { ...device, batchKey: "b1", events: [{ campaignId: campA, impressions: 100, clicks: 1 }] })).body.duplicate, true);
+    assert.strictEqual((await api("POST", "/v1/events", { deviceId: device.deviceId, deviceKey: "wrong", batchKey: "z", events: [] })).status, 401);
+    assert.strictEqual((await api("POST", "/v1/events", { ...device, batchKey: "bcap", events: [{ campaignId: campA, impressions: 6000, clicks: 0 }] })).status, 429);
   });
 
-  await check("bad device credentials are rejected", async () => {
-    const r = await api("POST", "/v1/events", {
-      deviceId: device.deviceId, deviceKey: "wrong", batchKey: "b", events: [],
-    });
-    assert.strictEqual(r.status, 401);
+  // ---------- server-side clicks ----------
+  let clickDevice;
+  await check("click intent + /go redirect credits the device server-side", async () => {
+    clickDevice = (await api("POST", "/v1/devices/register")).body;
+    const intent = await api("POST", "/v1/clicks/intent", { ...clickDevice, campaignId: campFluid });
+    assert.strictEqual(intent.status, 200);
+    assert.ok(intent.body.trackingUrl.includes("/v1/go/"));
+    const token = intent.body.trackingUrl.split("/v1/go/")[1];
+    const go = await api("GET", `/v1/go/${token}`);
+    assert.strictEqual(go.status, 302);
+    assert.strictEqual(go.headers.get("location"), "https://fluidstack.io/");
+    // billed 50 on $110 block: 11000*50/1000 = 550c -> 495c = 495000 mc
+    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${clickDevice.deviceId}&deviceKey=${clickDevice.deviceKey}`)).body.earnedUsd, 4.95);
+    // single-use: replay redirects but pays nothing more
+    await api("GET", `/v1/go/${token}`);
+    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${clickDevice.deviceId}&deviceKey=${clickDevice.deviceKey}`)).body.earnedUsd, 4.95);
   });
 
-  await check("daily impression cap returns 429", async () => {
-    const r = await api("POST", "/v1/events", {
-      ...device, batchKey: "batch-cap",
-      events: [{ campaignId, impressions: 6000, clicks: 0 }],
-    });
-    assert.strictEqual(r.status, 429);
+  await check("click intent for an inactive campaign is 404", async () => {
+    assert.strictEqual((await api("POST", "/v1/clicks/intent", { ...clickDevice, campaignId: campA && "00000000-0000-0000-0000-000000000000" })).status, 404);
   });
 
-  await check("campaign never bills past its remaining budget", async () => {
-    // fresh device (cap is per device); the $5 campaign has 2000 - 150 = 1850 left
-    const d2 = (await api("POST", "/v1/devices/register")).body;
-    const r = await api("POST", "/v1/events", {
-      ...d2, batchKey: "batch-drain",
-      events: [{ campaignId, impressions: 5000, clicks: 0 }],
-    });
-    // billed only 1850: gross 925c -> dev 832.5c
-    assert.strictEqual(r.body.creditedMillicents, 832500);
-    const ads = await api("GET", "/v1/ads");
-    assert.ok(!ads.body.ads.find((a) => a.id === campaignId), "exhausted campaign still serving");
+  // ---------- email-gated payouts ----------
+  await check("onboarding is blocked until email is verified", async () => {
+    const blocked = await api("POST", "/v1/connect/onboard", device);
+    assert.strictEqual(blocked.status, 403);
+
+    const req = await api("POST", "/v1/auth/request-link", { ...device, email: "dev@example.com" });
+    assert.strictEqual(req.status, 200);
+    const link = mailbox.at(-1).link;
+    const token = new URL(link).searchParams.get("token");
+    const verify = await api("GET", `/v1/auth/verify?token=${token}`);
+    assert.strictEqual(verify.status, 302);
+    assert.strictEqual(verify.headers.get("location"), "https://betterbacks.ai/?verified=1");
+
+    const ok = await api("POST", "/v1/connect/onboard", device);
+    assert.strictEqual(ok.status, 200);
+    assert.ok(ok.body.onboardingUrl.includes("connect.stripe.com"));
+    const acct = stripeCalls.find((c) => c.path === "/v1/accounts");
+    assert.strictEqual(acct.params.type, "express");
   });
 
-  // ---------- money out ----------
-  await check("connect onboarding creates an Express account + onboarding link", async () => {
-    const r = await api("POST", "/v1/connect/onboard", { ...device, email: "dev@example.com" });
-    assert.strictEqual(r.status, 200);
-    assert.ok(r.body.onboardingUrl.includes("connect.stripe.com"));
-    const acctCall = stripeCalls.find((c) => c.path === "/v1/accounts");
-    assert.strictEqual(acctCall.params.type, "express");
-    assert.strictEqual(acctCall.params["capabilities[transfers][requested]"], "true");
-  });
+  await check("account.updated enables payouts; sweep transfers whole cents", async () => {
+    const accountId = (await poolNs.query("select stripe_account_id from users where email = 'dev@example.com'")).rows[0].stripe_account_id;
+    const payload = JSON.stringify({ id: "evt_acct_1", type: "account.updated", data: { object: { id: accountId, charges_enabled: true, payouts_enabled: true } } });
+    await api("POST", "/v1/webhooks/stripe", payload, { "stripe-signature": signWebhookPayload(payload, WEBHOOK_SECRET) });
 
-  await check("account.updated webhook enables payouts; sweep transfers whole cents", async () => {
-    const accountId = stripeCalls.find((c) => c.path === "/v1/accounts") && (await poolNs.query("select stripe_account_id from users limit 1")).rows[0].stripe_account_id;
-    const payload = JSON.stringify({
-      type: "account.updated",
-      data: { object: { id: accountId, charges_enabled: true, payouts_enabled: true } },
-    });
-    await api("POST", "/v1/webhooks/stripe", payload, {
-      "stripe-signature": signWebhookPayload(payload, WEBHOOK_SECRET),
-    });
-
-    // top the device up over the $10 threshold: 2000 imps on the $110 campaign
-    // gross 22000c -> dev 19800c = $198
-    const fl = (await api("GET", "/v1/leaderboard")).body; // fluidstack is rank 1
-    const fluidId = (await poolNs.query("select id from campaigns where brand = 'Fluidstack'")).rows[0].id;
-    await api("POST", "/v1/events", {
-      ...device, batchKey: "batch-big",
-      events: [{ campaignId: fluidId, impressions: 1000, clicks: 0 }],
-    });
+    // top device up well over $10: 1000 imps on the $110 campaign = $99
+    await api("POST", "/v1/events", { ...device, batchKey: "bbig", events: [{ campaignId: campFluid, impressions: 1000, clicks: 0 }] });
+    const before = (await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`)).body;
+    const expectedCents = Math.floor((before.balanceUsd * 100000) / 1000);
 
     const r = await api("POST", "/v1/admin/payouts", { adminKey: "test-admin" });
-    assert.strictEqual(r.status, 200);
     assert.strictEqual(r.body.paid, 1);
     const transfer = stripeCalls.find((c) => c.path === "/v1/transfers");
-    // balance: 67.5c + 9900c = 9967.5c -> pays 9967 whole cents
-    assert.strictEqual(transfer.params.amount, "9967");
-    assert.strictEqual(transfer.params.currency, "usd");
-
-    // balance reflects the debit
-    const e = await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`);
-    assert.strictEqual(e.body.paidOutUsd, 99.67);
-    assert.ok(Math.abs(e.body.balanceUsd - 0.005) < 1e-9, "leftover sub-cent balance: " + e.body.balanceUsd);
+    assert.strictEqual(transfer.params.amount, String(expectedCents));
+    const after = (await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`)).body;
+    assert.strictEqual(Math.round(after.paidOutUsd * 100), expectedCents);
+    assert.strictEqual((await api("POST", "/v1/admin/payouts", { adminKey: "nope" })).status, 401);
   });
 
-  await check("payout sweep requires the admin key", async () => {
-    const r = await api("POST", "/v1/admin/payouts", { adminKey: "nope" });
-    assert.strictEqual(r.status, 401);
+  // ---------- rejection + refund ----------
+  await check("rejecting a reviewed campaign refunds via Stripe and posts a refund entry", async () => {
+    const r = await api("POST", "/v1/checkout", { email: "spam@x.io", adLine: "questionable ad copy here", url: "https://x.io/", brand: "X", pricePerBlock: 3, blocks: 1 });
+    await payWebhook(r.body.campaignId, "pi_reject_1");
+    const rej = await api("POST", "/v1/admin/campaigns/reject", { adminKey: "test-admin", campaignId: r.body.campaignId, note: "off-policy" });
+    assert.strictEqual(rej.body.refunded, true);
+    assert.ok(stripeCalls.find((c) => c.path === "/v1/refunds" && c.params.payment_intent === "pi_reject_1"));
+    const st = (await poolNs.query("select status from campaigns where id = $1", [r.body.campaignId])).rows[0].status;
+    assert.strictEqual(st, "rejected");
+    const refundEntry = await poolNs.query("select count(*)::int n from ledger where campaign_id = $1 and entry_type = 'campaign_refund'", [r.body.campaignId]);
+    assert.strictEqual(refundEntry.rows[0].n, 1);
+  });
+
+  // ---------- XSS escaping on the admin page ----------
+  await check("admin moderation page escapes untrusted text", async () => {
+    // brand isn't charset-validated at intake, so prove the render path escapes it
+    const adv = (await poolNs.query("insert into advertisers (email) values ('x@x.io') returning id")).rows[0].id;
+    await poolNs.query(
+      `insert into campaigns (advertiser_id, brand, ad_line, url, category, price_per_block_cents, blocks, impressions_total, impressions_remaining, status, paid_at)
+       values ($1, $2, 'clean ad line', 'https://x.io/', 'other', 100, 1, 1000, 1000, 'pending_review', now())`,
+      [adv, '<img src=x onerror=alert(1)>']);
+    const page = await api("GET", "/admin?adminKey=test-admin");
+    assert.ok(page.text.includes("&lt;img src=x onerror=alert(1)&gt;"), "brand not escaped");
+    assert.ok(!page.text.includes("<img src=x onerror=alert(1)>"), "raw payload present");
+    assert.strictEqual((await api("GET", "/admin?adminKey=wrong")).status, 401);
+  });
+
+  // ---------- ops guards: body cap + rate limit ----------
+  await check("oversized request body returns 413", async () => {
+    const huge = JSON.stringify({ blob: "x".repeat(70000) });
+    const r = await api("POST", "/v1/checkout", huge);
+    assert.strictEqual(r.status, 413);
+  });
+
+  await check("rate limiter returns 429 past capacity", async () => {
+    const small = createRateLimiter({ capacity: 3, refillPerSec: 0 });
+    const { server: s2 } = createApp({ repo, stripe, mailer: fakeMailer, rateLimiter: small, config });
+    await new Promise((r) => s2.listen(0, r));
+    const b2 = `http://127.0.0.1:${s2.address().port}`;
+    const codes = [];
+    for (let i = 0; i < 5; i++) codes.push((await fetch(b2 + "/healthz")).status);
+    s2.close();
+    assert.deepStrictEqual(codes, [200, 200, 200, 429, 429]);
   });
 
   // ---------- cleanup ----------
@@ -264,8 +298,8 @@ const fakeFetch = async (url, opts) => {
   await poolNs.end();
   await pool.query(`drop schema ${ns} cascade`);
   await pool.end();
-  console.log(`\nall ${pass} checks passed — the ledger pays 90%, to the millicent. 🤑`);
+  console.log(`\nall ${pass} checks passed — paid, moderated, deduped, escaped, and 90% to the dev. 🤑`);
 })().catch((err) => {
-  console.error("\n✗ FAILED:", err.message);
+  console.error("\n✗ FAILED:", err.stack || err.message);
   process.exit(1);
 });

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Server-side click verification: in server mode, clicks open a single-use
+  tracking URL (`/v1/go/:token`) so they're counted by the backend, not the
+  client.
+- Escape advertiser ad text in the earnings webview.
+
 ## 0.2.0
 
 - Server mode: set `betterbacks.serverUrl` to pull auction-ranked ads from the

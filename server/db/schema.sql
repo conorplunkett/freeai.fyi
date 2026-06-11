@@ -5,6 +5,7 @@
 create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
+  email_verified boolean not null default false,  -- proven via magic-link before payout
   stripe_account_id text unique,           -- Stripe Connect Express account
   payouts_enabled boolean not null default false,
   created_at timestamptz not null default now()
@@ -18,6 +19,16 @@ create table if not exists devices (
   key_hash text not null,                  -- sha256 of the device secret
   created_at timestamptz not null default now(),
   last_seen_at timestamptz
+);
+
+-- Single-use magic-link tokens for email verification.
+create table if not exists email_tokens (
+  token text primary key,
+  email text not null,
+  device_id uuid references devices(id),
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists advertisers (
@@ -38,10 +49,15 @@ create table if not exists campaigns (
   impressions_total integer not null,      -- blocks * 1000
   impressions_remaining integer not null,
   show_on_leaderboard boolean not null default true,
+  -- lifecycle: pending_payment -> (paid) pending_review -> (approved) active
+  --            -> exhausted; or rejected/cancelled.
   status text not null default 'pending_payment'
-    check (status in ('pending_payment', 'active', 'exhausted', 'cancelled')),
+    check (status in ('pending_payment', 'pending_review', 'active', 'exhausted', 'rejected', 'cancelled')),
   stripe_checkout_session_id text unique,
+  stripe_payment_intent_id text,           -- captured for refunds on rejection
+  review_note text,
   created_at timestamptz not null default now(),
+  paid_at timestamptz,
   activated_at timestamptz
 );
 
@@ -68,6 +84,7 @@ create table if not exists ledger (
   id bigserial primary key,
   entry_type text not null check (entry_type in (
     'campaign_credit',     -- advertiser paid; campaign funded         (+ campaign)
+    'campaign_refund',     -- rejected campaign refunded               (- campaign)
     'impression_credit',   -- developer's 90% share of an impression   (+ device)
     'click_credit',        -- developer's 90% share of a click (50x)   (+ device)
     'platform_fee',        -- our 10%                                  (+ platform)
@@ -90,5 +107,25 @@ create table if not exists payouts (
   amount_cents integer not null check (amount_cents > 0),
   stripe_transfer_id text unique,
   status text not null default 'paid' check (status in ('paid', 'failed')),
+  created_at timestamptz not null default now()
+);
+
+-- Stripe retries webhooks; this makes processing exactly-once.
+create table if not exists processed_webhook_events (
+  event_id text primary key,
+  type text,
+  created_at timestamptz not null default now()
+);
+
+-- Server-side click verification. The extension asks for a single-use token
+-- (authenticated by deviceKey), and the ad link points at /v1/go/:token.
+-- Hitting it once records the click and redirects — so clicks can't be forged
+-- by editing the ad URL or replaying it.
+create table if not exists click_tokens (
+  token text primary key,
+  campaign_id uuid not null references campaigns(id),
+  device_id uuid not null references devices(id),
+  expires_at timestamptz not null,
+  used_at timestamptz,
   created_at timestamptz not null default now()
 );
