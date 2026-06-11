@@ -93,15 +93,19 @@ function createRepo(pool) {
       );
     },
 
-    // Called from the Stripe webhook when payment completes. Idempotent: only a
-    // pending campaign activates, and the funding ledger entry rides the same tx.
-    async activateCampaign(campaignId) {
+    // Called from the Stripe webhook when payment completes. Idempotent at two
+    // levels: the webhook event id is deduped upstream, and only a
+    // pending_payment campaign transitions. Money is now received, so the
+    // funding ledger entry rides this tx — but the ad doesn't serve until a
+    // human approves it (status -> pending_review).
+    async markCampaignPaid(campaignId, paymentIntentId) {
       return tx(async (c) => {
         const { rows } = await c.query(
-          `update campaigns set status = 'active', activated_at = now()
+          `update campaigns set status = 'pending_review', paid_at = now(),
+                  stripe_payment_intent_id = coalesce($2, stripe_payment_intent_id)
             where id = $1 and status = 'pending_payment'
             returning price_per_block_cents, blocks`,
-          [campaignId]
+          [campaignId, paymentIntentId || null]
         );
         if (!rows[0]) return false;
         const funded = BigInt(rows[0].price_per_block_cents) * BigInt(rows[0].blocks) * 1000n;
@@ -112,6 +116,59 @@ function createRepo(pool) {
         );
         return true;
       });
+    },
+
+    // ---------- moderation ----------
+    async pendingReviewCampaigns(limit = 50) {
+      const { rows } = await pool.query(
+        `select id, brand, ad_line, url, category, price_per_block_cents, blocks, paid_at
+           from campaigns where status = 'pending_review'
+          order by paid_at asc limit $1`,
+        [limit]
+      );
+      return rows;
+    },
+
+    async approveCampaign(campaignId) {
+      const { rows } = await pool.query(
+        `update campaigns set status = 'active', activated_at = now()
+          where id = $1 and status = 'pending_review' returning id`,
+        [campaignId]
+      );
+      return !!rows[0];
+    },
+
+    // Reject -> mark rejected and post a refund ledger entry that zeroes out the
+    // funding. Returns the payment intent so the caller can issue a Stripe refund.
+    async rejectCampaign(campaignId, note) {
+      return tx(async (c) => {
+        const { rows } = await c.query(
+          `update campaigns set status = 'rejected', review_note = $2
+            where id = $1 and status = 'pending_review'
+            returning price_per_block_cents, blocks, stripe_payment_intent_id`,
+          [campaignId, note || null]
+        );
+        if (!rows[0]) return null;
+        const refund = BigInt(rows[0].price_per_block_cents) * BigInt(rows[0].blocks) * 1000n;
+        await c.query(
+          `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
+           values ('campaign_refund', $1, $2, $3)`,
+          [(-refund).toString(), campaignId, JSON.stringify({ note: note || null })]
+        );
+        return { paymentIntentId: rows[0].stripe_payment_intent_id };
+      });
+    },
+
+    // ---------- webhook idempotency ----------
+    // Returns true the first time an event id is seen, false on retries.
+    async claimWebhookEvent(eventId, type) {
+      if (!eventId) return true; // nothing to dedupe against
+      const { rows } = await pool.query(
+        `insert into processed_webhook_events (event_id, type) values ($1, $2)
+         on conflict (event_id) do nothing returning event_id`,
+        [eventId, type || null]
+      );
+      return !!rows[0];
     },
 
     // ---------- event ingestion (the core money loop) ----------
@@ -208,16 +265,108 @@ function createRepo(pool) {
       return { earnedMillicents: earned, paidOutMillicents: -paidOut, balanceMillicents: earned + paidOut };
     },
 
-    async linkDeviceToUser(deviceId, email) {
+    async userForDevice(deviceId) {
+      const { rows } = await pool.query(
+        `select u.* from users u join devices d on d.user_id = u.id where d.id = $1`,
+        [deviceId]
+      );
+      return rows[0] || null;
+    },
+
+    // ---------- email verification (magic link) ----------
+    async createEmailToken(email, deviceId, ttlMs) {
+      const token = crypto.randomBytes(32).toString("base64url");
+      await pool.query(
+        `insert into email_tokens (token, email, device_id, expires_at)
+         values ($1, $2, $3, now() + ($4 || ' milliseconds')::interval)`,
+        [token, email, deviceId || null, String(ttlMs)]
+      );
+      return token;
+    },
+
+    // Consume a magic-link token: mark used, upsert a verified user, link the
+    // device. Single-use and time-bound. Returns the user or null.
+    async verifyEmailToken(token) {
       return tx(async (c) => {
+        const t = await c.query(
+          `update email_tokens set used_at = now()
+            where token = $1 and used_at is null and expires_at > now()
+            returning email, device_id`,
+          [token]
+        );
+        if (!t.rows[0]) return null;
+        const { email, device_id } = t.rows[0];
         const u = await c.query(
-          `insert into users (email) values ($1)
-           on conflict (email) do update set email = excluded.email
-           returning id, stripe_account_id, payouts_enabled`,
+          `insert into users (email, email_verified) values ($1, true)
+           on conflict (email) do update set email_verified = true
+           returning id, email, stripe_account_id, payouts_enabled, email_verified`,
           [email]
         );
-        await c.query("update devices set user_id = $2 where id = $1", [deviceId, u.rows[0].id]);
+        if (device_id) {
+          await c.query("update devices set user_id = $2 where id = $1", [device_id, u.rows[0].id]);
+        }
         return u.rows[0];
+      });
+    },
+
+    // ---------- server-side clicks ----------
+    async createClickToken(campaignId, deviceId, ttlMs) {
+      const camp = await pool.query(
+        "select 1 from campaigns where id = $1 and status = 'active'",
+        [campaignId]
+      );
+      if (!camp.rows[0]) return null;
+      const token = crypto.randomBytes(24).toString("base64url");
+      await pool.query(
+        `insert into click_tokens (token, campaign_id, device_id, expires_at)
+         values ($1, $2, $3, now() + ($4 || ' milliseconds')::interval)`,
+        [token, campaignId, deviceId, String(ttlMs)]
+      );
+      return token;
+    },
+
+    // Redeem a click token exactly once: bill the campaign 50x an impression,
+    // credit the device its share, return the destination URL to redirect to.
+    async redeemClickToken(token, revenueShare) {
+      return tx(async (c) => {
+        const t = await c.query(
+          `update click_tokens set used_at = now()
+            where token = $1 and used_at is null and expires_at > now()
+            returning campaign_id, device_id`,
+          [token]
+        );
+        if (!t.rows[0]) return null;
+        const { campaign_id, device_id } = t.rows[0];
+        const camp = await c.query(
+          `select url, price_per_block_cents, impressions_remaining from campaigns
+            where id = $1 and status = 'active' for update`,
+          [campaign_id]
+        );
+        if (!camp.rows[0]) return null;
+        const billed = Math.min(50, camp.rows[0].impressions_remaining); // a click = 50 impressions
+        if (billed > 0) {
+          await c.query(
+            `update campaigns set
+               impressions_remaining = impressions_remaining - $2,
+               status = case when impressions_remaining - $2 <= 0 then 'exhausted' else status end
+             where id = $1`,
+            [campaign_id, billed]
+          );
+          const gross = BigInt(camp.rows[0].price_per_block_cents) * BigInt(billed);
+          const dev = (gross * BigInt(Math.round(revenueShare * 1000))) / 1000n;
+          const fee = gross - dev;
+          await c.query(
+            `insert into ledger (entry_type, amount_millicents, device_id, campaign_id, meta)
+             values ('click_credit', $1, $2, $3, $4)`,
+            [dev.toString(), device_id, campaign_id, JSON.stringify({ via: "go", billed })]
+          );
+          await c.query(
+            `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
+             values ('platform_fee', $1, $2, '{}')`,
+            [fee.toString(), campaign_id]
+          );
+        }
+        return { url: camp.rows[0].url };
       });
     },
 

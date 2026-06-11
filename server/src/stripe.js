@@ -62,6 +62,9 @@ function createStripe(secretKey, { fetchImpl = fetch } = {}) {
     // --- money in: advertiser checkout ---
     createCheckoutSession: (params) => request("POST", "/checkout/sessions", params),
 
+    // --- refund a rejected campaign ---
+    createRefund: (params) => request("POST", "/refunds", params),
+
     // --- money out: developer payouts via Connect Express ---
     createAccount: (params) => request("POST", "/accounts", params),
     createAccountLink: (params) => request("POST", "/account_links", params),

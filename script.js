@@ -91,3 +91,84 @@ document.querySelectorAll(".copy-btn").forEach((btn) => {
     setTimeout(() => (btn.textContent = old), 1400);
   });
 });
+
+// --- API wiring ---------------------------------------------------------
+// Set window.BETTERBACKS_API (or a <meta name="betterbacks-api">) to point the
+// bid form and leaderboard at the live backend. With no API configured, the
+// page stays in its self-contained demo mode (hardcoded leaderboard, no
+// network) so it works anywhere.
+const API_BASE = (
+  window.BETTERBACKS_API ||
+  document.querySelector('meta[name="betterbacks-api"]')?.content ||
+  ""
+).replace(/\/+$/, "");
+
+const escapeHtml = (s) =>
+  String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Pull the live bid market into the leaderboard (escaped — advertiser text).
+async function loadLeaderboard() {
+  if (!API_BASE) return;
+  const board = document.getElementById("board");
+  if (!board) return;
+  try {
+    const res = await fetch(`${API_BASE}/v1/leaderboard`);
+    if (!res.ok) return;
+    const { leaderboard } = await res.json();
+    if (!Array.isArray(leaderboard) || !leaderboard.length) return;
+    board.innerHTML = leaderboard
+      .map((r) => `<li><span class="rk">${r.rank}</span> ${escapeHtml(r.line)}</li>`)
+      .join("");
+  } catch (_) {
+    /* offline — keep the demo leaderboard */
+  }
+}
+loadLeaderboard();
+
+// Real advertiser checkout: create a campaign + redirect to Stripe.
+const adForm = document.querySelector(".adform");
+if (adForm) {
+  adForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const stripeBtn = adForm.querySelector(".stripe-btn");
+    const get = (sel) => adForm.querySelector(sel)?.value?.trim() || "";
+    const payload = {
+      email: get('input[type="email"]'),
+      adLine: document.getElementById("adline")?.value?.trim() || "",
+      url: get('input[type="url"]'),
+      brand: adForm.querySelector('input[placeholder="Linear"]')?.value?.trim() || "",
+      pricePerBlock: parseFloat(document.getElementById("price")?.value || "0"),
+      blocks: parseInt(document.getElementById("blocks")?.value || "0", 10),
+      showOnLeaderboard: adForm.querySelector('input[type="checkbox"]')?.checked !== false,
+    };
+
+    if (!API_BASE) {
+      // demo mode: no backend configured
+      const old = stripeBtn.innerHTML;
+      stripeBtn.textContent = "Demo mode — connect the API to take payments";
+      setTimeout(() => (stripeBtn.innerHTML = old), 2200);
+      return;
+    }
+    stripeBtn.disabled = true;
+    const old = stripeBtn.innerHTML;
+    stripeBtn.textContent = "Redirecting to Stripe…";
+    try {
+      const res = await fetch(`${API_BASE}/v1/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        stripeBtn.textContent = data.error || "Something went wrong";
+        setTimeout(() => { stripeBtn.innerHTML = old; stripeBtn.disabled = false; }, 2600);
+      }
+    } catch (_) {
+      stripeBtn.textContent = "Network error — try again";
+      setTimeout(() => { stripeBtn.innerHTML = old; stripeBtn.disabled = false; }, 2600);
+    }
+  });
+}

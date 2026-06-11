@@ -2,7 +2,7 @@
   "name": "betterbacks-ai",
   "displayName": "Betterbacks.ai — Get paid for waiting",
   "description": "Turns the Claude Code & Codex loading spinner into a tiny ad marketplace. You keep 90% of the revenue.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "betterbacks",
   "license": "MIT",
   "icon": "media/icon.png",
