@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Betterbacks.ai — Get paid for waiting",
+  "version": "0.1.0",
+  "description": "Turns the loading spinner on AI chat sites into a tiny ad marketplace. You keep 90% of the revenue.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Betterbacks — earnings",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/codex/*",
+    "https://gemini.google.com/*",
+    "https://aistudio.google.com/*",
+    "https://www.perplexity.ai/*",
+    "https://v0.dev/*",
+    "https://bolt.new/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://gemini.google.com/*",
+        "https://aistudio.google.com/*",
+        "https://www.perplexity.ai/*",
+        "https://v0.dev/*",
+        "https://bolt.new/*"
+      ],
+      "js": ["src/ads.js", "src/content.js"],
+      "css": ["src/inject.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>Betterbacks</title>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">B$</span>
+      <span class="name">Betterbacks<span class="dim">.ai</span></span>
+    </div>
+    <label class="switch" title="Enable / disable earning">
+      <input type="checkbox" id="enabled" />
+      <span class="slider"></span>
+    </label>
+  </header>
+
+  <section class="hero">
+    <div class="emoji">🤑</div>
+    <div class="earn" id="earnings">$0.00</div>
+    <div class="earn-sub">earned · <span id="share">90</span>% to you</div>
+  </section>
+
+  <section class="cards">
+    <div class="card"><div class="n" id="impressions">0</div><div class="l">impressions</div></div>
+    <div class="card"><div class="n" id="clicks">0</div><div class="l">clicks · 50×</div></div>
+    <div class="card"><div class="n" id="perday">$0.00</div><div class="l">per day</div></div>
+  </section>
+
+  <button class="demo" id="demo">Show me the money — run a 30s demo</button>
+  <p class="hint" id="hint">Open <b>claude.ai</b> or <b>chatgpt.com</b>, then ask something — the sponsored line appears while it thinks.</p>
+
+  <section class="board-wrap">
+    <h2>Live bid market</h2>
+    <ol class="board" id="board"></ol>
+  </section>
+
+  <footer class="foot">
+    <a href="https://betterbacks.ai" target="_blank" rel="noopener">betterbacks.ai</a>
+    <button class="reset" id="reset">Reset</button>
+  </footer>
+
+  <script src="../src/ads.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
