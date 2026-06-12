@@ -35,9 +35,9 @@
     ".result-streaming",
     "[data-is-streaming='true']",
     ".streaming-animation",
-    ".thinking-dots",              // Gemini — the ··· before the reply renders
-    '[class*="thinking-dots"]',
-    "thinking-dots",
+    ".thinking-dots-animation",    // Gemini — the ··· lottie before the reply renders
+    "thinking-dots-animation",     // Gemini — the custom-element wrapper
+    '[class*="thinking-dots"]',    // catch-all for either
   ];
 
   // Where to put the bar, in priority order. "inside" appends at the end of
@@ -51,9 +51,9 @@
     { sel: '[data-message-author-role="assistant"]', mode: "inside" }, // ChatGPT
     { sel: ".result-streaming", mode: "inside" },                      // ChatGPT (older)
     { sel: "model-response", mode: "inside" },                         // Gemini — reply
-    { sel: ".thinking-dots", mode: "after" },                          // Gemini — dots stage
+    { sel: "thinking-dots-animation", mode: "after" },                 // Gemini — dots stage
+    { sel: ".thinking-dots-animation", mode: "after" },
     { sel: '[class*="thinking-dots"]', mode: "after" },
-    { sel: "thinking-dots", mode: "after" },
   ];
 
   let ads = [];

@@ -186,10 +186,11 @@ async function main() {
       await page.evaluate(() => {
         window.setGenerating(false);
         document.querySelector('[data-message-author-role="assistant"]').remove();
-        const dots = document.createElement("div");
-        dots.className = "thinking-dots";
+        // Gemini's real markup: a <thinking-dots-animation> custom element
+        // wrapping a .thinking-dots-animation lottie div
+        const dots = document.createElement("thinking-dots-animation");
         dots.id = "gem-dots";
-        dots.textContent = "···";
+        dots.innerHTML = '<div class="thinking-dots-animation"></div>';
         document.getElementById("messages").appendChild(dots);
       });
       await page.waitForFunction(() => {
