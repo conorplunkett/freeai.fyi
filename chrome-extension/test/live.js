@@ -152,30 +152,44 @@ async function main() {
     });
 
     await check("Claude star-only stage ⇒ bar shows BELOW the thinking star", async () => {
-      // simulate Claude before any streaming text: last turn container, then
-      // the thinking star as a LATER sibling, plus the Stop button
+      // Claude's real star markup: .epitaxy-spark-working inside a flex row,
+      // inside the .epitaxy-transcript-width wrapper. The bar should land as
+      // the wrapper's last child, below the star row, and STAY there.
       await page.evaluate(() => {
         document.querySelector('[data-message-author-role="assistant"]').remove();
-        const msgs = document.getElementById("messages");
-        const turn = document.createElement("div");
-        turn.setAttribute("data-test-render-count", "1");
-        turn.id = "claude-turn";
-        msgs.appendChild(turn);
+        const wrap = document.createElement("div");
+        wrap.className = "epitaxy-transcript-width";
+        wrap.id = "claude-wrap";
+        const row = document.createElement("div");
+        row.className = "flex items-center";
+        const span = document.createElement("span");
         const star = document.createElement("div");
+        star.className = "epitaxy-spark-working";
         star.id = "claude-star";
-        star.textContent = "✳ Thinking about…";
-        msgs.appendChild(star);
+        span.appendChild(star);
+        row.appendChild(span);
+        wrap.appendChild(row);
+        document.getElementById("messages").appendChild(wrap);
       });
       await page.waitForFunction(() => {
-        const b = document.querySelector(".bb-bar.bb-show");
+        const b = document.querySelector("#claude-wrap > .bb-bar.bb-show");
         const star = document.getElementById("claude-star");
-        // bar must exist AND come after the star in document order
         return b && star && !!(star.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
       }, { timeout: 5000 });
+      // a node streaming in after the bar must still leave the bar last
+      await page.evaluate(() => {
+        const late = document.createElement("div");
+        late.textContent = "first words…";
+        const wrap = document.getElementById("claude-wrap");
+        wrap.insertBefore(late, wrap.querySelector(".bb-bar"));
+      });
+      await page.waitForFunction(
+        () => document.getElementById("claude-wrap").lastElementChild.classList.contains("bb-bar"),
+        { timeout: 3000 }
+      );
       // restore the ChatGPT-style reply for the rest of the checks
       await page.evaluate(() => {
-        document.getElementById("claude-turn").remove();
-        document.getElementById("claude-star").remove();
+        document.getElementById("claude-wrap").remove();
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });

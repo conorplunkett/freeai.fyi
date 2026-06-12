@@ -35,6 +35,7 @@
     ".thinking-dots-animation",    // Gemini — the ··· lottie before the reply renders
     "thinking-dots-animation",     // Gemini — the custom-element wrapper
     '[class*="thinking-dots"]',    // catch-all for either
+    ".epitaxy-spark-working",      // Claude — the animated thinking star
   ];
 
   // Where to put the bar, in priority order. "inside" appends at the end of
@@ -44,7 +45,12 @@
   // lands BELOW the indicator, never above it.
   const ANCHORS = [
     { sel: '[data-is-streaming="true"]', mode: "inside" },             // Claude — streaming bubble
-    { sel: "div[data-test-render-count]", mode: "after" },             // Claude — star-only stage
+    // Claude star-only stage: the spark (.epitaxy-spark-working) sits in a row
+    // inside .epitaxy-transcript-width. Append the bar as that wrapper's last
+    // child so it lands BELOW the star row. :has scopes us to the wrapper that
+    // actually holds the spark.
+    { sel: ".epitaxy-transcript-width:has(.epitaxy-spark-working)", mode: "inside" },
+    { sel: "div[data-test-render-count]", mode: "inside" },            // Claude — fallback turn container
     { sel: '[data-message-author-role="assistant"]', mode: "inside" }, // ChatGPT
     { sel: ".result-streaming", mode: "inside" },                      // ChatGPT (older)
     // Gemini: the dots stage MUST outrank model-response — an empty
@@ -121,28 +127,43 @@
     return null;
   }
   // Returns true when the bar has somewhere legitimate to live.
+  // Re-checked every tick: these apps keep inserting elements (the star, the
+  // dots, streamed text) after we mount, so we re-assert the bar's position.
   function mount() {
     const found = findAnchor();
     if (found) {
-      // "after": the indicator (Claude star / Gemini dots) is a later sibling
-      // of the matched turn — append to the parent so the bar sits below it.
-      let target = found.el;
-      if (found.mode === "after" && target.parentElement) target = target.parentElement;
-      if (typeof target.appendChild === "function") {
-        // These apps keep inserting elements (the star, the dots, streamed
-        // text) AFTER we've mounted, which leaves the bar sitting above the
-        // thinking indicator. So: whenever the bar isn't the LAST element of
-        // its anchor, re-append it to push it back below everything.
-        const isLast =
-          bar.isConnected && bar.parentElement === target && target.lastElementChild === bar;
-        if (isLast) return true;
-        anchorEl = target;
-        bar.classList.add("bb-inline");
-        try {
-          target.appendChild(bar);
+      const { el, mode } = found;
+      try {
+        if (mode === "after") {
+          // Sit the bar IMMEDIATELY after the indicator (Claude star / Gemini
+          // dots) — as its next sibling, not appended to the bottom of the
+          // whole container (which dropped it far below the dots on Gemini).
+          const parent = el.parentElement;
+          if (parent) {
+            if (!(bar.parentElement === parent && bar.previousElementSibling === el)) {
+              parent.insertBefore(bar, el.nextSibling);
+            }
+            anchorEl = parent;
+            bar.classList.add("bb-inline");
+            return true;
+          }
+          // mock-DOM / detached node: just attach to the element itself
+          if (typeof el.appendChild === "function") {
+            el.appendChild(bar);
+            anchorEl = el;
+            bar.classList.add("bb-inline");
+            return true;
+          }
+        } else if (typeof el.appendChild === "function") {
+          // "inside": keep the bar as the last child of the reply container
+          if (!(bar.parentElement === el && el.lastElementChild === bar)) {
+            el.appendChild(bar);
+          }
+          anchorEl = el;
+          bar.classList.add("bb-inline");
           return true;
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
     anchorEl = null;
     if (Date.now() < demoUntil) {
