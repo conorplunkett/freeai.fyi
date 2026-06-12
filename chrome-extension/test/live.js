@@ -151,22 +151,55 @@ async function main() {
       assert.ok(d < 24, `bar starts ${d}px from the reply's left edge — not left-aligned`);
     });
 
-    await check("Claude star-only stage (data-test-render-count turn) anchors the bar", async () => {
-      // simulate Claude before any streaming text: just a turn container + Stop
+    await check("Claude star-only stage ⇒ bar shows BELOW the thinking star", async () => {
+      // simulate Claude before any streaming text: last turn container, then
+      // the thinking star as a LATER sibling, plus the Stop button
       await page.evaluate(() => {
         document.querySelector('[data-message-author-role="assistant"]').remove();
+        const msgs = document.getElementById("messages");
         const turn = document.createElement("div");
         turn.setAttribute("data-test-render-count", "1");
         turn.id = "claude-turn";
-        document.getElementById("messages").appendChild(turn);
+        msgs.appendChild(turn);
+        const star = document.createElement("div");
+        star.id = "claude-star";
+        star.textContent = "✳ Thinking about…";
+        msgs.appendChild(star);
       });
-      await page.waitForFunction(
-        () => document.querySelector("#claude-turn .bb-bar.bb-show"),
-        { timeout: 5000 }
-      );
+      await page.waitForFunction(() => {
+        const b = document.querySelector(".bb-bar.bb-show");
+        const star = document.getElementById("claude-star");
+        // bar must exist AND come after the star in document order
+        return b && star && !!(star.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      }, { timeout: 5000 });
       // restore the ChatGPT-style reply for the rest of the checks
       await page.evaluate(() => {
         document.getElementById("claude-turn").remove();
+        document.getElementById("claude-star").remove();
+        window.setGenerating(true);
+      });
+      await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
+    });
+
+    await check("Gemini thinking-dots stage ⇒ detected and bar sits below the dots", async () => {
+      // dots alone, no stop button, no reply yet
+      await page.evaluate(() => {
+        window.setGenerating(false);
+        document.querySelector('[data-message-author-role="assistant"]').remove();
+        const dots = document.createElement("div");
+        dots.className = "thinking-dots";
+        dots.id = "gem-dots";
+        dots.textContent = "···";
+        document.getElementById("messages").appendChild(dots);
+      });
+      await page.waitForFunction(() => {
+        const b = document.querySelector(".bb-bar.bb-show");
+        const dots = document.getElementById("gem-dots");
+        return b && dots && !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      }, { timeout: 5000 });
+      // clean up, restore the standard generating state
+      await page.evaluate(() => {
+        document.getElementById("gem-dots").remove();
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });

@@ -30,19 +30,30 @@
     'button[aria-label*="stop" i]',                 // Gemini + catch-all
     'button[mattooltip*="stop" i]',                 // Gemini (Angular Material)
   ];
-  const BUSY_SELECTORS = ['[aria-busy="true"]', '.result-streaming', "[data-is-streaming='true']", ".streaming-animation"];
+  const BUSY_SELECTORS = [
+    '[aria-busy="true"]',
+    ".result-streaming",
+    "[data-is-streaming='true']",
+    ".streaming-animation",
+    ".thinking-dots",              // Gemini — the ··· before the reply renders
+    '[class*="thinking-dots"]',
+    "thinking-dots",
+  ];
 
-  // Where to put the bar: inline, right where the assistant's reply is being
-  // streamed ("where the thinking icon is"), not floating at the bottom.
-  // Ordered by priority — Claude first. Falls back to a fixed bottom bar only
-  // if no anchor is found.
-  const ANCHOR_SELECTORS = [
-    '[data-is-streaming="true"]',             // Claude — the streaming message bubble
-    "div[data-test-render-count]",            // Claude — last turn (exists at the star-only stage)
-    '[data-message-author-role="assistant"]', // ChatGPT — last assistant turn
-    ".result-streaming",                      // ChatGPT (older streaming marker)
-    "model-response",                         // Gemini
-    '[aria-busy="true"]',                     // generic live region
+  // Where to put the bar, in priority order. "inside" appends at the end of
+  // the matched element; "after" drops the bar at the end of the element's
+  // PARENT — used where the thinking indicator is a later sibling of the
+  // matched turn (Claude's star-only stage, Gemini's dots), so the bar always
+  // lands BELOW the indicator, never above it.
+  const ANCHORS = [
+    { sel: '[data-is-streaming="true"]', mode: "inside" },             // Claude — streaming bubble
+    { sel: "div[data-test-render-count]", mode: "after" },             // Claude — star-only stage
+    { sel: '[data-message-author-role="assistant"]', mode: "inside" }, // ChatGPT
+    { sel: ".result-streaming", mode: "inside" },                      // ChatGPT (older)
+    { sel: "model-response", mode: "inside" },                         // Gemini — reply
+    { sel: ".thinking-dots", mode: "after" },                          // Gemini — dots stage
+    { sel: '[class*="thinking-dots"]', mode: "after" },
+    { sel: "thinking-dots", mode: "after" },
   ];
 
   let ads = [];
@@ -108,27 +119,33 @@
   // the anchor often appears a beat after the Stop button.
   let anchorEl = null;
   function findAnchor() {
-    for (const sel of ANCHOR_SELECTORS) {
+    for (const { sel, mode } of ANCHORS) {
       try {
         const els = document.querySelectorAll(sel);
-        if (els.length) return els[els.length - 1];
+        if (els.length) return { el: els[els.length - 1], mode };
       } catch (_) {}
     }
     return null;
   }
   // Returns true when the bar has somewhere legitimate to live.
   function mount() {
-    const a = findAnchor();
-    if (a && typeof a.appendChild === "function") {
-      if (anchorEl !== a || !bar.isConnected) {
-        anchorEl = a;
-        bar.classList.add("bb-inline");
-        try {
-          a.appendChild(bar);
+    const found = findAnchor();
+    if (found) {
+      // "after": the indicator (Claude star / Gemini dots) is a later sibling
+      // of the matched turn — append to the parent so the bar sits below it.
+      let target = found.el;
+      if (found.mode === "after" && target.parentElement) target = target.parentElement;
+      if (typeof target.appendChild === "function") {
+        if (anchorEl !== target || !bar.isConnected) {
+          anchorEl = target;
+          bar.classList.add("bb-inline");
+          try {
+            target.appendChild(bar);
+            return true;
+          } catch (_) {}
+        } else {
           return true;
-        } catch (_) {}
-      } else {
-        return true;
+        }
       }
     }
     anchorEl = null;
