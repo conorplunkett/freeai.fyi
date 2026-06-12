@@ -76,10 +76,12 @@ jobs:
         run: |
           swift build
           swift build -c release
+      - name: Package .app (ad-hoc signed)
+        run: BUILD_NUMBER="${{ github.run_number }}" ./packaging/bundle.sh
       - uses: actions/upload-artifact@v4
         with:
           name: SponsorOverlay-macos
-          path: desktop/macos/SponsorOverlay/.build/release/SponsorOverlay
+          path: desktop/macos/SponsorOverlay/build/SponsorOverlay.zip
 
   site:
     runs-on: ubuntu-latest

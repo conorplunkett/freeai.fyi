@@ -108,10 +108,38 @@ The card should appear while Claude streams; 5 visible seconds → one
 impression batch lands in the server ledger; clicking routes through
 `/v1/go/:token` and credits the click.
 
-**CI** builds the Swift app on a `macos-14` runner on every push/PR and
-uploads the release binary as the `SponsorOverlay-macos` artifact —
-download it from the Actions run, `chmod +x`, clear quarantine
-(`xattr -d com.apple.quarantine SponsorOverlay`), and run.
+**CI** builds the Swift app on a `macos-14` runner on every push/PR, packages
+it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` as the
+`SponsorOverlay-macos` artifact. Download it from the Actions run, unzip, clear
+quarantine (`xattr -dr com.apple.quarantine SponsorOverlay.app`), and open. The
+CI build is **ad-hoc signed**, so it only runs on the machine that built it (or
+after clearing quarantine) — a notarized build needs a Developer ID cert.
+
+## Packaging & distribution
+
+`packaging/bundle.sh` wraps the SwiftPM executable into `SponsorOverlay.app`
+(menu-bar-only via `LSUIElement`), code-signs it, and produces a zip:
+
+```sh
+cd desktop/macos/SponsorOverlay
+./packaging/bundle.sh                  # ad-hoc signed, for local use
+```
+
+To ship to other people without the Gatekeeper "unidentified developer"
+warning you need the **Apple Developer Program ($99/yr)** for a Developer ID
+certificate, then sign + notarize:
+
+```sh
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./packaging/bundle.sh
+xcrun notarytool submit build/SponsorOverlay.zip \
+  --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
+xcrun stapler staple build/SponsorOverlay.app
+```
+
+Distribute the stapled `.app` (zip or `.dmg`) from the site. **Mac App Store is
+not a viable channel**: sandboxed apps can't use the Accessibility API to read
+another app's window, which is how Claude detection works — Developer ID
+distribution is the path.
 
 ## Still to do
 
@@ -119,7 +147,8 @@ download it from the Actions run, `chmod +x`, clear quarantine
    the Stop button (the riskiest assumption — see ClaudeDetector.swift).
 2. Keychain for device credentials (UserDefaults in the rough-out).
 3. cbindgen FFI so the shell links `overlay-core` instead of the Swift port.
-4. Real sign-in (email verify exists server-side), local frequency caps in
-   the shell, app bundle + code signing + notarization for distribution.
+4. Real sign-in (email verify exists server-side) and local frequency caps in
+   the shell. App bundling + ad-hoc signing is done (`packaging/bundle.sh`);
+   Developer ID signing + notarization still needs the paid Apple cert.
 5. Redemption catalog UI (server currently pays out via Stripe Connect;
    PRD wants gift-card style redemptions too).
