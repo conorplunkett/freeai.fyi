@@ -3,7 +3,9 @@
 // harness runs the real routes against a real database with fake Stripe/mail.
 
 const http = require("node:http");
+const crypto = require("node:crypto");
 const { verifyWebhookSignature } = require("./stripe");
+const { GIFT_PLANS, GIFT_MONTHS, giftPriceCents } = require("./giftcards");
 const { runPayouts } = require("./payouts");
 const { escapeHtml, isCleanAdLine } = require("./util");
 
@@ -220,8 +222,69 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       revenueShare: config.revenueShare,
       earnedUsd: e.earnedMillicents / 100000,
       paidOutUsd: e.paidOutMillicents / 100000,
+      redeemedUsd: e.redeemedMillicents / 100000,
       balanceUsd: e.balanceMillicents / 100000,
       payoutThresholdUsd: config.payoutThresholdCents / 100,
+    });
+  });
+
+  // ---------- gift card redemptions ----------
+  route("GET", "/v1/giftcards", async (req, res) => {
+    json(res, 200, {
+      plans: Object.values(GIFT_PLANS).map((p) => ({
+        id: p.id, name: p.name, tagline: p.tagline, monthlyUsd: p.monthlyCents / 100,
+      })),
+      months: GIFT_MONTHS,
+      deliveryWindowHours: 48,
+    });
+  });
+
+  // Redeem earned credits for a Claude gift card. Order matters: the
+  // fulfillment email goes out first, then the balance is deducted — the
+  // in-transaction balance re-check keeps concurrent redeems honest.
+  route("POST", "/v1/redemptions", async (req, res, body) => {
+    const device = await authDeviceFrom(body);
+    if (!device) return json(res, 401, { error: "bad device credentials" });
+
+    const plan = GIFT_PLANS[body.plan];
+    const months = parseInt(body.months, 10);
+    const amountCents = plan ? giftPriceCents(plan.id, months) : null;
+    if (!amountCents) return json(res, 400, { error: "plan must be pro/max5x/max20x and months 1/3/6/12" });
+
+    let recipientEmail = body.recipientEmail;
+    if (!recipientEmail) {
+      const user = await repo.userForDevice(device.id);
+      recipientEmail = user?.email;
+    }
+    if (!recipientEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) {
+      return json(res, 400, { error: "valid recipientEmail required" });
+    }
+
+    const balance = await repo.earningsForDevice(device.id);
+    if (balance.balanceMillicents < amountCents * 1000) {
+      return json(res, 403, {
+        error: "insufficient credits",
+        balanceUsd: balance.balanceMillicents / 100000,
+        requiredUsd: amountCents / 100,
+      });
+    }
+
+    const redemptionId = crypto.randomUUID();
+    await mailer.sendGiftRedemptionEmail(config.giftFulfillmentEmail, {
+      redemptionId, planName: plan.name, months, amountUsd: amountCents / 100, recipientEmail,
+    });
+
+    const recorded = await repo.recordGiftRedemption({
+      id: redemptionId, deviceId: device.id, plan: plan.id, months, amountCents, recipientEmail,
+    });
+    if (!recorded) return json(res, 409, { error: "insufficient credits" });
+
+    const after = await repo.earningsForDevice(device.id);
+    json(res, 200, {
+      ok: true, redemptionId, plan: plan.id, months,
+      amountUsd: amountCents / 100,
+      balanceUsd: after.balanceMillicents / 100000,
+      deliveryWindowHours: 48,
     });
   });
 

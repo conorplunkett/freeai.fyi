@@ -47,6 +47,11 @@
         "category": "FreeAI"
       },
       {
+        "command": "freeai.redeemGiftCard",
+        "title": "FreeAI: Redeem earnings for a Claude gift card",
+        "category": "FreeAI"
+      },
+      {
         "command": "freeai.openCurrentAd",
         "title": "FreeAI: Open the currently shown ad",
         "category": "FreeAI"

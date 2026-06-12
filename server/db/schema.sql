@@ -88,7 +88,8 @@ create table if not exists ledger (
     'impression_credit',   -- developer's 90% share of an impression   (+ device)
     'click_credit',        -- developer's 90% share of a click (50x)   (+ device)
     'platform_fee',        -- our 10%                                  (+ platform)
-    'payout_debit'         -- transferred to developer's bank          (- user)
+    'payout_debit',        -- transferred to developer's bank          (- user)
+    'gift_redemption_debit' -- redeemed for a Claude gift card         (- device)
   )),
   amount_millicents bigint not null,
   device_id uuid references devices(id),
@@ -107,6 +108,20 @@ create table if not exists payouts (
   amount_cents integer not null check (amount_cents > 0),
   stripe_transfer_id text unique,
   status text not null default 'paid' check (status in ('paid', 'failed')),
+  created_at timestamptz not null default now()
+);
+
+-- Claude gift card redemptions. A redemption deducts the device's balance via
+-- a gift_redemption_debit ledger entry; fulfillment (the actual gift card
+-- email to the user) is manual and lands within 48 hours.
+create table if not exists gift_redemptions (
+  id uuid primary key default gen_random_uuid(),
+  device_id uuid not null references devices(id),
+  plan text not null check (plan in ('pro', 'max5x', 'max20x')),
+  months integer not null check (months in (1, 3, 6, 12)),
+  amount_cents integer not null check (amount_cents > 0),
+  recipient_email text not null,
+  status text not null default 'pending' check (status in ('pending', 'fulfilled', 'cancelled')),
   created_at timestamptz not null default now()
 );
 

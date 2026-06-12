@@ -39,7 +39,10 @@ const fakeFetch = async (url, opts) => {
 
 // ---------- fake mailer ----------
 const mailbox = [];
-const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, link }); } };
+const fakeMailer = {
+  sendVerifyEmail: async (to, link) => { mailbox.push({ to, link }); },
+  sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+};
 
 (async () => {
   if (!process.env.DATABASE_URL) {
@@ -60,7 +63,7 @@ const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, l
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
     emailTokenTtlMs: 1800000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
-    logRequests: false,
+    logRequests: false, giftFulfillmentEmail: "conor.p43@gmail.com",
   };
   const repo = createRepo(poolNs);
   const stripe = createStripe("sk_test_fake", { fetchImpl: fakeFetch });
@@ -246,6 +249,48 @@ const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, l
     const after = (await api("GET", `/v1/me/earnings?deviceId=${device.deviceId}&deviceKey=${device.deviceKey}`)).body;
     assert.strictEqual(Math.round(after.paidOutUsd * 100), expectedCents);
     assert.strictEqual((await api("POST", "/v1/admin/payouts", { adminKey: "nope" })).status, 401);
+  });
+
+  // ---------- gift card redemptions ----------
+  await check("gift card redemption emails fulfillment and deducts the balance", async () => {
+    const giftDevice = (await api("POST", "/v1/devices/register")).body;
+    // 250 impressions on the $110 block: 250 * 11000mc gross -> 90% = $24.75
+    await api("POST", "/v1/events", { ...giftDevice, batchKey: "bgift", events: [{ campaignId: campFluid, impressions: 250, clicks: 0 }] });
+    const before = (await api("GET", `/v1/me/earnings?deviceId=${giftDevice.deviceId}&deviceKey=${giftDevice.deviceKey}`)).body;
+    assert.strictEqual(before.balanceUsd, 24.75);
+
+    const catalog = await api("GET", "/v1/giftcards");
+    assert.strictEqual(catalog.body.plans.find((p) => p.id === "pro").monthlyUsd, 20);
+    assert.deepStrictEqual(catalog.body.months, [1, 3, 6, 12]);
+
+    const r = await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "dev@example.com" });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.body.amountUsd, 20);
+    assert.strictEqual(r.body.balanceUsd, 4.75);
+
+    const mail = mailbox.at(-1);
+    assert.strictEqual(mail.to, "conor.p43@gmail.com");
+    assert.strictEqual(mail.planName, "Claude Pro");
+    assert.strictEqual(mail.recipientEmail, "dev@example.com");
+    assert.strictEqual(mail.redemptionId, r.body.redemptionId);
+
+    const row = (await poolNs.query("select * from gift_redemptions where id = $1", [r.body.redemptionId])).rows[0];
+    assert.strictEqual(row.amount_cents, 2000);
+    assert.strictEqual(row.status, "pending");
+    const after = (await api("GET", `/v1/me/earnings?deviceId=${giftDevice.deviceId}&deviceKey=${giftDevice.deviceKey}`)).body;
+    assert.strictEqual(after.balanceUsd, 4.75);
+    assert.strictEqual(after.redeemedUsd, 20);
+
+    // not enough left for another Pro month
+    const broke = await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "dev@example.com" });
+    assert.strictEqual(broke.status, 403);
+    assert.strictEqual(broke.body.error, "insufficient credits");
+
+    // validation: bad plan/months/email and bad creds
+    assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "ultra", months: 1, recipientEmail: "a@b.co" })).status, 400);
+    assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 2, recipientEmail: "a@b.co" })).status, 400);
+    assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "nope" })).status, 400);
+    assert.strictEqual((await api("POST", "/v1/redemptions", { deviceId: giftDevice.deviceId, deviceKey: "wrong", plan: "pro", months: 1 })).status, 401);
   });
 
   // ---------- rejection + refund ----------

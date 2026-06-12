@@ -254,7 +254,8 @@ function createRepo(pool) {
       const { rows } = await pool.query(
         `select
            coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit')), 0)::bigint as earned,
-           coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out
+           coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
+           coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
          from ledger
          where device_id = $1
             or user_id = (select user_id from devices where id = $1 and user_id is not null)`,
@@ -262,7 +263,13 @@ function createRepo(pool) {
       );
       const earned = Number(rows[0].earned);
       const paidOut = Number(rows[0].paid_out); // stored negative
-      return { earnedMillicents: earned, paidOutMillicents: -paidOut, balanceMillicents: earned + paidOut };
+      const redeemed = Number(rows[0].redeemed); // stored negative
+      return {
+        earnedMillicents: earned,
+        paidOutMillicents: -paidOut,
+        redeemedMillicents: -redeemed,
+        balanceMillicents: earned + paidOut + redeemed,
+      };
     },
 
     async userForDevice(deviceId) {
@@ -394,10 +401,45 @@ function createRepo(pool) {
           group by u.id
          having coalesce(sum(l.amount_millicents), 0)
               + coalesce((select sum(amount_millicents) from ledger where user_id = u.id and entry_type = 'payout_debit'), 0)
+              + coalesce((select sum(amount_millicents) from ledger
+                           where entry_type = 'gift_redemption_debit'
+                             and device_id in (select id from devices where user_id = u.id)), 0)
              >= $1`,
         [thresholdMillicents]
       );
       return rows.map((r) => ({ ...r, balance: Number(r.balance) }));
+    },
+
+    // ---------- gift card redemptions ----------
+    // Deducts the device's balance for a Claude gift card. The balance is
+    // re-checked inside the transaction (with the ledger as source of truth) so
+    // concurrent redemptions can't spend the same credits twice. Returns the
+    // redemption id, or null if the balance is insufficient.
+    async recordGiftRedemption({ id, deviceId, plan, months, amountCents, recipientEmail }) {
+      return tx(async (c) => {
+        const bal = await c.query(
+          `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
+            where (device_id = $1
+                or user_id = (select user_id from devices where id = $1 and user_id is not null))
+              and entry_type in ('impression_credit','click_credit','payout_debit','gift_redemption_debit')`,
+          [deviceId]
+        );
+        const costMillicents = BigInt(amountCents) * 1000n;
+        if (BigInt(bal.rows[0].balance) < costMillicents) return null;
+
+        const { rows } = await c.query(
+          `insert into gift_redemptions (id, device_id, plan, months, amount_cents, recipient_email)
+           values (coalesce($1::uuid, gen_random_uuid()),$2,$3,$4,$5,$6) returning id`,
+          [id || null, deviceId, plan, months, amountCents, recipientEmail]
+        );
+        await c.query(
+          `insert into ledger (entry_type, amount_millicents, device_id, meta)
+           values ('gift_redemption_debit', $1, $2, $3)`,
+          [(-costMillicents).toString(), deviceId,
+           JSON.stringify({ redemptionId: rows[0].id, plan, months })]
+        );
+        return rows[0].id;
+      });
     },
 
     async recordPayout(userId, amountCents, transferId) {

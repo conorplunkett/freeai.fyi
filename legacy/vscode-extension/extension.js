@@ -363,6 +363,187 @@ function showEarnings() {
   </body></html>`;
 }
 
+// ---- Gift card redemption webview ----
+// Redeem earned credits for a Claude gift card. Pricing follows the published
+// schedule (monthly base × months); the gift card email arrives within 48 hours.
+const GIFT_PLANS = [
+  { id: "pro", name: "Pro", card: "Claude Pro", tagline: "For the curious", monthlyUsd: 20 },
+  { id: "max5x", name: "Max 5x", card: "Claude Max 5x", tagline: "For the enthusiast", monthlyUsd: 100 },
+  { id: "max20x", name: "Max 20x", card: "Claude Max 20x", tagline: "For the power user", monthlyUsd: 200 },
+];
+const GIFT_MONTHS = [1, 3, 6, 12];
+
+async function fetchServerBalance() {
+  const url = serverUrl();
+  if (!url || !deviceCreds) return null;
+  try {
+    const r = await fetch(`${url}/v1/me/earnings?deviceId=${deviceCreds.deviceId}&deviceKey=${deviceCreds.deviceKey}`);
+    if (!r.ok) return null;
+    return (await r.json()).balanceUsd;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function showRedeemGiftCard() {
+  if (!deviceCreds) deviceCreds = await loadDeviceCreds();
+  const serverBalance = await fetchServerBalance();
+  const balance = serverBalance != null ? serverBalance : getState().earnings;
+
+  const panel = vscode.window.createWebviewPanel(
+    "freeaiRedeem",
+    "FreeAI — Redeem",
+    vscode.ViewColumn.Active,
+    { enableScripts: true }
+  );
+
+  panel.webview.onDidReceiveMessage(async (msg) => {
+    if (!msg || msg.type !== "redeem") return;
+    const url = serverUrl();
+    if (!url || !deviceCreds) {
+      panel.webview.postMessage({ type: "result", ok: false, error: "Set freeai.serverUrl and earn online to redeem — local demo earnings can't be redeemed." });
+      return;
+    }
+    try {
+      const res = await fetch(url + "/v1/redemptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceId: deviceCreds.deviceId, deviceKey: deviceCreds.deviceKey,
+          plan: msg.plan, months: msg.months, recipientEmail: msg.email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        panel.webview.postMessage({ type: "result", ok: false, error: data.error || "redemption failed" });
+        return;
+      }
+      panel.webview.postMessage({ type: "result", ok: true, balanceUsd: data.balanceUsd });
+      vscode.window.showInformationMessage(`FreeAI: gift card redeemed 🎁 — it'll arrive at ${msg.email} within 48 hours.`);
+    } catch (_) {
+      panel.webview.postMessage({ type: "result", ok: false, error: "Couldn't reach the FreeAI server. Try again." });
+    }
+  });
+
+  panel.webview.html = `<!doctype html><html><head><meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; color: #1a1a17; background: #fff; }
+    .wrap { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+    .left { padding: 48px 44px; }
+    h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; font-size: 40px; letter-spacing: -.02em; margin: 0 0 14px; }
+    .sub { color: #555; font-size: 15px; line-height: 1.5; margin: 0 0 8px; max-width: 460px; }
+    .balance { font-size: 13px; color: #777; margin: 0 0 28px; }
+    .q { font-size: 14px; font-weight: 600; margin: 22px 0 10px; }
+    .opts { display: flex; gap: 12px; flex-wrap: wrap; }
+    .opt { border: 1px solid #ddd; border-radius: 14px; padding: 16px 20px; cursor: pointer; background: #fff; text-align: left; min-width: 130px; }
+    .opt .t { font-size: 15px; font-weight: 600; color: #1a1a17; }
+    .opt .d { font-size: 13px; color: #999; margin-top: 2px; }
+    .opt.sel { border: 2px solid #1a1a17; box-shadow: 0 0 0 3px #fff inset; margin: -1px; }
+    .opt.month { padding: 16px 24px; }
+    .total-l { font-size: 13px; color: #555; margin: 30px 0 2px; }
+    .total { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+    .insuff { color: #c0392b; font-size: 13px; margin-top: 6px; display: none; }
+    .emailrow { margin-top: 24px; }
+    .emailrow input { width: 320px; max-width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; }
+    .note { font-size: 12px; color: #999; margin-top: 8px; }
+    .next { margin-top: 30px; background: #1a1a17; color: #fff; border: 0; border-radius: 10px; padding: 12px 34px; font-size: 15px; cursor: pointer; float: right; margin-right: 12px; }
+    .next:disabled { opacity: .4; cursor: default; }
+    .right { background: #f0efed; display: flex; align-items: center; justify-content: center; }
+    .gift { width: 78%; max-width: 480px; aspect-ratio: 16/10; background: #d97757; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; box-shadow: 0 18px 40px rgba(0,0,0,.12); }
+    .gift .box { font-size: 64px; }
+    .gift .label { color: #fff; font-weight: 700; font-size: 19px; }
+    .done { display: none; font-size: 15px; line-height: 1.6; margin-top: 28px; padding: 16px 18px; background: #eef7ee; border: 1px solid #bfdfbf; border-radius: 12px; max-width: 460px; }
+    .err { display: none; font-size: 14px; margin-top: 18px; color: #c0392b; }
+  </style></head><body>
+  <div class="wrap">
+    <div class="left">
+      <h1>Give the gift of Claude</h1>
+      <p class="sub">Every plan includes Claude Code, unlimited projects, and access to the latest models. Redeem your FreeAI earnings — your gift card email arrives within 48 hours.</p>
+      <p class="balance">Your balance: <strong>$${balance.toFixed(2)}</strong>${serverBalance == null ? " (local demo)" : ""}</p>
+
+      <div class="q">Which plan?</div>
+      <div class="opts" id="plans"></div>
+
+      <div class="q">How many months?</div>
+      <div class="opts" id="months"></div>
+
+      <div class="total-l">Total</div>
+      <div class="total" id="total"></div>
+      <div class="insuff" id="insuff">You don't have enough credits for this redemption yet.</div>
+
+      <div class="emailrow">
+        <div class="q">Where should we send it?</div>
+        <input id="email" type="email" placeholder="you@example.com">
+        <div class="note">Gift card emails take up to 48 hours to arrive.</div>
+      </div>
+
+      <div class="done" id="done">🎁 Redemption submitted! Your gift card will arrive by email within 48 hours. Your balance has been updated.</div>
+      <div class="err" id="err"></div>
+      <button class="next" id="next">Next</button>
+    </div>
+    <div class="right">
+      <div class="gift"><div class="box">🎁</div><div class="label" id="cardLabel"></div></div>
+    </div>
+  </div>
+  <script>
+    const vscodeApi = acquireVsCodeApi();
+    const PLANS = ${JSON.stringify(GIFT_PLANS)};
+    const MONTHS = ${JSON.stringify(GIFT_MONTHS)};
+    const BALANCE = ${JSON.stringify(balance)};
+    let plan = PLANS[0], months = MONTHS[0];
+
+    const plansEl = document.getElementById('plans');
+    const monthsEl = document.getElementById('months');
+    function render() {
+      plansEl.innerHTML = PLANS.map(p =>
+        '<button class="opt' + (p.id === plan.id ? ' sel' : '') + '" data-plan="' + p.id + '">' +
+        '<div class="t">' + p.name + '</div><div class="d">' + p.tagline + '</div></button>').join('');
+      monthsEl.innerHTML = MONTHS.map(m =>
+        '<button class="opt month' + (m === months ? ' sel' : '') + '" data-months="' + m + '">' +
+        '<div class="t">' + m + ' month' + (m > 1 ? 's' : '') + '</div></button>').join('');
+      const total = plan.monthlyUsd * months;
+      document.getElementById('total').textContent = 'US$' + total.toFixed(2);
+      document.getElementById('cardLabel').textContent = months + ' month' + (months > 1 ? 's' : '') + ' of ' + plan.card;
+      const short = total > BALANCE;
+      document.getElementById('insuff').style.display = short ? 'block' : 'none';
+      document.getElementById('next').disabled = short;
+    }
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('.opt');
+      if (!b) return;
+      if (b.dataset.plan) plan = PLANS.find(p => p.id === b.dataset.plan);
+      if (b.dataset.months) months = parseInt(b.dataset.months, 10);
+      render();
+    });
+    document.getElementById('next').addEventListener('click', () => {
+      const email = document.getElementById('email').value.trim();
+      document.getElementById('err').style.display = 'none';
+      if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) {
+        const err = document.getElementById('err');
+        err.textContent = 'Enter a valid email address for the gift card.';
+        err.style.display = 'block';
+        return;
+      }
+      document.getElementById('next').disabled = true;
+      vscodeApi.postMessage({ type: 'redeem', plan: plan.id, months, email });
+    });
+    window.addEventListener('message', (e) => {
+      const msg = e.data;
+      if (!msg || msg.type !== 'result') return;
+      if (msg.ok) {
+        document.getElementById('done').style.display = 'block';
+      } else {
+        const err = document.getElementById('err');
+        err.textContent = msg.error;
+        err.style.display = 'block';
+        document.getElementById('next').disabled = false;
+      }
+    });
+    render();
+  </script>
+  </body></html>`;
+}
+
 // ---- Auto-show while an integrated terminal (where the agent runs) is focused ----
 function wireTerminalAutoShow() {
   vscode.window.onDidChangeActiveTerminal((term) => {
@@ -417,6 +598,7 @@ function activate(context) {
       startThinking(30000);
     }),
     vscode.commands.registerCommand("freeai.showEarnings", showEarnings),
+    vscode.commands.registerCommand("freeai.redeemGiftCard", showRedeemGiftCard),
     vscode.commands.registerCommand("freeai.openCurrentAd", openCurrentAd),
     vscode.commands.registerCommand("freeai.resetEarnings", async () => {
       await context.globalState.update("bb.impressions", 0);
