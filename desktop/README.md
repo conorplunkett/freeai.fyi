@@ -109,37 +109,43 @@ impression batch lands in the server ledger; clicking routes through
 `/v1/go/:token` and credits the click.
 
 **CI** builds the Swift app on a `macos-14` runner on every push/PR, packages
-it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` as the
-`SponsorOverlay-macos` artifact. Download it from the Actions run, unzip, clear
-quarantine (`xattr -dr com.apple.quarantine SponsorOverlay.app`), and open. The
-CI build is **ad-hoc signed**, so it only runs on the machine that built it (or
-after clearing quarantine) — a notarized build needs a Developer ID cert.
+it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` + `.dmg` as the
+`SponsorOverlay-macos` artifact. Download it from the Actions run, open the dmg
+(or unzip), clear quarantine (`xattr -dr com.apple.quarantine SponsorOverlay.app`),
+and open. The CI build is **ad-hoc signed**, so it only runs on the machine that
+built it (or after clearing quarantine) — a notarized build needs a Developer ID cert.
 
 ## Packaging & distribution
 
 `packaging/bundle.sh` wraps the SwiftPM executable into `SponsorOverlay.app`
-(menu-bar-only via `LSUIElement`), code-signs it, and produces a zip:
+(menu-bar-only via `LSUIElement`), code-signs it, and produces both a `.zip` and
+a drag-to-Applications `.dmg`:
 
 ```sh
 cd desktop/macos/SponsorOverlay
 ./packaging/bundle.sh                  # ad-hoc signed, for local use
+# -> build/SponsorOverlay.app, build/SponsorOverlay.zip, build/SponsorOverlay.dmg
 ```
 
 To ship to other people without the Gatekeeper "unidentified developer"
 warning you need the **Apple Developer Program ($99/yr)** for a Developer ID
-certificate, then sign + notarize:
+certificate, then sign + notarize the dmg:
 
 ```sh
 SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./packaging/bundle.sh
-xcrun notarytool submit build/SponsorOverlay.zip \
+xcrun notarytool submit build/SponsorOverlay.dmg \
   --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
-xcrun stapler staple build/SponsorOverlay.app
+xcrun stapler staple build/SponsorOverlay.dmg
 ```
 
-Distribute the stapled `.app` (zip or `.dmg`) from the site. **Mac App Store is
-not a viable channel**: sandboxed apps can't use the Accessibility API to read
-another app's window, which is how Claude detection works — Developer ID
-distribution is the path.
+One-time notary setup (after the Developer Program is active): create an
+app-specific password at appleid.apple.com, then `xcrun notarytool
+store-credentials` to keep it in the Keychain so you can pass `--keychain-profile`
+instead of `--apple-id/--password` each time.
+
+Distribute the stapled `.dmg` from the site. **Mac App Store is not a viable
+channel**: sandboxed apps can't use the Accessibility API to read another app's
+window, which is how Claude detection works — Developer ID distribution is the path.
 
 ## Still to do
 

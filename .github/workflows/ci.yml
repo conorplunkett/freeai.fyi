@@ -81,7 +81,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: SponsorOverlay-macos
-          path: desktop/macos/SponsorOverlay/build/SponsorOverlay.zip
+          path: |
+            desktop/macos/SponsorOverlay/build/SponsorOverlay.zip
+            desktop/macos/SponsorOverlay/build/SponsorOverlay.dmg
 
   site:
     runs-on: ubuntu-latest
