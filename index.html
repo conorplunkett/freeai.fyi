@@ -168,6 +168,26 @@
       </ol>
     </section>
 
+    <!-- TRUST / TRANSPARENCY -->
+    <section id="trust" class="trust">
+      <span class="eyebrow">Why trust the 90%?</span>
+      <h2>Because you can audit it.</h2>
+      <p class="trust-intro">
+        Our backend is open source — the auction, the ledger, the payout sweep, all of it.
+        The other guys keep their auction engine private and pay “up to 50%”.
+        We publish the code that computes your cut.
+      </p>
+      <ul class="trust-list">
+        <li><strong>Append-only ledger.</strong> Your balance is never a number we edit — it's the sum of every credit and debit, recomputed from the ledger on every read. Balances can't drift.</li>
+        <li><strong>Millicent math.</strong> Amounts are stored in 1/1000ths of a cent so the 90/10 split is exact, not rounded in our favor.</li>
+        <li><strong>Server-side clicks.</strong> Clicks settle through single-use tracking tokens — advertisers aren't billed for forged clicks, and your click credits are provable.</li>
+        <li><strong>Anonymous from day one.</strong> No sign-in to start earning. Email is only needed when you cash out, and payouts run through Stripe — we never touch your bank details.</li>
+      </ul>
+      <a class="trust-link" href="https://github.com/conorplunkett/betterbacks.ai" rel="noopener" target="_blank">
+        Read the ledger schema &amp; payout code on GitHub →
+      </a>
+    </section>
+
     <!-- INSTALL -->
     <section id="install" class="install-section">
       <h2>The spinner is already running.<br />Might as well get paid.</h2>

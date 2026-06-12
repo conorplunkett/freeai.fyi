@@ -8,6 +8,12 @@ const { runPayouts } = require("./payouts");
 const { escapeHtml, isCleanAdLine } = require("./util");
 
 function createApp({ repo, stripe, mailer, rateLimiter, config }) {
+  // Killswitch: when off, /v1/config tells extensions to stop serving and
+  // /v1/ads returns an empty list (covers older extensions that never check
+  // config). Toggled at runtime by an admin; resets to the env default
+  // (KILLSWITCH) on restart.
+  let serving = !config.killswitch;
+
   const exact = new Map();
   const params = []; // { method, regex, keys, handler }
 
@@ -53,8 +59,12 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   // ---------- health & catalog ----------
   route("GET", "/healthz", async (req, res) => json(res, 200, { ok: true }));
 
+  route("GET", "/v1/config", async (req, res) =>
+    json(res, 200, { serving, revenueShare: config.revenueShare })
+  );
+
   route("GET", "/v1/ads", async (req, res) => {
-    const ads = await repo.activeAds();
+    const ads = serving ? await repo.activeAds() : [];
     json(res, 200, {
       revenueShare: config.revenueShare,
       ads: ads.map((a) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category })),
@@ -270,6 +280,14 @@ async function act(kind,id){
   location.reload();
 }
 </script>`);
+  });
+
+  // ---------- killswitch ----------
+  route("POST", "/v1/admin/killswitch", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    if (typeof body.serving !== "boolean") return json(res, 400, { error: "serving (boolean) required" });
+    serving = body.serving;
+    json(res, 200, { ok: true, serving });
   });
 
   // ---------- payouts sweep ----------

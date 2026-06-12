@@ -14,7 +14,9 @@ the developer whose machine showed it, **90% of the revenue.**
 1. **Install** the extension. No account wall, no config.
 2. **Wait, like you already do.** While your agent thinks, a single sponsored line
    appears in the status bar next to a spinner. Subtle, skippable, never blocking.
-3. **Get your cut.** Every 5 seconds it serves is one impression. Impressions accrue
+3. **Get your cut.** Every 5 seconds it serves is one impression — counted only
+   while your VS Code window is actually focused, so advertisers pay for ads a
+   human could see and an unattended machine earns nothing. Impressions accrue
    earnings at your 90% share; a click is worth 50× an impression. Payouts settle
    weekly via Stripe.
 
@@ -48,8 +50,9 @@ line while your agent is working. Click it to open the ad or your dashboard.
 ## Privacy
 
 Betterbacks **never reads your code, prompts, or agent output.** It only counts
-aggregate impressions/clicks and your payout details (via Stripe). Full policy at
-[betterbacks.ai/privacy](https://betterbacks.ai/privacy).
+aggregate impressions/clicks and your payout details (via Stripe). Device
+credentials are stored in your OS keychain via VS Code SecretStorage. Full
+policy at [betterbacks.ai/privacy](https://betterbacks.ai/privacy).
 
 ## Works with
 

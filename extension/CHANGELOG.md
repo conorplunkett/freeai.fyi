@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Viewability: impressions only count while the VS Code window is focused —
+  an unattended machine no longer accrues earnings.
+- Ad surfaces are now adapters (`src/adapters/`); the status bar is the first,
+  with the Claude Code panel, Codex panel, and CLI spinner-verb surfaces to
+  follow.
+- Device credentials moved from `globalState` into VS Code SecretStorage (the
+  OS keychain); existing installs migrate automatically.
+- Server killswitch: in server mode the extension checks `GET /v1/config` at
+  startup and every 5 minutes and goes idle if serving is paused.
+
 ## 0.2.1
 
 - Server-side click verification: in server mode, clicks open a single-use

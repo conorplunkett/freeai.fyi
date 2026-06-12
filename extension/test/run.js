@@ -34,8 +34,16 @@ const openedUrls = [];
 const infoMessages = [];
 let webviewHtml = null;
 
+const windowStateListeners = [];
+function setFocused(v) {
+  vscodeMock.window.state.focused = v;
+  windowStateListeners.forEach((fn) => fn({ focused: v }));
+}
+
 const vscodeMock = {
   window: {
+    state: { focused: true },
+    onDidChangeWindowState: (fn) => { windowStateListeners.push(fn); return { dispose() {} }; },
     createStatusBarItem: () => statusBar,
     showInformationMessage: (m) => { infoMessages.push(m); },
     createWebviewPanel: () => ({
@@ -101,20 +109,29 @@ function advance(ms) {
   }
 }
 
-// ---------- in-memory globalState ----------
+// ---------- in-memory globalState + SecretStorage ----------
 const store = new Map();
+const secretStore = new Map();
 const context = {
   globalState: {
     get: (k, d) => (store.has(k) ? store.get(k) : d),
-    update: async (k, v) => { store.set(k, v); },
+    update: async (k, v) => { v === undefined ? store.delete(k) : store.set(k, v); },
+  },
+  secrets: {
+    get: async (k) => secretStore.get(k),
+    store: async (k, v) => { secretStore.set(k, v); },
+    delete: async (k) => { secretStore.delete(k); },
   },
   subscriptions: [],
 };
 
 // ---------- fetch spy (server mode) ----------
 const fetchCalls = [];
+let configServing = true; // flipped by the killswitch test
 global.fetch = async (url, opts = {}) => {
   fetchCalls.push({ url, opts });
+  if (url.endsWith("/v1/config"))
+    return { ok: true, json: async () => ({ serving: configServing, revenueShare: 0.9 }) };
   if (url.endsWith("/v1/devices/register"))
     return { ok: true, json: async () => ({ deviceId: "dev-1", deviceKey: "key-1" }) };
   if (url.endsWith("/v1/ads"))
@@ -177,6 +194,13 @@ check("impressions accrue at exactly the 90% share", () => {
   assert.ok(Math.abs(earn - expected) < 1e-9, `earnings ${earn} != ${expected}`);
 });
 
+check("unfocused window earns nothing (viewability)", () => {
+  setFocused(false);
+  advance(10000); // two impression ticks while blurred
+  assert.strictEqual(store.get("bb.impressions"), 7, "blurred ticks were paid");
+  setFocused(true);
+});
+
 check("a click opens the ad URL and pays 50× an impression", () => {
   const before = store.get("bb.earnings");
   commands.get("betterbacks.openCurrentAd")();
@@ -219,7 +243,12 @@ check("blocked categories are never served", () => {
     const urls = fetchCalls.map((c) => c.url);
     assert.ok(urls.includes("http://api.fake/v1/devices/register"), "no device registration");
     assert.ok(urls.includes("http://api.fake/v1/ads"), "ads not fetched");
-    assert.deepStrictEqual(store.get("bb.device"), { deviceId: "dev-1", deviceKey: "key-1" });
+    assert.ok(urls.includes("http://api.fake/v1/config"), "killswitch config not checked");
+  });
+
+  check("device credentials live in SecretStorage, not globalState", () => {
+    assert.deepStrictEqual(JSON.parse(secretStore.get("bb.device")), { deviceId: "dev-1", deviceKey: "key-1" });
+    assert.strictEqual(store.get("bb.device"), undefined, "deviceKey leaked into globalState");
   });
 
   check("live auction ad serves in the spinner", () => {
@@ -238,6 +267,18 @@ check("blocked categories are never served", () => {
     assert.ok(body.batchKey, "missing idempotency batchKey");
     assert.ok(body.events.length === 1 && body.events[0].campaignId === "c1", JSON.stringify(body.events));
     assert.ok(body.events[0].impressions > 0, "no impressions in batch");
+  });
+
+  await check("server killswitch stops serving and blocks new runs", async () => {
+    configServing = false;
+    advance(300000); // the 5-minute killswitch poll fires
+    await tickAsync();
+    await tickAsync();
+    assert.ok(statusBar.text.includes("betterbacks"), "not idle after killswitch: " + statusBar.text);
+    commands.get("betterbacks.simulateAgent")();
+    advance(200);
+    assert.ok(!/[✳✶✷✸✹✺]/.test(statusBar.text), "served while killed: " + statusBar.text);
+    configServing = true;
   });
 
   // the reset command awaits globalState updates, so await it before asserting

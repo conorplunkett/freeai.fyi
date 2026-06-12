@@ -16,6 +16,8 @@ function loadConfig(env = process.env) {
     apiBaseUrl: env.API_BASE_URL || `http://localhost:${env.PORT || 8787}`,
     corsOrigin: env.CORS_ORIGIN || siteUrl,
     adminKey: env.ADMIN_KEY,
+    killswitch: env.KILLSWITCH === "1", // start with ad serving disabled
+
     revenueShare: parseFloat(env.REVENUE_SHARE || "0.9"), // the better split
     grossCpmCents: parseInt(env.GROSS_CPM_CENTS || "1200", 10),
     dailyImpressionCap: parseInt(env.DAILY_IMPRESSION_CAP || "5000", 10),

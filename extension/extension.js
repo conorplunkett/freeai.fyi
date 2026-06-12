@@ -4,12 +4,15 @@
 //
 // What this does, concretely:
 //  - While your agent is "thinking" (a spinner is running), Betterbacks shows ONE
-//    subtle, clickable sponsored line in the status bar next to a spinner glyph.
-//  - Every 5 seconds it serves is one "impression". Impressions accrue earnings at
-//    your revenue share (90%). Clicks are worth 50x an impression.
+//    subtle, clickable sponsored line via the active ad surface adapters
+//    (today: the status bar — see src/adapters/).
+//  - Every 5 seconds it serves is one "impression" — but only if the VS Code
+//    window was actually focused for that tick (viewability). Impressions accrue
+//    earnings at your revenue share (90%). Clicks are worth 50x an impression.
 //  - Nothing about your code, prompts, or output is read or transmitted.
 
 const vscode = require("vscode");
+const { createAdapters } = require("./src/adapters");
 
 // --- Spinner frames, in the spirit of the Claude Code asterisk ---
 const SPIN_FRAMES = ["✳", "✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷", "✶"];
@@ -44,7 +47,7 @@ const ADS = [
   { brand: "Liner", line: "Liner Search — The most performant & affordable", url: "https://betterbacks.ai/go/liner", cat: "ai" },
 ];
 
-let statusItem;
+let adapters = [];
 let frameIdx = 0;
 let adIdx = 0;
 let wordIdx = 0;
@@ -52,6 +55,19 @@ let spinTimer = null;
 let impressionTimer = null;
 let activeMode = false; // true while a "thinking" window is showing an ad
 let ctx;
+
+// ---- Viewability ----
+// An impression only counts if the VS Code window is focused when the 5s tick
+// fires — an ad nobody could see is worth nothing to the advertiser, and a
+// machine left running overnight shouldn't mint earnings.
+let windowFocused = true;
+
+// ---- Killswitch ----
+// Server-controlled: if a bad ad slips past moderation we can stop all serving
+// instantly via POST /v1/admin/killswitch. The extension checks GET /v1/config
+// at startup and every 5 minutes. Local/demo mode (no serverUrl) is unaffected.
+let servingAllowed = true;
+let killswitchTimer = null;
 
 // ---- Earnings state (persisted in globalState) ----
 function getState() {
@@ -64,6 +80,9 @@ function getState() {
 }
 function cfg() {
   return vscode.workspace.getConfiguration("betterbacks");
+}
+function sharePct() {
+  return Math.round(cfg().get("revenueShare", 0.9) * 100);
 }
 function perImpressionNet() {
   // gross CPM is per 1000 impressions; your share is revenueShare.
@@ -82,11 +101,40 @@ function currentAds() {
 // impressions/clicks are batched to the API so real money settles. With no
 // server (or offline), the bundled inventory keeps everything working locally.
 let serverAds = null;
+let deviceCreds = null; // cached; persisted in SecretStorage (OS keychain)
 const pendingEvents = new Map(); // campaignId -> { impressions, clicks }
 let flushTimer = null;
 
 function serverUrl() {
   return (cfg().get("serverUrl", "") || "").trim().replace(/\/+$/, "");
+}
+
+// Device credentials live in vscode SecretStorage (the OS keychain) so other
+// extensions and on-disk state dumps can't read the deviceKey. Pre-0.3 installs
+// kept them in globalState — migrate those on first load.
+async function loadDeviceCreds() {
+  if (ctx.secrets && ctx.secrets.get) {
+    try {
+      const raw = await ctx.secrets.get("bb.device");
+      if (raw) return JSON.parse(raw);
+    } catch (_) {
+      /* corrupt secret — fall through and re-register */
+    }
+  }
+  const legacy = ctx.globalState.get("bb.device");
+  if (legacy && ctx.secrets && ctx.secrets.store) {
+    await ctx.secrets.store("bb.device", JSON.stringify(legacy));
+    await ctx.globalState.update("bb.device", undefined);
+  }
+  return legacy || null;
+}
+
+async function saveDeviceCreds(creds) {
+  if (ctx.secrets && ctx.secrets.store) {
+    await ctx.secrets.store("bb.device", JSON.stringify(creds));
+  } else {
+    await ctx.globalState.update("bb.device", creds);
+  }
 }
 
 function trackEvent(field) {
@@ -101,16 +149,15 @@ function trackEvent(field) {
 
 async function flushEvents() {
   const url = serverUrl();
-  const creds = ctx.globalState.get("bb.device");
-  if (!url || !creds || !pendingEvents.size) return;
+  if (!url || !deviceCreds || !pendingEvents.size) return;
   const events = [...pendingEvents.entries()].map(([campaignId, c]) => ({ campaignId, ...c }));
   try {
     const res = await fetch(url + "/v1/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        deviceId: creds.deviceId,
-        deviceKey: creds.deviceKey,
+        deviceId: deviceCreds.deviceId,
+        deviceKey: deviceCreds.deviceKey,
         batchKey: require("crypto").randomUUID(),
         events,
       }),
@@ -121,24 +168,44 @@ async function flushEvents() {
   }
 }
 
+async function checkKillswitch() {
+  const url = serverUrl();
+  if (!url) return;
+  try {
+    const r = await fetch(url + "/v1/config");
+    if (!r.ok) return;
+    const data = await r.json();
+    if (typeof data.serving === "boolean") {
+      servingAllowed = data.serving;
+      if (!servingAllowed && activeMode) stopThinking();
+    }
+  } catch (_) {
+    // unreachable server — keep the last known state
+  }
+}
+
 async function startServerMode() {
   const url = serverUrl();
   if (!url) return;
   try {
-    let creds = ctx.globalState.get("bb.device");
-    if (!creds) {
+    deviceCreds = await loadDeviceCreds();
+    if (!deviceCreds) {
       const r = await fetch(url + "/v1/devices/register", { method: "POST" });
       if (!r.ok) return;
-      creds = await r.json();
-      await ctx.globalState.update("bb.device", creds);
+      deviceCreds = await r.json();
+      await saveDeviceCreds(deviceCreds);
     }
+    await checkKillswitch();
     const r = await fetch(url + "/v1/ads");
     if (!r.ok) return;
     const data = await r.json();
     if (Array.isArray(data.ads) && data.ads.length) {
       serverAds = data.ads.map((a) => ({ ...a, brand: a.brand || a.line }));
     }
+    if (flushTimer) clearInterval(flushTimer);
     flushTimer = setInterval(flushEvents, 60000);
+    if (killswitchTimer) clearInterval(killswitchTimer);
+    killswitchTimer = setInterval(checkKillswitch, 300000);
   } catch (_) {
     // unreachable server — bundled ads keep working
   }
@@ -175,13 +242,12 @@ async function openCurrentAd() {
   recordClick(); // local UI counter
   let target = ad.url;
   const url = serverUrl();
-  const creds = ctx.globalState.get("bb.device");
-  if (serverAds && url && creds && ad.id) {
+  if (serverAds && url && deviceCreds && ad.id) {
     try {
       const res = await fetch(url + "/v1/clicks/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId: creds.deviceId, deviceKey: creds.deviceKey, campaignId: ad.id }),
+        body: JSON.stringify({ deviceId: deviceCreds.deviceId, deviceKey: deviceCreds.deviceKey, campaignId: ad.id }),
       });
       if (res.ok) target = (await res.json()).trackingUrl || target;
     } catch (_) {
@@ -192,37 +258,22 @@ async function openCurrentAd() {
   renderIdle();
 }
 
-// ---- Status bar rendering ----
+// ---- Rendering: fan out the view model to every active surface adapter ----
 function renderIdle() {
-  if (!statusItem) return;
   const s = getState();
-  statusItem.text = `$(sparkle) betterbacks  $${s.earnings.toFixed(2)}`;
-  statusItem.tooltip = new vscode.MarkdownString(
-    `**Betterbacks.ai** — you keep ${Math.round(cfg().get("revenueShare", 0.9) * 100)}%\n\n` +
-      `Earned: **$${s.earnings.toFixed(2)}**  ·  ${s.impressions.toLocaleString()} impressions  ·  ${s.clicks} clicks\n\n` +
-      `_Click to open your earnings dashboard._`
-  );
-  statusItem.command = "betterbacks.showEarnings";
-  statusItem.color = undefined;
-  statusItem.show();
+  const model = { earnings: s.earnings, impressions: s.impressions, clicks: s.clicks, sharePct: sharePct() };
+  for (const a of adapters) a.renderIdle(model);
 }
 
 function renderActiveFrame() {
-  if (!statusItem) return;
   const ads = currentAds();
-  const ad = ads[adIdx % ads.length];
-  const glyph = SPIN_FRAMES[frameIdx % SPIN_FRAMES.length];
-  const word = WORDS[wordIdx % WORDS.length];
-  // The one sponsored line, next to the spinner.
-  statusItem.text = `${glyph} ${word}…  ·  ${ad.line}`;
-  statusItem.tooltip = new vscode.MarkdownString(
-    `**Sponsored** · ${ad.brand}\n\n${ad.line}\n\n_Click to open. You keep ${Math.round(
-      cfg().get("revenueShare", 0.9) * 100
-    )}% of this impression._`
-  );
-  statusItem.command = "betterbacks.openCurrentAd";
-  statusItem.color = new vscode.ThemeColor("charts.green");
-  statusItem.show();
+  const model = {
+    glyph: SPIN_FRAMES[frameIdx % SPIN_FRAMES.length],
+    word: WORDS[wordIdx % WORDS.length],
+    ad: ads[adIdx % ads.length],
+    sharePct: sharePct(),
+  };
+  for (const a of adapters) a.renderActive(model);
   frameIdx++;
 }
 
@@ -232,6 +283,7 @@ function startThinking(durationMs) {
     vscode.window.showInformationMessage("Betterbacks is disabled. Enable it to earn while you wait.");
     return;
   }
+  if (!servingAllowed) return; // server killswitch — stay idle
   activeMode = true;
   adIdx = Math.floor(Math.random() * currentAds().length);
 
@@ -239,10 +291,12 @@ function startThinking(durationMs) {
   if (spinTimer) clearInterval(spinTimer);
   spinTimer = setInterval(renderActiveFrame, 100);
 
-  // one impression every 5 seconds; rotate the ad + word each impression
-  recordImpression();
+  // one impression every 5 seconds; rotate the ad + word each impression.
+  // Unfocused ticks rotate nothing and pay nothing — see windowFocused.
+  if (windowFocused) recordImpression();
   if (impressionTimer) clearInterval(impressionTimer);
   impressionTimer = setInterval(() => {
+    if (!windowFocused) return;
     adIdx++;
     wordIdx++;
     recordImpression();
@@ -269,7 +323,7 @@ function showEarnings() {
     { enableScripts: false }
   );
   const s = getState();
-  const share = Math.round(cfg().get("revenueShare", 0.9) * 100);
+  const share = sharePct();
   const days = Math.max(1, Math.round((Date.now() - s.installedAt) / 86400000));
   const perDay = (s.earnings / days).toFixed(2);
   const rows = currentAds()
@@ -325,14 +379,27 @@ function wireTerminalAutoShow() {
   });
 }
 
+function wireViewability(context) {
+  windowFocused = vscode.window.state ? !!vscode.window.state.focused : true;
+  if (typeof vscode.window.onDidChangeWindowState === "function") {
+    context.subscriptions.push(
+      vscode.window.onDidChangeWindowState((s) => {
+        windowFocused = !!s.focused;
+      })
+    );
+  }
+}
+
 function activate(context) {
   ctx = context;
   if (!context.globalState.get("bb.installedAt")) {
     context.globalState.update("bb.installedAt", Date.now());
   }
 
-  statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 1000);
-  context.subscriptions.push(statusItem);
+  adapters = createAdapters(vscode);
+  for (const a of adapters) {
+    if (a.item) context.subscriptions.push(a.item);
+  }
 
   context.subscriptions.push(
     vscode.commands.registerCommand("betterbacks.toggle", async () => {
@@ -360,6 +427,7 @@ function activate(context) {
     })
   );
 
+  wireViewability(context);
   wireTerminalAutoShow();
   startServerMode();
   renderIdle();
@@ -368,6 +436,7 @@ function activate(context) {
 function deactivate() {
   stopThinking();
   if (flushTimer) clearInterval(flushTimer);
+  if (killswitchTimer) clearInterval(killswitchTimer);
   flushEvents(); // best-effort final settle
 }
 

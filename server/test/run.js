@@ -275,6 +275,18 @@ const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, l
     assert.strictEqual((await api("GET", "/admin?adminKey=wrong")).status, 401);
   });
 
+  // ---------- killswitch ----------
+  await check("killswitch stops ad serving and flips /v1/config", async () => {
+    assert.strictEqual((await api("GET", "/v1/config")).body.serving, true);
+    assert.ok((await api("GET", "/v1/ads")).body.ads.length > 0);
+    assert.strictEqual((await api("POST", "/v1/admin/killswitch", { adminKey: "nope", serving: false })).status, 401);
+    await api("POST", "/v1/admin/killswitch", { adminKey: "test-admin", serving: false });
+    assert.strictEqual((await api("GET", "/v1/config")).body.serving, false);
+    assert.strictEqual((await api("GET", "/v1/ads")).body.ads.length, 0, "ads served while killed");
+    await api("POST", "/v1/admin/killswitch", { adminKey: "test-admin", serving: true });
+    assert.ok((await api("GET", "/v1/ads")).body.ads.length > 0, "serving did not resume");
+  });
+
   // ---------- ops guards: body cap + rate limit ----------
   await check("oversized request body returns 413", async () => {
     const huge = JSON.stringify({ blob: "x".repeat(70000) });

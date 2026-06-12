@@ -169,6 +169,7 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | GET | `/healthz` | — | liveness |
+| GET | `/v1/config` | — | serving flag (killswitch) + revenue share |
 | GET | `/v1/ads` | — | auction-ranked active ads |
 | GET | `/v1/leaderboard` | — | public bid market |
 | POST | `/v1/devices/register` | — | mint device credentials |
@@ -186,6 +187,7 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 | POST | `/v1/admin/campaigns/reject` | admin key | reject + refund |
 | GET | `/admin` | admin key | minimal moderation UI |
 | POST | `/v1/admin/payouts` | admin key | run the payout sweep |
+| POST | `/v1/admin/killswitch` | admin key | `{ "serving": false }` halts all ad serving instantly |
 
 ## Hardening that's now built in
 
@@ -201,6 +203,11 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 - **XSS-safe rendering** — advertiser text is intake-validated (no `< >`,
   3–60 printable chars) and escaped on every render path (site, `/admin`,
   extension webview).
+- **Killswitch** — `POST /v1/admin/killswitch {"serving": false}` stops all ad
+  serving instantly: extensions poll `GET /v1/config` every 5 minutes and go
+  idle, and `/v1/ads` returns an empty list for older clients. Set
+  `KILLSWITCH=1` to boot with serving off; the runtime toggle resets to the
+  env default on restart.
 - **Ops guards** — token-bucket rate limiting per IP, 64 KB request body cap,
   CORS locked to the site origin, structured request logging, graceful
   shutdown.
