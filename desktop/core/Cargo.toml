@@ -1,0 +1,13 @@
+[package]
+name = "overlay-core"
+version = "0.1.0"
+edition = "2021"
+description = "Platform-independent logic for the Betterbacks sponsor overlay: impression qualification, frequency caps, campaign eligibility, privacy-constrained event tracking."
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lib]
+crate-type = ["lib", "staticlib"]
