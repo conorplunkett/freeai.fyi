@@ -16,6 +16,10 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let demoMode = ProcessInfo.processInfo.environment["FREEAI_DEMO"] == "1"
+    // FREEAI_PROBE=1: every 2s, dump the labeled elements of Claude's focused
+    // window and the generating verdict. Run it, trigger a generation in
+    // Claude, and read the terminal. Diagnostic only; nothing leaves the Mac.
+    private let probeMode = ProcessInfo.processInfo.environment["FREEAI_PROBE"] == "1"
 
     private let detector = ClaudeDetector()
     private let overlay = OverlayPanelController()
@@ -35,6 +39,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenuBar()
         requestAccessibilityIfNeeded()
+
+        if probeMode {
+            print("probe: dumping Claude's AX tree every 2s — focus Claude and start a generation (Ctrl+C to quit)")
+            Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+                self?.detector.probeDump()
+            }
+            return
+        }
+
         bootstrap()
 
         overlay.onClick = { [weak self] card in self?.handleClick(campaignId: card.campaignID) }

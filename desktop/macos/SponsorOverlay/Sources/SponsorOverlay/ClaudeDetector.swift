@@ -15,10 +15,20 @@ struct ClaudeState {
 }
 
 final class ClaudeDetector {
-    // Verify against the shipping app: `osascript -e 'id of app "Claude"'`.
+    // Verified on Claude Desktop: `osascript -e 'id of app "Claude"'`.
     static let bundleID = "com.anthropic.claudefordesktop"
 
-    private var lastFrontmostChange = Date.distantPast
+    /// Electron/Chromium apps only build the AX tree inside their AXWebArea
+    /// when an assistive client asks for it. Setting AXManualAccessibility on
+    /// the app element is the documented Electron switch; without it the web
+    /// contents (and the Stop button) are invisible to us.
+    private var enabledForPid: pid_t?
+
+    private func enableElectronAccessibility(_ axApp: AXUIElement, pid: pid_t) {
+        guard enabledForPid != pid else { return }
+        AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        enabledForPid = pid
+    }
 
     func currentState() -> ClaudeState {
         var state = ClaudeState()
@@ -31,6 +41,7 @@ final class ClaudeDetector {
         guard state.focused else { return state }
 
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        enableElectronAccessibility(axApp, pid: app.processIdentifier)
         guard let window = focusedWindow(of: axApp) else { return state }
         state.windowBounds = frame(of: window)
         state.generating = looksGenerating(window: window)
@@ -56,28 +67,28 @@ final class ClaudeDetector {
         return CGRect(origin: pos, size: size)
     }
 
-    /// Generation heuristic, local-only and intentionally conservative.
-    /// Claude Desktop (Electron) exposes a limited AX tree; the most reliable
-    /// structural signal observed so far is the presence of a "Stop" /
-    /// "Stop response" button while streaming. We walk the tree looking for an
-    /// AXButton whose AXDescription/AXTitle matches, capped in depth so the
-    /// scan stays cheap. TODO(milestone 2): validate against current Claude
-    /// builds and add the recent-user-action fallback from the PRD.
+    /// Generation heuristic, local-only and intentionally conservative: the
+    /// presence of a "Stop …" button while streaming. We only read structural
+    /// attributes (role/title/description) of buttons — never message text.
+    /// Web content nests deep inside the AXWebArea, hence the generous depth.
     private func looksGenerating(window: AXUIElement) -> Bool {
         return containsStopButton(window, depth: 0)
     }
 
-    private let stopTitles: Set<String> = ["stop", "stop response", "stop generating"]
+    static let maxScanDepth = 30
 
     private func containsStopButton(_ element: AXUIElement, depth: Int) -> Bool {
-        guard depth < 8 else { return false }
+        guard depth < Self.maxScanDepth else { return false }
         var roleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         if (roleRef as? String) == kAXButtonRole as String {
-            for attr in [kAXTitleAttribute, kAXDescriptionAttribute] {
+            for attr in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute] {
                 var v: CFTypeRef?
                 AXUIElementCopyAttributeValue(element, attr as CFString, &v)
-                if let s = v as? String, stopTitles.contains(s.lowercased()) {
+                // Match loosely ("Stop response", "Stop generating", localized
+                // variants keep the verb) but require it on a button so plain
+                // message text can never trip it.
+                if let s = (v as? String)?.lowercased(), s.contains("stop") {
                     return true
                 }
             }
@@ -88,6 +99,46 @@ final class ClaudeDetector {
             return false
         }
         return children.contains { containsStopButton($0, depth: depth + 1) }
+    }
+
+    // MARK: probe mode (FREEAI_PROBE=1)
+
+    /// Dumps every labeled element / button in Claude's focused window plus
+    /// the generating verdict. Diagnostic only — prints locally, sends nothing.
+    func probeDump() {
+        guard let app = NSRunningApplication
+            .runningApplications(withBundleIdentifier: Self.bundleID).first else {
+            print("probe: Claude Desktop is not running")
+            return
+        }
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        enableElectronAccessibility(axApp, pid: app.processIdentifier)
+        guard let window = focusedWindow(of: axApp) else {
+            print("probe: no focused Claude window (is Accessibility granted? is Claude frontmost?)")
+            return
+        }
+        print("probe: --- focused Claude window, labeled elements ---")
+        dump(window, depth: 0)
+        print("probe: generating=\(looksGenerating(window: window))")
+    }
+
+    private func dump(_ element: AXUIElement, depth: Int) {
+        guard depth < Self.maxScanDepth else { return }
+        var roleRef: CFTypeRef?, titleRef: CFTypeRef?, descRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+        AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+        AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descRef)
+        let role = roleRef as? String ?? "?"
+        let title = titleRef as? String ?? ""
+        let desc = descRef as? String ?? ""
+        // Only print signal: buttons, and anything with a label.
+        if role == kAXButtonRole as String || !title.isEmpty || !desc.isEmpty {
+            print("probe: \(String(repeating: " ", count: min(depth, 12)))\(role) title=\"\(title)\" desc=\"\(desc)\"")
+        }
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else { return }
+        for child in children { dump(child, depth: depth + 1) }
     }
 }
 
