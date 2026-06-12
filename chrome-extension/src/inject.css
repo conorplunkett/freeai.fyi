@@ -53,7 +53,7 @@
   background: rgba(24, 28, 34, 0.96);
 }
 .bb-spin {
-  color: #7cf6a8;
+  color: #e8a486;
   display: inline-block;
   animation: bb-spin 1s linear infinite;
 }
@@ -101,19 +101,19 @@
   margin-left: 6px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(124, 246, 168, 0.14);
-  color: #7cf6a8;
+  background: rgba(217, 119, 87, 0.16);
+  color: #e8a486;
   font-size: 10px;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
 }
 /* Test Mode — identifiable via the badge, border kept subtle. */
 .bb-bar.bb-test {
-  border-color: rgba(124, 246, 168, 0.18);
+  border-color: rgba(217, 119, 87, 0.3);
 }
 .bb-bar.bb-test .bb-tag {
-  background: rgba(124, 246, 168, 0.22);
-  color: #aef7c8;
+  background: rgba(217, 119, 87, 0.24);
+  color: #f0b59e;
   font-weight: 700;
 }
 

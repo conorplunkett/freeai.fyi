@@ -18,7 +18,7 @@ function loadConfig(env = process.env) {
     adminKey: env.ADMIN_KEY,
     killswitch: env.KILLSWITCH === "1", // start with ad serving disabled
 
-    revenueShare: parseFloat(env.REVENUE_SHARE || "0.9"), // the better split
+    revenueShare: parseFloat(env.REVENUE_SHARE || "0.5"), // user's cut, paid out as Claude credits
     grossCpmCents: parseInt(env.GROSS_CPM_CENTS || "1200", 10),
     dailyImpressionCap: parseInt(env.DAILY_IMPRESSION_CAP || "5000", 10),
     payoutThresholdCents: parseInt(env.PAYOUT_THRESHOLD_CENTS || "1000", 10), // $10

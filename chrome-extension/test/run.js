@@ -2,7 +2,7 @@
 // Loads the REAL content.js and background.js against a hand-rolled minimal DOM
 // + chrome API mock, so the whole loop can be checked headlessly:
 //   detection on ChatGPT / Claude / Gemini · Test Mode shows the mock ad ·
-//   mock events never touch real earnings · the 90% math.
+//   mock events never touch real earnings · the 50% math.
 //
 // Usage: node test/run.js   (or: npm test)
 
@@ -218,17 +218,17 @@ function makeChrome(stateRef, sentRef) {
   vm.runInContext(read("src/background.js"), bgCtx);
   const msg = (m) => new Promise((res) => bg._onMessage(m, {}, res));
 
-  await check("real impression earns 90% of the per-impression gross", async () => {
+  await check("real impression earns 50% of the per-impression gross", async () => {
     const s = await msg({ type: "BB_IMPRESSION", mock: false });
     assert.strictEqual(s.impressions, 1);
-    assert.ok(Math.abs(s.earnings - (12 / 1000) * 0.9) < 1e-9, "earnings != 90% share");
+    assert.ok(Math.abs(s.earnings - (12 / 1000) * 0.5) < 1e-9, "earnings != 50% share");
   });
 
   await check("real click pays 50× an impression", async () => {
     const before = (await msg({ type: "BB_GET_STATE" })).earnings;
     const s = await msg({ type: "BB_CLICK", mock: false });
     assert.strictEqual(s.clicks, 1);
-    assert.ok(Math.abs(s.earnings - before - (12 / 1000) * 0.9 * 50) < 1e-9, "click != 50×");
+    assert.ok(Math.abs(s.earnings - before - (12 / 1000) * 0.5 * 50) < 1e-9, "click != 50×");
   });
 
   await check("mock impression/click never touch real earnings", async () => {
@@ -250,7 +250,7 @@ function makeChrome(stateRef, sentRef) {
     assert.strictEqual(s.testClicks, 0);
   });
 
-  console.log(`\nall ${pass} checks passed — detection, test mode, and 90% verified. 🤑`);
+  console.log(`\nall ${pass} checks passed — detection, test mode, and the 50% split verified.`);
 })().catch((err) => {
   console.error("\n✗ FAILED:", err.stack || err.message);
   process.exit(1);

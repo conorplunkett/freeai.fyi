@@ -1,18 +1,18 @@
-# FreeAI.fyi 🤑
+# FreeAI.fyi
 
-> Make money while you use **ChatGPT, Claude, and Gemini**. You keep **90%**.
+> Get **Claude** for free with ads while you use **ChatGPT, Claude, and Gemini**. **50%** of the revenue comes back as Claude credits.
 
 FreeAI shows one subtle, clickable sponsored line while a web AI assistant is
-thinking/streaming, and pays you 90% of the revenue. The product is a **Chrome
-extension**; a Node + Postgres backend handles the ad auction, an append-only
-ledger, and Stripe payouts.
+thinking/streaming, and returns 50% of the revenue to you as credits redeemable
+for Claude. The product is a **Chrome extension**; a Node + Postgres backend
+handles the ad auction, an append-only ledger, and gift-card redemption.
 
 ## Repo layout
 
 | Path | What |
 | --- | --- |
 | `chrome-extension/` | **The product.** MV3 extension for ChatGPT / Claude / Gemini. Load-unpacked instructions + Test mode in its README. |
-| `server/` | Ad auction, 90% ledger (millicents), Stripe Checkout + Connect payouts, killswitch. |
+| `server/` | Ad auction, 50/50 ledger (millicents), Stripe Checkout, Claude gift-card redemption, killswitch. |
 | `index.html` · `styles.css` · `script.js` | Marketing site. |
 | `legacy/vscode-extension/` | Archived. The original VS Code spinner extension — no longer the product. |
 
@@ -29,7 +29,7 @@ ledger, and Stripe payouts.
   ChatGPT/Claude/Gemini, an `aria-busy` region, or a streaming marker) and shows
   the sponsored bar only while the assistant is working.
 - Every 5 seconds served is one **impression**; a click is worth **50×**.
-  Earnings accrue at your **90%** share. **Test mode** shows a labelled mock ad
+  Credits accrue at your **50%** share. **Test mode** shows a labelled mock ad
   continuously, with its own counters that never touch real earnings.
 - It reads **none** of your prompts or the model's output.
 

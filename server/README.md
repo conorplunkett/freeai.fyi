@@ -1,8 +1,8 @@
-# FreeAI API — the money loop 🤑
+# FreeAI API — the credit loop
 
-Node + Postgres backend that makes the 90% split real: a live ad auction,
-an append-only ledger, Stripe Checkout for money **in**, Stripe Connect for
-money **out**.
+Node + Postgres backend that makes the 50/50 split real: a live ad auction,
+an append-only ledger, Stripe Checkout for money **in**, and Claude gift-card
+redemption for credits **out**.
 
 ```
   ADVERTISER                          DEVELOPER (VS Code extension)
@@ -12,7 +12,7 @@ money **out**.
   Stripe Checkout ──(webhook)──► campaign      │ POST /v1/events (batched, idempotent)
   pays $blocks×price            activated      ▼
                                      └──► LEDGER (millicents, append-only)
-                                              90% → device   10% → platform
+                                              50% → device   50% → platform
                                                     │
                                           POST /v1/admin/payouts (weekly sweep)
                                                     ▼
@@ -23,7 +23,7 @@ money **out**.
 
 - **Postgres** is the source of truth. Balances are *never* stored — they're
   always `SUM(ledger)`, so the books can't drift. Amounts are integer
-  **millicents** (1/1000¢) so the 90% of a half-cent impression is exact.
+  **millicents** (1/1000¢) so the 50% of a half-cent impression is exact.
 - **No framework** — plain `node:http`, one dependency (`pg`). The Stripe
   client is ~100 lines over `fetch`, because Stripe's API is just HTTPS +
   form-encoded bodies. Everything is dependency-injected, which is why the
@@ -126,7 +126,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/freeai npm test
 
 15 end-to-end checks drive the real routes against a real Postgres (isolated
 schema per run) with only the Stripe transport faked: checkout → webhook
-activation → auction ranking → 90% impression/click credits → idempotency →
+activation → auction ranking → 50% impression/click credits → idempotency →
 caps → budget exhaustion → Connect onboarding → payout sweep.
 
 ## Wiring the extension

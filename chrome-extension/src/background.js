@@ -1,12 +1,12 @@
 // FreeAI.fyi — service worker
-// Holds earnings state and the revenue math. You keep 90%.
+// Holds earnings state and the revenue math. 50% comes back as Claude credits.
 
 importScripts("ads.js");
 
 const DEFAULTS = {
   enabled: true,
   testMode: false, // show the mock ad continuously so you can verify the loop
-  revenueShare: 0.9, // your cut — the better split
+  revenueShare: 0.5, // your cut, redeemable as Claude credits
   grossCpm: 12, // gross USD per 1,000 five-second impressions
   blockedCategories: [],
   impressions: 0,

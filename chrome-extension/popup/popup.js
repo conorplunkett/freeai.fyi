@@ -21,7 +21,7 @@ async function refresh() {
   $("earnings").textContent = money(s.earnings);
   $("impressions").textContent = (s.impressions || 0).toLocaleString();
   $("clicks").textContent = (s.clicks || 0).toLocaleString();
-  $("share").textContent = Math.round((s.revenueShare ?? 0.9) * 100);
+  $("share").textContent = Math.round((s.revenueShare ?? 0.5) * 100);
   $("enabled").checked = s.enabled !== false;
   const days = Math.max(1, Math.round((Date.now() - (s.installedAt || Date.now())) / 86400000));
   $("perday").textContent = money((s.earnings || 0) / days);

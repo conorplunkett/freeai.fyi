@@ -4,7 +4,7 @@
 // real browser what test/run.js verifies in a mock DOM:
 //   the content script + CSS inject · Test Mode renders the labelled mock ad ·
 //   the Stop-button detector shows/hides the bar · impressions reach the
-//   service worker and the 90% earnings math lands in chrome.storage.
+//   service worker and the 50% earnings math lands in chrome.storage.
 //
 // The only fixture trickery: the manifest is copied to a temp dir with
 // http://127.0.0.1/* added to its match patterns, since the shipped manifest
@@ -213,16 +213,16 @@ async function main() {
       });
       assert.ok(info.w > 0 && info.h > 0, "bar has no box");
       assert.ok(info.line.length > 0, "no ad line rendered");
-      assert.match(info.tag, /90%/);
+      assert.match(info.tag, /50%/);
     });
 
-    await check("real impression lands in storage at 90% of gross", async () => {
+    await check("real impression lands in storage at 50% of gross", async () => {
       await sw.evaluate(() => chrome.storage.local.set({ impressions: 0, earnings: 0 }));
       await sleep(5500); // impressions tick every 5s served
       const s = await getState();
       assert.ok(s.impressions >= 1, "no real impression recorded");
       const per = (s.grossCpm / 1000) * s.revenueShare;
-      assert.ok(Math.abs(s.earnings - s.impressions * per) < 1e-9, "earnings ≠ impressions × 90% net");
+      assert.ok(Math.abs(s.earnings - s.impressions * per) < 1e-9, "earnings ≠ impressions × 50% net");
     });
 
     await check("Stop button gone ⇒ bar hides", async () => {

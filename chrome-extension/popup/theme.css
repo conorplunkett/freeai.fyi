@@ -1,0 +1,39 @@
+/* FreeAI.fyi — universal theme tokens.
+ * Single source of truth for color across the landing page and the Chrome
+ * extension. The extension ships its own synced copy at
+ * chrome-extension/popup/theme.css — keep the two identical.
+ *
+ * Palette follows Anthropic / Claude: warm Claude coral on a cream canvas
+ * with near-black ink and warm neutral grays. */
+:root {
+  /* Brand accent — Claude coral */
+  --accent: #d97757;
+  --accent-d: #c15f3c;
+  --accent-grad-a: #e08a6a;
+  --accent-grad-b: #cf6b4a;
+
+  /* Surfaces */
+  --bg-cream: #faf9f5;
+  --bg-tint: #f0eee6;
+  --card-dark: #2b2a28;
+  --card-dark-2: #1c1b18;
+
+  /* Ink & neutrals (warm) */
+  --ink: #1f1e1d;
+  --ink-2: #3d3b37;
+  --gray: #6b6963;
+  --gray-2: #9b988f;
+  --line: #e6e2d8;
+
+  /* Legacy aliases — existing rules recolor to the Claude palette via these.
+   * Prefer the semantic names above for new styles. */
+  --green: var(--accent);
+  --green-d: var(--accent-d);
+  --green-grad-a: var(--accent-grad-a);
+  --green-grad-b: var(--accent-grad-b);
+  --green-a: var(--accent-grad-a);
+  --green-b: var(--accent-grad-b);
+  --blue: var(--accent-d);
+  --stripe: var(--accent-d);
+  --orange: var(--accent);
+}

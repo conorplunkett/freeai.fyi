@@ -1,6 +1,6 @@
 // FreeAI.fyi — content script
 // Detects when the AI assistant on this page is "thinking"/streaming, and shows
-// ONE subtle, clickable sponsored line near the composer. You keep 90%.
+// ONE subtle, clickable sponsored line near the composer. 50% back as Claude credits.
 //
 // Works on the three sites our ICP lives in — ChatGPT, Claude, and Google
 // (Gemini / AI Studio) — plus a few more, via layered detection:
@@ -91,7 +91,7 @@
     '<span class="bb-sep">·</span>' +
     '<span class="bb-chip">R</span>' +
     '<span class="bb-line">Ramp · save time and money</span>' +
-    '<span class="bb-tag">sponsored · you keep 90%</span>';
+    '<span class="bb-tag">sponsored · 50% back as Claude credits</span>';
   const elSpin = bar.querySelector(".bb-spin");
   const elWord = bar.querySelector(".bb-word");
   const elChip = bar.querySelector(".bb-chip");
@@ -173,7 +173,7 @@
       elTag.textContent = "TEST AD · mock";
       bar.classList.add("bb-test");
     } else {
-      elTag.textContent = "sponsored · you keep 90%";
+      elTag.textContent = "sponsored · 50% back as Claude credits";
       bar.classList.remove("bb-test");
     }
     frame++;

@@ -168,9 +168,10 @@ if (adForm) {
     };
 
     if (!API_BASE) {
-      // demo mode: no backend configured
+      // No API configured. This is the live page, so surface a neutral retry
+      // message rather than any demo/test wording.
       const old = stripeBtn.innerHTML;
-      stripeBtn.textContent = "Demo mode — connect the API to take payments";
+      stripeBtn.textContent = "Couldn't reach checkout — try again";
       setTimeout(() => (stripeBtn.innerHTML = old), 2200);
       return;
     }

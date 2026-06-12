@@ -1,12 +1,4 @@
 :root {
-  --ink: #0e1116;
-  --gray: #6b7280;
-  --gray-2: #9aa1ad;
-  --line: #e7e9ee;
-  --green: #34a853;
-  --green-d: #2c9a4b;
-  --green-a: #45b56a;
-  --green-b: #2f9f57;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: "Inter", system-ui, -apple-system, sans-serif;
 }
@@ -16,7 +8,7 @@ body {
   margin: 0;
   font-family: var(--sans);
   color: var(--ink);
-  background: linear-gradient(180deg, #e8f3ec, #f7faf8 40%, #fff);
+  background: linear-gradient(180deg, var(--bg-tint), var(--bg-cream) 40%, #fff);
 }
 .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; }
 .brand { display: flex; align-items: center; gap: 8px; }

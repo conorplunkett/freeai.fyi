@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FreeAI.fyi — Earn from ChatGPT, Claude & Gemini",
   "version": "0.2.0",
-  "description": "Make money while you use ChatGPT, Claude, and Gemini. A subtle sponsored line shows while the AI thinks — you keep 90% of the revenue.",
+  "description": "Get Claude for free with ads. A subtle sponsored line shows while ChatGPT, Claude, and Gemini think — 50% of the revenue comes back as Claude credits.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
