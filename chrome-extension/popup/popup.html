@@ -9,8 +9,8 @@
 <body>
   <header class="top">
     <div class="brand">
-      <span class="logo">B$</span>
-      <span class="name">FreeAI<span class="dim">.ai</span></span>
+      <span class="logo">F$</span>
+      <span class="name">FreeAI<span class="dim">.fyi</span></span>
     </div>
     <label class="switch" title="Enable / disable earning">
       <input type="checkbox" id="enabled" />
@@ -30,8 +30,21 @@
     <div class="card"><div class="n" id="perday">$0.00</div><div class="l">per day</div></div>
   </section>
 
+  <!-- TEST MODE -->
+  <div class="testrow">
+    <div class="testrow-l">
+      <span class="testrow-title">Test mode <span class="pill" id="test-pill" hidden>ON</span></span>
+      <span class="testrow-sub">Show a mock ad on the page right now — no waiting.</span>
+    </div>
+    <label class="switch" title="Toggle test mode">
+      <input type="checkbox" id="testmode" />
+      <span class="slider"></span>
+    </label>
+  </div>
+  <p class="hint" id="test-hint" hidden>Mock ad is live on any supported tab. <span id="test-counts"></span></p>
+
   <button class="demo" id="demo">Show me the money — run a 30s demo</button>
-  <p class="hint" id="hint">Open <b>claude.ai</b> or <b>chatgpt.com</b>, then ask something — the sponsored line appears while it thinks.</p>
+  <p class="hint" id="hint">Open <b>chatgpt.com</b>, <b>claude.ai</b>, or <b>gemini.google.com</b>, then ask something — the sponsored line appears while it thinks.</p>
 
   <section class="board-wrap">
     <h2>Live bid market</h2>

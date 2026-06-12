@@ -14,4 +14,18 @@
     { brand: "Solo", chip: "S", color: "#0ea5e9", ink: "#fff", line: "Solo — a better place to run your agents", url: "https://freeai.fyi/go/solo", cat: "infra" },
     { brand: "Liner", chip: "L", color: "#10b981", ink: "#fff", line: "Liner Search — The most performant & affordable", url: "https://freeai.fyi/go/liner", cat: "ai" }
   ];
+
+  // The mock ad shown in Test Mode. Deliberately obvious so it can never be
+  // mistaken for real, billable inventory. Clicking it opens the FreeAI test
+  // page instead of an advertiser URL.
+  g.BB_MOCK_AD = {
+    brand: "FreeAI Test",
+    chip: "✓",
+    color: "#34a853",
+    ink: "#fff",
+    line: "Test ad — this is what advertisers will see here.",
+    url: "https://freeai.fyi/?test=1",
+    cat: "test",
+    mock: true
+  };
 })(typeof self !== "undefined" ? self : window);

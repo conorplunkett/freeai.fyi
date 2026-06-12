@@ -88,6 +88,17 @@
   letter-spacing: 0.02em;
   flex: 0 0 auto;
 }
+/* Test Mode — make the mock ad unmistakable. */
+.bb-bar.bb-test {
+  border-color: rgba(124, 246, 168, 0.5);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(124, 246, 168, 0.25);
+}
+.bb-bar.bb-test .bb-tag {
+  background: rgba(124, 246, 168, 0.22);
+  color: #aef7c8;
+  font-weight: 700;
+}
+
 @media (max-width: 520px) {
   .bb-tag {
     display: none;

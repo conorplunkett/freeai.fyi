@@ -5,41 +5,51 @@ importScripts("ads.js");
 
 const DEFAULTS = {
   enabled: true,
+  testMode: false, // show the mock ad continuously so you can verify the loop
   revenueShare: 0.9, // your cut — the better split
   grossCpm: 12, // gross USD per 1,000 five-second impressions
   blockedCategories: [],
   impressions: 0,
   clicks: 0,
   earnings: 0,
+  // Test Mode events are kept in their own counters so they never pollute real,
+  // billable earnings — the popup surfaces them only while Test Mode is on.
+  testImpressions: 0,
+  testClicks: 0,
   installedAt: Date.now(),
 };
 
 async function getState() {
   const s = await chrome.storage.local.get(Object.keys(DEFAULTS));
-  return { ...DEFAULTS, ...s };
+  return { ...DEFAULTS, ...s, mockAd: self.BB_MOCK_AD };
 }
 
 function perImpressionNet(s) {
   return (s.grossCpm / 1000) * s.revenueShare;
 }
 
-async function recordImpression() {
+async function recordImpression(mock) {
   const s = await getState();
   if (!s.enabled) return s;
-  const next = {
-    impressions: s.impressions + 1,
-    earnings: +(s.earnings + perImpressionNet(s)).toFixed(6),
-  };
+  // Mock impressions (Test Mode) tick a separate counter and earn nothing real.
+  const next = mock
+    ? { testImpressions: s.testImpressions + 1 }
+    : {
+        impressions: s.impressions + 1,
+        earnings: +(s.earnings + perImpressionNet(s)).toFixed(6),
+      };
   await chrome.storage.local.set(next);
   return { ...s, ...next };
 }
 
-async function recordClick() {
+async function recordClick(mock) {
   const s = await getState();
-  const next = {
-    clicks: s.clicks + 1,
-    earnings: +(s.earnings + perImpressionNet(s) * 50).toFixed(6), // click = 50x impression
-  };
+  const next = mock
+    ? { testClicks: s.testClicks + 1 }
+    : {
+        clicks: s.clicks + 1,
+        earnings: +(s.earnings + perImpressionNet(s) * 50).toFixed(6), // click = 50x impression
+      };
   await chrome.storage.local.set(next);
   return { ...s, ...next };
 }
@@ -65,17 +75,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         break;
       }
       case "BB_IMPRESSION":
-        sendResponse(await recordImpression());
+        sendResponse(await recordImpression(!!msg.mock));
         break;
       case "BB_CLICK":
-        sendResponse(await recordClick());
+        sendResponse(await recordClick(!!msg.mock));
         break;
       case "BB_SET":
         await chrome.storage.local.set(msg.payload || {});
         sendResponse(await getState());
         break;
       case "BB_RESET":
-        await chrome.storage.local.set({ impressions: 0, clicks: 0, earnings: 0 });
+        await chrome.storage.local.set({ impressions: 0, clicks: 0, earnings: 0, testImpressions: 0, testClicks: 0 });
         sendResponse(await getState());
         break;
       default:

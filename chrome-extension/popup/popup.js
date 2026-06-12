@@ -25,6 +25,15 @@ async function refresh() {
   $("enabled").checked = s.enabled !== false;
   const days = Math.max(1, Math.round((Date.now() - (s.installedAt || Date.now())) / 86400000));
   $("perday").textContent = money((s.earnings || 0) / days);
+
+  // Test mode
+  const on = !!s.testMode;
+  $("testmode").checked = on;
+  $("test-pill").hidden = !on;
+  $("test-hint").hidden = !on;
+  if (on) {
+    $("test-counts").textContent = `${s.testImpressions || 0} mock impressions · ${s.testClicks || 0} mock clicks (not billed).`;
+  }
 }
 
 function renderBoard() {
@@ -43,6 +52,21 @@ $("enabled").addEventListener("change", async (e) => {
   await send({ type: "BB_SET", payload: { enabled: e.target.checked } });
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab) chrome.tabs.sendMessage(tab.id, { type: "BB_REFRESH" }, () => void chrome.runtime.lastError);
+});
+
+$("testmode").addEventListener("change", async (e) => {
+  await send({ type: "BB_SET", payload: { testMode: e.target.checked } });
+  await refresh();
+  // push the change to the active tab so the mock ad appears/disappears now
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab) {
+    chrome.tabs.sendMessage(tab.id, { type: "BB_REFRESH" }, () => {
+      if (chrome.runtime.lastError) {
+        $("test-hint").hidden = false;
+        $("test-counts").textContent = "Open chatgpt.com / claude.ai / gemini.google.com, then reload the tab to see the mock ad.";
+      }
+    });
+  }
 });
 
 $("demo").addEventListener("click", async () => {

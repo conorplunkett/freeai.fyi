@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "FreeAI.fyi — Get paid for waiting",
-  "version": "0.1.0",
-  "description": "Turns the loading spinner on AI chat sites into a tiny ad marketplace. You keep 90% of the revenue.",
+  "name": "FreeAI.fyi — Earn from ChatGPT, Claude & Gemini",
+  "version": "0.2.0",
+  "description": "Make money while you use ChatGPT, Claude, and Gemini. A subtle sponsored line shows while the AI thinks — you keep 90% of the revenue.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -6,26 +6,20 @@ on:
   pull_request:
 
 jobs:
-  extension:
+  chrome-extension:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: extension
+        working-directory: chrome-extension
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Syntax check
-        run: node -c extension.js
-      - name: Test (mock-vscode harness)
+      - name: Lint (syntax)
+        run: npm run lint
+      - name: Test (headless DOM harness)
         run: npm test
-      - name: Package .vsix
-        run: npx --yes @vscode/vsce package --no-dependencies -o freeai-fyi.vsix
-      - uses: actions/upload-artifact@v4
-        with:
-          name: freeai-vsix
-          path: extension/freeai-fyi.vsix
 
   server:
     runs-on: ubuntu-latest

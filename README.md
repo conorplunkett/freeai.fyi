@@ -1,60 +1,38 @@
 # FreeAI.fyi 🤑
 
-**Get paid for waiting.** Like [kickbacks.ai](https://kickbacks.ai), but better —
-**you keep 90% of the revenue** instead of 50%.
+> Make money while you use **ChatGPT, Claude, and Gemini**. You keep **90%**.
 
-Your agent spends half its life thinking. Claude Code spins, Codex spins, and you
-read one line — *"Discombobulating…"* — over and over. It's the most-watched line in
-software. FreeAI turns it into a tiny ad marketplace and pays the developer
-whose machine showed the ad.
+FreeAI shows one subtle, clickable sponsored line while a web AI assistant is
+thinking/streaming, and pays you 90% of the revenue. The product is a **Chrome
+extension**; a Node + Postgres backend handles the ad auction, an append-only
+ledger, and Stripe payouts.
 
-## What's in here
+## Repo layout
 
-| Path | What it is |
+| Path | What |
 | --- | --- |
-| [`index.html`](index.html) · [`styles.css`](styles.css) · [`script.js`](script.js) | The marketing site — hero, live bid market, advertiser checkout, leaderboard. A faithful clone of kickbacks.ai with a 90% split. |
-| [`privacy.html`](privacy.html) | Privacy policy. |
-| [`extension/`](extension/) | The **VS Code extension** that serves sponsored lines in the Claude Code / Codex spinner and tracks your earnings. The main focus. |
-| [`server/`](server/) | The **backend** — Node + Postgres ad auction, append-only money ledger, Stripe Checkout (money in) and Stripe Connect (payouts out). See [`server/README.md`](server/README.md). |
-| [`storage/`](storage/) | Shelved pieces — currently the Chrome extension for web agents (works, on ice for now). |
+| `chrome-extension/` | **The product.** MV3 extension for ChatGPT / Claude / Gemini. Load-unpacked instructions + Test mode in its README. |
+| `server/` | Ad auction, 90% ledger (millicents), Stripe Checkout + Connect payouts, killswitch. |
+| `index.html` · `styles.css` · `script.js` | Marketing site. |
+| `legacy/vscode-extension/` | Archived. The original VS Code spinner extension — no longer the product. |
 
-## Run the site locally
+## Quick start
 
-```bash
-python3 -m http.server 8000
-# open http://localhost:8000
-```
+- **Extension:** see [`chrome-extension/README.md`](chrome-extension/README.md).
+  Load unpacked, flip on **Test mode**, open ChatGPT/Claude/Gemini → the mock ad
+  shows immediately. `cd chrome-extension && npm test` runs the headless checks.
+- **Backend:** see [`server/README.md`](server/README.md).
 
-## Run the extension locally
+## How it works
 
-```bash
-cd extension
-code .          # open in VS Code, then press F5 to launch an Extension Development Host
-```
-
-Then run **"FreeAI: Show me the money"** from the Command Palette to watch
-sponsored lines serve and your earnings tick up. See
-[`extension/README.md`](extension/README.md) for full docs.
-
-## Verify it works without VS Code
-
-```bash
-cd extension
-npm test        # runs the mock-vscode harness: activates the extension,
-                # simulates an agent run, and asserts the 90% revenue math
-```
-
-## Chrome extension?
-
-Built and working, but shelved for now while we nail the VS Code replica — see
-[`storage/`](storage/).
-
-## The kicker
-
-| | kickbacks.ai | **FreeAI.fyi** |
-| --- | --- | --- |
-| Developer revenue share | 50% | **90%** |
+- A content script detects the "generating" state (a visible **Stop** button on
+  ChatGPT/Claude/Gemini, an `aria-busy` region, or a streaming marker) and shows
+  the sponsored bar only while the assistant is working.
+- Every 5 seconds served is one **impression**; a click is worth **50×**.
+  Earnings accrue at your **90%** share. **Test mode** shows a labelled mock ad
+  continuously, with its own counters that never touch real earnings.
+- It reads **none** of your prompts or the model's output.
 
 ---
 
-*Not affiliated with Anthropic or OpenAI.*
+*Not affiliated with Anthropic, OpenAI, or Google.*
