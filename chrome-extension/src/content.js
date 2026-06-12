@@ -15,9 +15,6 @@
   if (window.__freeaiLoaded) return;
   window.__freeaiLoaded = true;
 
-  const SPIN = ["✳", "✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷", "✶"];
-  const WORDS = ["Thinking", "Discombobulating", "Percolating", "Simmering", "Noodling", "Conjuring", "Computing"];
-
   // Site-specific "the model is generating" controls. Each is the Stop button
   // that only exists while a response streams. Kept broad + case-insensitive so
   // small UI revisions don't silently break detection.
@@ -38,6 +35,7 @@
     ".thinking-dots-animation",    // Gemini — the ··· lottie before the reply renders
     "thinking-dots-animation",     // Gemini — the custom-element wrapper
     '[class*="thinking-dots"]',    // catch-all for either
+    ".epitaxy-spark-working",      // Claude — the animated thinking star
   ];
 
   // Where to put the bar, in priority order. "inside" appends at the end of
@@ -47,13 +45,21 @@
   // lands BELOW the indicator, never above it.
   const ANCHORS = [
     { sel: '[data-is-streaming="true"]', mode: "inside" },             // Claude — streaming bubble
-    { sel: "div[data-test-render-count]", mode: "after" },             // Claude — star-only stage
+    // Claude star-only stage: the spark (.epitaxy-spark-working) sits in a row
+    // inside .epitaxy-transcript-width. Append the bar as that wrapper's last
+    // child so it lands BELOW the star row. :has scopes us to the wrapper that
+    // actually holds the spark.
+    { sel: ".epitaxy-transcript-width:has(.epitaxy-spark-working)", mode: "inside" },
+    { sel: "div[data-test-render-count]", mode: "inside" },            // Claude — fallback turn container
     { sel: '[data-message-author-role="assistant"]', mode: "inside" }, // ChatGPT
     { sel: ".result-streaming", mode: "inside" },                      // ChatGPT (older)
-    { sel: "model-response", mode: "inside" },                         // Gemini — reply
+    // Gemini: the dots stage MUST outrank model-response — an empty
+    // model-response shell exists while the dots are showing, and anchoring
+    // inside it puts the bar above the dots.
     { sel: "thinking-dots-animation", mode: "after" },                 // Gemini — dots stage
     { sel: ".thinking-dots-animation", mode: "after" },
     { sel: '[class*="thinking-dots"]', mode: "after" },
+    { sel: "model-response", mode: "inside" },                         // Gemini — reply
   ];
 
   let ads = [];
@@ -63,8 +69,6 @@
   let active = false;
   let demoUntil = 0;
   let adIdx = 0;
-  let wordIdx = 0;
-  let frame = 0;
   let lastImpressionAt = 0;
 
   // ---------- safe messaging (service worker may be asleep / context torn down) ----------
@@ -86,14 +90,9 @@
   bar.className = "bb-bar";
   bar.setAttribute("role", "complementary");
   bar.innerHTML =
-    '<span class="bb-spin">✳</span>' +
-    '<span class="bb-word">Thinking</span><span class="bb-dots">…</span>' +
-    '<span class="bb-sep">·</span>' +
     '<span class="bb-chip">R</span>' +
     '<span class="bb-line">Ramp · save time and money</span>' +
     '<span class="bb-tag">sponsored · 50% back as Claude credits</span>';
-  const elSpin = bar.querySelector(".bb-spin");
-  const elWord = bar.querySelector(".bb-word");
   const elChip = bar.querySelector(".bb-chip");
   const elLine = bar.querySelector(".bb-line");
   const elTag = bar.querySelector(".bb-tag");
@@ -128,25 +127,43 @@
     return null;
   }
   // Returns true when the bar has somewhere legitimate to live.
+  // Re-checked every tick: these apps keep inserting elements (the star, the
+  // dots, streamed text) after we mount, so we re-assert the bar's position.
   function mount() {
     const found = findAnchor();
     if (found) {
-      // "after": the indicator (Claude star / Gemini dots) is a later sibling
-      // of the matched turn — append to the parent so the bar sits below it.
-      let target = found.el;
-      if (found.mode === "after" && target.parentElement) target = target.parentElement;
-      if (typeof target.appendChild === "function") {
-        if (anchorEl !== target || !bar.isConnected) {
-          anchorEl = target;
-          bar.classList.add("bb-inline");
-          try {
-            target.appendChild(bar);
+      const { el, mode } = found;
+      try {
+        if (mode === "after") {
+          // Sit the bar IMMEDIATELY after the indicator (Claude star / Gemini
+          // dots) — as its next sibling, not appended to the bottom of the
+          // whole container (which dropped it far below the dots on Gemini).
+          const parent = el.parentElement;
+          if (parent) {
+            if (!(bar.parentElement === parent && bar.previousElementSibling === el)) {
+              parent.insertBefore(bar, el.nextSibling);
+            }
+            anchorEl = parent;
+            bar.classList.add("bb-inline");
             return true;
-          } catch (_) {}
-        } else {
+          }
+          // mock-DOM / detached node: just attach to the element itself
+          if (typeof el.appendChild === "function") {
+            el.appendChild(bar);
+            anchorEl = el;
+            bar.classList.add("bb-inline");
+            return true;
+          }
+        } else if (typeof el.appendChild === "function") {
+          // "inside": keep the bar as the last child of the reply container
+          if (!(bar.parentElement === el && el.lastElementChild === bar)) {
+            el.appendChild(bar);
+          }
+          anchorEl = el;
+          bar.classList.add("bb-inline");
           return true;
         }
-      }
+      } catch (_) {}
     }
     anchorEl = null;
     if (Date.now() < demoUntil) {
@@ -161,8 +178,6 @@
   // ---------- render ----------
   function render() {
     const ad = currentAd();
-    elSpin.textContent = SPIN[frame % SPIN.length];
-    elWord.textContent = WORDS[wordIdx % WORDS.length];
     if (ad) {
       elChip.textContent = ad.chip;
       elChip.style.background = ad.color;
@@ -176,7 +191,6 @@
       elTag.textContent = "sponsored · 50% back as Claude credits";
       bar.classList.remove("bb-test");
     }
-    frame++;
   }
 
   // ---------- generation detector ----------
@@ -226,11 +240,10 @@
     else bar.classList.remove("bb-show");
     render();
     frameCount++;
-    // rotate the ad + word roughly every 2.6s (skip rotation while testing —
-    // the mock ad should stay put so it's easy to inspect)
+    // rotate the ad roughly every 2.6s (skip rotation while testing — the
+    // mock ad should stay put so it's easy to inspect)
     if (!testMode && frameCount % 26 === 0) {
       adIdx++;
-      wordIdx++;
     }
     // one impression every 5s of serving — only while actually visible
     if (!bar.classList.contains("bb-show")) return;

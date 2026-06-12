@@ -13,8 +13,14 @@
 // console instead of POSTed.
 
 import AppKit
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // Reads SUFeedURL / SUPublicEDKey from Info.plist and manages background
+    // update checks; wired to the "Check for Updates…" menu item below.
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+
     private let demoMode = ProcessInfo.processInfo.environment["FREEAI_DEMO"] == "1"
     // FREEAI_PROBE=1: every 2s, dump the labeled elements of Claude's focused
     // window and the generating verdict. Run it, trigger a generation in
@@ -29,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem!
     private var balanceItem: NSMenuItem!
+    private var accessibilityItem: NSMenuItem!
     private var pollTimer: Timer?
     private var adsPaused = false
     /// Last Claude bounds the overlay was positioned over, for move/resize
@@ -134,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: per-tick pipeline
 
     private func tick() {
+        refreshAccessibilityState()
         var state = detector.currentState()
         if demoMode {
             // Pretend the frontmost window is Claude mid-generation.
@@ -230,17 +238,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "₿"
         let menu = NSMenu()
+        menu.delegate = self   // refresh the Accessibility row each time it opens
         balanceItem = NSMenuItem(title: demoMode ? "Demo mode" : "Balance: —", action: nil, keyEquivalent: "")
         menu.addItem(balanceItem)
+        // Shown only while Accessibility is not granted — the overlay can't see
+        // Claude's window without it, so this is the #1 "nothing happens" fix.
+        accessibilityItem = NSMenuItem(title: "⚠ Enable Accessibility access…",
+                                       action: #selector(openAccessibilitySettings), keyEquivalent: "")
+        accessibilityItem.target = self
+        menu.addItem(accessibilityItem)
         let pause = NSMenuItem(title: "Pause sponsor messages", action: #selector(togglePause(_:)), keyEquivalent: "p")
         pause.target = self
         menu.addItem(pause)
         let dash = NSMenuItem(title: "Why am I seeing this?", action: #selector(openPrivacy), keyEquivalent: "")
         dash.target = self
         menu.addItem(dash)
+        let updates = NSMenuItem(title: "Check for Updates…",
+                                 action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+                                 keyEquivalent: "")
+        updates.target = updaterController
+        menu.addItem(updates)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
+        refreshAccessibilityState()
+    }
+
+    /// Reflects Accessibility-permission state in the menu (row visibility) and
+    /// the status icon (⚠ vs ₿) so the user notices before wondering why nothing
+    /// shows. Cheap to call; runs on each tick and whenever the menu opens.
+    private func refreshAccessibilityState() {
+        let trusted = demoMode || AXIsProcessTrusted()
+        accessibilityItem?.isHidden = trusted
+        statusItem?.button?.title = trusted ? "₿" : "⚠"
+    }
+
+    @objc private func openAccessibilitySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func togglePause(_ item: NSMenuItem) {
@@ -256,6 +291,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !demoMode else { return }
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(opts)
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        refreshAccessibilityState()
     }
 }
 

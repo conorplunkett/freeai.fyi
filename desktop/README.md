@@ -108,10 +108,68 @@ The card should appear while Claude streams; 5 visible seconds → one
 impression batch lands in the server ledger; clicking routes through
 `/v1/go/:token` and credits the click.
 
-**CI** builds the Swift app on a `macos-14` runner on every push/PR and
-uploads the release binary as the `SponsorOverlay-macos` artifact —
-download it from the Actions run, `chmod +x`, clear quarantine
-(`xattr -d com.apple.quarantine SponsorOverlay`), and run.
+**CI** builds the Swift app on a `macos-14` runner on every push/PR, packages
+it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` + `.dmg` as the
+`SponsorOverlay-macos` artifact. Download it from the Actions run, open the dmg
+(or unzip), clear quarantine (`xattr -dr com.apple.quarantine SponsorOverlay.app`),
+and open. The CI build is **ad-hoc signed**, so it only runs on the machine that
+built it (or after clearing quarantine) — a notarized build needs a Developer ID cert.
+
+## Packaging & distribution
+
+`packaging/bundle.sh` wraps the SwiftPM executable into `SponsorOverlay.app`
+(menu-bar-only via `LSUIElement`), code-signs it, and produces both a `.zip` and
+a drag-to-Applications `.dmg`:
+
+```sh
+cd desktop/macos/SponsorOverlay
+./packaging/bundle.sh                  # ad-hoc signed, for local use
+# -> build/SponsorOverlay.app, build/SponsorOverlay.zip, build/SponsorOverlay.dmg
+```
+
+The app carries an icon (`AppIcon.icns`, built from `packaging/assets/AppIcon-1024.png`
+via `iconutil`) and the dmg gets a laid-out install window (background + app/Applications
+icons). The Finder layout needs a GUI session, so it's skipped headless — pass
+`DMG_FANCY=0` to force the plain dmg (that's what CI does). Regenerate the icon
+and dmg artwork with `python3 packaging/assets/generate_assets.py`.
+
+To ship to other people without the Gatekeeper "unidentified developer"
+warning you need the **Apple Developer Program ($99/yr)** for a Developer ID
+certificate, then sign + notarize the dmg:
+
+```sh
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./packaging/bundle.sh
+xcrun notarytool submit build/SponsorOverlay.dmg \
+  --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
+xcrun stapler staple build/SponsorOverlay.dmg
+```
+
+One-time notary setup (after the Developer Program is active): create an
+app-specific password at appleid.apple.com, then `xcrun notarytool
+store-credentials` to keep it in the Keychain so you can pass `--keychain-profile`
+instead of `--apple-id/--password` each time.
+
+Distribute the stapled `.dmg` from the site. **Mac App Store is not a viable
+channel**: sandboxed apps can't use the Accessibility API to read another app's
+window, which is how Claude detection works — Developer ID distribution is the path.
+
+### Auto-update (Sparkle)
+
+The app links [Sparkle](https://sparkle-project.org); `bundle.sh` embeds
+`Sparkle.framework` into the app and adds the bundle-relative rpath. The menu
+has a working **Check for Updates…** item; automatic background checks are off
+in `Info.plist` until a real feed exists. To go live:
+
+1. `generate_keys` (from Sparkle) once — keep the private key in your Keychain,
+   put the printed public key in `Info.plist` as `SUPublicEDKey` (replacing the
+   placeholder), and set `SUEnableAutomaticChecks` to `true`.
+2. Host `appcast.xml` at the `SUFeedURL` (`https://freeai.fyi/appcast.xml`).
+3. For each release, sign the zip/dmg with `sign_update` and add the resulting
+   `<enclosure …>` entry to the appcast.
+
+For Developer ID builds, Sparkle's nested helpers must be signed with the
+hardened runtime; `bundle.sh`'s `codesign --deep --options runtime` covers
+them, but verify with `codesign --verify --deep --strict` before notarizing.
 
 ## Still to do
 
@@ -119,7 +177,8 @@ download it from the Actions run, `chmod +x`, clear quarantine
    the Stop button (the riskiest assumption — see ClaudeDetector.swift).
 2. Keychain for device credentials (UserDefaults in the rough-out).
 3. cbindgen FFI so the shell links `overlay-core` instead of the Swift port.
-4. Real sign-in (email verify exists server-side), local frequency caps in
-   the shell, app bundle + code signing + notarization for distribution.
+4. Real sign-in (email verify exists server-side) and local frequency caps in
+   the shell. App bundling + ad-hoc signing is done (`packaging/bundle.sh`);
+   Developer ID signing + notarization still needs the paid Apple cert.
 5. Redemption catalog UI (server currently pays out via Stripe Connect;
    PRD wants gift-card style redemptions too).

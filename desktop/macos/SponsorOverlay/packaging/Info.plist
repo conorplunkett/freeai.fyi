@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>          <string>SponsorOverlay</string>
+  <key>CFBundleIdentifier</key>          <string>fyi.freeai.SponsorOverlay</string>
+  <key>CFBundleName</key>                <string>SponsorOverlay</string>
+  <key>CFBundleDisplayName</key>         <string>FreeAI Sponsor Overlay</string>
+  <key>CFBundlePackageType</key>         <string>APPL</string>
+  <key>CFBundleIconFile</key>            <string>AppIcon</string>
+  <key>CFBundleShortVersionString</key>  <string>__VERSION__</string>
+  <key>CFBundleVersion</key>             <string>__BUILD__</string>
+  <key>LSMinimumSystemVersion</key>      <string>13.0</string>
+  <!-- Menu-bar-only agent: no Dock icon, no main window. -->
+  <key>LSUIElement</key>                 <true/>
+  <key>NSHighResolutionCapable</key>     <true/>
+  <key>NSPrincipalClass</key>            <string>NSApplication</string>
+  <!-- Allows talking to a local FREEAI_API_URL (http://localhost) for testing;
+       production uses https. The Accessibility permission the app needs is a
+       TCC grant the user approves at runtime, not an Info.plist key. -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>   <true/>
+  </dict>
+  <!-- Sparkle auto-update. Replace SUPublicEDKey with the real public key from
+       `generate_keys` (Sparkle) before shipping, and host the appcast at the
+       SUFeedURL. Automatic checks stay off until then; "Check for Updates…"
+       works manually. -->
+  <key>SUFeedURL</key>                   <string>https://freeai.fyi/appcast.xml</string>
+  <key>SUPublicEDKey</key>               <string>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</string>
+  <key>SUEnableAutomaticChecks</key>     <false/>
+  <key>SUAutomaticallyUpdate</key>       <false/>
+</dict>
+</plist>
