@@ -59,13 +59,21 @@ Detection selectors live at the top of `src/content.js`.
 | `popup/*` | Earnings dashboard, enable + test toggles, demo, bid market. |
 | `icons/*` | 16 / 48 / 128 px icons. |
 | `test/run.js` | Headless harness (mock DOM + chrome) — `npm test`. |
+| `test/live.js` | Live test — real Chrome + the unpacked extension via Puppeteer. |
 
 ## Tests
 
 ```bash
-npm test    # detection on ChatGPT/Claude/Gemini, test mode, 90% math
+npm test           # detection on ChatGPT/Claude/Gemini, test mode, 90% math (mock DOM)
+npm run test:live  # loads the unpacked extension into headless Chrome (needs `npm install` first)
 npm run lint
 ```
+
+The live test stages a copy of the extension with `http://127.0.0.1/*` added to
+its match patterns, serves a fake chat page locally, and verifies in a real
+browser: injection, the Stop-button show/hide cycle, rendered ad copy, real
+impressions hitting `chrome.storage` at the 90% rate, and Test-Mode
+impressions/clicks staying out of real earnings.
 
 ## Settings
 
