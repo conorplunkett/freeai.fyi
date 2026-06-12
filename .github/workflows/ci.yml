@@ -77,7 +77,7 @@ jobs:
           swift build
           swift build -c release
       - name: Package .app (ad-hoc signed)
-        run: BUILD_NUMBER="${{ github.run_number }}" ./packaging/bundle.sh
+        run: BUILD_NUMBER="${{ github.run_number }}" DMG_FANCY=0 ./packaging/bundle.sh
       - uses: actions/upload-artifact@v4
         with:
           name: SponsorOverlay-macos

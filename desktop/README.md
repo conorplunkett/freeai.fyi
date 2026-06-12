@@ -127,6 +127,12 @@ cd desktop/macos/SponsorOverlay
 # -> build/SponsorOverlay.app, build/SponsorOverlay.zip, build/SponsorOverlay.dmg
 ```
 
+The app carries an icon (`AppIcon.icns`, built from `packaging/assets/AppIcon-1024.png`
+via `iconutil`) and the dmg gets a laid-out install window (background + app/Applications
+icons). The Finder layout needs a GUI session, so it's skipped headless — pass
+`DMG_FANCY=0` to force the plain dmg (that's what CI does). Regenerate the icon
+and dmg artwork with `python3 packaging/assets/generate_assets.py`.
+
 To ship to other people without the Gatekeeper "unidentified developer"
 warning you need the **Apple Developer Program ($99/yr)** for a Developer ID
 certificate, then sign + notarize the dmg:
