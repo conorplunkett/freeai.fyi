@@ -442,6 +442,98 @@ function createRepo(pool) {
       });
     },
 
+    // ---------- website login sessions ----------
+    // Consume a magic-link token, upsert the verified user, and open a web
+    // session for them. Single-use and time-bound. Returns { sessionToken, user }
+    // or null if the token is invalid/expired.
+    async createWebSessionFromToken(token, sessionTtlMs) {
+      return tx(async (c) => {
+        const t = await c.query(
+          `update email_tokens set used_at = now()
+            where token = $1 and used_at is null and expires_at > now()
+            returning email`,
+          [token]
+        );
+        if (!t.rows[0]) return null;
+        const u = await c.query(
+          `insert into users (email, email_verified) values ($1, true)
+           on conflict (email) do update set email_verified = true
+           returning id, email`,
+          [t.rows[0].email]
+        );
+        const sessionToken = crypto.randomBytes(32).toString("base64url");
+        await c.query(
+          `insert into web_sessions (token, user_id, expires_at)
+           values ($1, $2, now() + ($3 || ' milliseconds')::interval)`,
+          [sessionToken, u.rows[0].id, String(sessionTtlMs)]
+        );
+        return { sessionToken, user: u.rows[0] };
+      });
+    },
+
+    async userForSession(sessionToken) {
+      if (!sessionToken) return null;
+      const { rows } = await pool.query(
+        `select u.id, u.email from web_sessions s join users u on u.id = s.user_id
+          where s.token = $1 and s.expires_at > now()`,
+        [sessionToken]
+      );
+      return rows[0] || null;
+    },
+
+    // Aggregate credit balance for a user, across every device linked to them
+    // plus any user-level ledger entries (redemptions/payouts).
+    async balanceForUser(userId) {
+      const { rows } = await pool.query(
+        `select
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit')), 0)::bigint as earned,
+           coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
+           coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
+         from ledger
+         where user_id = $1
+            or device_id in (select id from devices where user_id = $1)`,
+        [userId]
+      );
+      const earned = Number(rows[0].earned);
+      const paidOut = Number(rows[0].paid_out); // negative
+      const redeemed = Number(rows[0].redeemed); // negative
+      return {
+        earnedMillicents: earned,
+        paidOutMillicents: -paidOut,
+        redeemedMillicents: -redeemed,
+        balanceMillicents: earned + paidOut + redeemed,
+      };
+    },
+
+    // User-scoped gift redemption (website flow). Re-checks the user's balance
+    // inside the transaction against the ledger so concurrent redeems can't spend
+    // the same credits twice. Returns the redemption id, or null if short.
+    async recordGiftRedemptionForUser({ id, userId, plan, months, amountCents, recipientEmail }) {
+      return tx(async (c) => {
+        const bal = await c.query(
+          `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
+            where (user_id = $1 or device_id in (select id from devices where user_id = $1))
+              and entry_type in ('impression_credit','click_credit','payout_debit','gift_redemption_debit')`,
+          [userId]
+        );
+        const costMillicents = BigInt(amountCents) * 1000n;
+        if (BigInt(bal.rows[0].balance) < costMillicents) return null;
+
+        const { rows } = await c.query(
+          `insert into gift_redemptions (id, user_id, plan, months, amount_cents, recipient_email)
+           values (coalesce($1::uuid, gen_random_uuid()),$2,$3,$4,$5,$6) returning id`,
+          [id || null, userId, plan, months, amountCents, recipientEmail]
+        );
+        await c.query(
+          `insert into ledger (entry_type, amount_millicents, user_id, meta)
+           values ('gift_redemption_debit', $1, $2, $3)`,
+          [(-costMillicents).toString(), userId,
+           JSON.stringify({ redemptionId: rows[0].id, plan, months })]
+        );
+        return rows[0].id;
+      });
+    },
+
     async recordPayout(userId, amountCents, transferId) {
       return tx(async (c) => {
         await c.query(

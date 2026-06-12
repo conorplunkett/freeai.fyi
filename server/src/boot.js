@@ -24,6 +24,7 @@ function loadConfig(env = process.env) {
     payoutThresholdCents: parseInt(env.PAYOUT_THRESHOLD_CENTS || "1000", 10), // $10
     giftFulfillmentEmail: env.GIFT_FULFILLMENT_EMAIL || "conor.p43@gmail.com", // manual gift card fulfillment inbox
     emailTokenTtlMs: parseInt(env.EMAIL_TOKEN_TTL_MS || "1800000", 10), // 30 min
+    webSessionTtlMs: parseInt(env.WEB_SESSION_TTL_MS || "2592000000", 10), // 30 days
     clickTokenTtlMs: parseInt(env.CLICK_TOKEN_TTL_MS || "120000", 10), // 2 min
     maxBodyBytes: parseInt(env.MAX_BODY_BYTES || "65536", 10), // 64 KB
     // mail

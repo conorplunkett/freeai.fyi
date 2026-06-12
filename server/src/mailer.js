@@ -37,6 +37,18 @@ function createMailer(config) {
     );
   }
 
+  // Magic-link login for the website, where users redeem credits for Claude
+  // gift cards. Clicking the link opens a logged-in redemption session.
+  async function sendWebLoginEmail(to, link) {
+    await send(
+      to,
+      "Your FreeAI sign-in link",
+      `<p>Click to sign in and redeem your FreeAI credits for Claude.</p>
+       <p><a href="${link}">Sign in to FreeAI</a></p>
+       <p>This link expires in 30 minutes. If you didn't request it, ignore this email.</p>`
+    );
+  }
+
   // Fulfillment notification for a Claude gift card redemption. Goes to the
   // fulfillment inbox (not the user); the gift card itself is sent manually
   // within 48 hours.
@@ -56,7 +68,7 @@ function createMailer(config) {
     );
   }
 
-  return { sendVerifyEmail, sendGiftRedemptionEmail };
+  return { sendVerifyEmail, sendWebLoginEmail, sendGiftRedemptionEmail };
 }
 
 module.exports = { createMailer };

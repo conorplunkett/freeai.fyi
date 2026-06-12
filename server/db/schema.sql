@@ -111,12 +111,15 @@ create table if not exists payouts (
   created_at timestamptz not null default now()
 );
 
--- Claude gift card redemptions. A redemption deducts the device's balance via
--- a gift_redemption_debit ledger entry; fulfillment (the actual gift card
--- email to the user) is manual and lands within 48 hours.
+-- Claude gift card redemptions. A redemption deducts the balance via a
+-- gift_redemption_debit ledger entry; fulfillment (the actual gift card email to
+-- the user) is manual and lands within 48 hours. Redemptions happen only on the
+-- website after the user logs in, so they're scoped to a user (a device_id is
+-- kept for older device-scoped redemptions).
 create table if not exists gift_redemptions (
   id uuid primary key default gen_random_uuid(),
-  device_id uuid not null references devices(id),
+  device_id uuid references devices(id),
+  user_id uuid references users(id),
   plan text not null check (plan in ('pro', 'max5x', 'max20x')),
   months integer not null check (months in (1, 3, 6, 12)),
   amount_cents integer not null check (amount_cents > 0),
@@ -124,6 +127,19 @@ create table if not exists gift_redemptions (
   status text not null default 'pending' check (status in ('pending', 'fulfilled', 'cancelled')),
   created_at timestamptz not null default now()
 );
+-- device_id predates user-scoped (website) redemptions; allow either.
+alter table gift_redemptions add column if not exists user_id uuid references users(id);
+alter table gift_redemptions alter column device_id drop not null;
+
+-- Website login sessions. The user proves email ownership via a magic link, and
+-- the redemption page carries this bearer token to read the balance and redeem.
+create table if not exists web_sessions (
+  token text primary key,
+  user_id uuid not null references users(id),
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists web_sessions_user_idx on web_sessions (user_id);
 
 -- Stripe retries webhooks; this makes processing exactly-once.
 create table if not exists processed_webhook_events (

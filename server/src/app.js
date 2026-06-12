@@ -288,6 +288,79 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
   });
 
+  // ---------- website login + redemption (the only place users redeem) ----------
+  // Email magic link → web session → read balance → redeem for a Claude gift card.
+  function sessionFrom(req, body, query) {
+    const h = req.headers["authorization"] || "";
+    const bearer = h.startsWith("Bearer ") ? h.slice(7) : null;
+    return bearer || body?.session || query?.get("session") || null;
+  }
+
+  route("POST", "/v1/web/login", async (req, res, body) => {
+    if (!body?.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) {
+      return json(res, 400, { error: "valid email required" });
+    }
+    const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs);
+    await mailer.sendWebLoginEmail(body.email, `${config.apiBaseUrl}/v1/web/session?token=${token}`);
+    json(res, 200, { ok: true, sent: true });
+  });
+
+  route("GET", "/v1/web/session", async (req, res, body, rawBody, query) => {
+    const result = await repo.createWebSessionFromToken(query.get("token"), config.webSessionTtlMs);
+    if (!result) return redirect(res, `${config.siteUrl}/redeem.html?login=expired`);
+    redirect(res, `${config.siteUrl}/redeem.html#session=${result.sessionToken}`);
+  });
+
+  route("GET", "/v1/web/me", async (req, res, body, rawBody, query) => {
+    const user = await repo.userForSession(sessionFrom(req, body, query));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const bal = await repo.balanceForUser(user.id);
+    json(res, 200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000 });
+  });
+
+  route("POST", "/v1/web/redemptions", async (req, res, body) => {
+    const user = await repo.userForSession(sessionFrom(req, body));
+    if (!user) return json(res, 401, { error: "not signed in" });
+
+    const plan = GIFT_PLANS[body.plan];
+    const months = parseInt(body.months, 10);
+    const amountCents = plan ? giftPriceCents(plan.id, months) : null;
+    if (!amountCents) return json(res, 400, { error: "plan must be pro/max5x/max20x and months 1/3/6/12" });
+
+    const recipientEmail = body.recipientEmail || user.email;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) {
+      return json(res, 400, { error: "valid recipientEmail required" });
+    }
+
+    const balance = await repo.balanceForUser(user.id);
+    if (balance.balanceMillicents < amountCents * 1000) {
+      return json(res, 403, {
+        error: "insufficient credits",
+        balanceUsd: balance.balanceMillicents / 100000,
+        requiredUsd: amountCents / 100,
+      });
+    }
+
+    // Email the fulfillment inbox first, then deduct; the in-transaction balance
+    // re-check inside recordGiftRedemptionForUser keeps concurrent redeems honest.
+    const redemptionId = crypto.randomUUID();
+    await mailer.sendGiftRedemptionEmail(config.giftFulfillmentEmail, {
+      redemptionId, planName: plan.name, months, amountUsd: amountCents / 100, recipientEmail,
+    });
+    const recorded = await repo.recordGiftRedemptionForUser({
+      id: redemptionId, userId: user.id, plan: plan.id, months, amountCents, recipientEmail,
+    });
+    if (!recorded) return json(res, 409, { error: "insufficient credits" });
+
+    const after = await repo.balanceForUser(user.id);
+    json(res, 200, {
+      ok: true, redemptionId, plan: plan.id, months,
+      amountUsd: amountCents / 100,
+      balanceUsd: after.balanceMillicents / 100000,
+      deliveryWindowHours: 48,
+    });
+  });
+
   // ---------- moderation ----------
   route("GET", "/v1/admin/campaigns", async (req, res, body, rawBody, query) => {
     if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });

@@ -41,6 +41,7 @@ const fakeFetch = async (url, opts) => {
 const mailbox = [];
 const fakeMailer = {
   sendVerifyEmail: async (to, link) => { mailbox.push({ to, link }); },
+  sendWebLoginEmail: async (to, link) => { mailbox.push({ to, link }); },
   sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
 };
 
@@ -62,7 +63,7 @@ const fakeMailer = {
     revenueShare: 0.9, dailyImpressionCap: 5000, payoutThresholdCents: 1000,
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
-    emailTokenTtlMs: 1800000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
+    emailTokenTtlMs: 1800000, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
     logRequests: false, giftFulfillmentEmail: "conor.p43@gmail.com",
   };
   const repo = createRepo(poolNs);
@@ -291,6 +292,61 @@ const fakeMailer = {
     assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 2, recipientEmail: "a@b.co" })).status, 400);
     assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "nope" })).status, 400);
     assert.strictEqual((await api("POST", "/v1/redemptions", { deviceId: giftDevice.deviceId, deviceKey: "wrong", plan: "pro", months: 1 })).status, 401);
+  });
+
+  // ---------- website login + user-scoped redemption ----------
+  await check("website login lets a user redeem their linked balance for a gift card", async () => {
+    // dedicated campaign so this test's earnings are independent of others
+    const camp = await api("POST", "/v1/checkout", {
+      email: "adv@web.co", adLine: "web test campaign line", url: "https://example.com/",
+      brand: "WebTest", pricePerBlock: 110, blocks: 2,
+    });
+    await payWebhook(camp.body.campaignId);
+    await approve(camp.body.campaignId);
+
+    // device earns, then links its credits to an email via the magic link
+    const dev = (await api("POST", "/v1/devices/register")).body;
+    await api("POST", "/v1/events", { ...dev, batchKey: "bweb", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    await api("POST", "/v1/auth/request-link", { ...dev, email: "web@example.com" });
+    const verifyLink = mailbox.at(-1).link;
+    await api("GET", verifyLink.replace(base, ""));
+
+    // web login: email a sign-in link, follow it to get a session
+    const login = await api("POST", "/v1/web/login", { email: "web@example.com" });
+    assert.strictEqual(login.status, 200);
+    const loginLink = mailbox.at(-1).link;
+    const sess = await api("GET", loginLink.replace(base, ""));
+    assert.strictEqual(sess.status, 302);
+    const session = sess.headers.get("location").match(/session=([^&]+)/)[1];
+
+    // balance is visible and matches the device's earnings (1000 imp @ $110 block, 90%)
+    const me = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${session}` });
+    assert.strictEqual(me.status, 200);
+    assert.strictEqual(me.body.email, "web@example.com");
+    assert.strictEqual(me.body.balanceUsd, 99);
+
+    // redeem Claude Pro, 3 months = $60, leaving $39
+    const r = await api("POST", "/v1/web/redemptions",
+      { plan: "pro", months: 3, recipientEmail: "gift@example.com" },
+      { Authorization: `Bearer ${session}` });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.body.amountUsd, 60);
+    assert.strictEqual(r.body.balanceUsd, 39);
+
+    const mail = mailbox.at(-1);
+    assert.strictEqual(mail.to, "conor.p43@gmail.com");
+    assert.strictEqual(mail.planName, "Claude Pro");
+    assert.strictEqual(mail.months, 3);
+    assert.strictEqual(mail.recipientEmail, "gift@example.com");
+
+    const after = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${session}` });
+    assert.strictEqual(after.body.balanceUsd, 39);
+
+    // can't redeem beyond balance, and no session = 401
+    const broke = await api("POST", "/v1/web/redemptions",
+      { plan: "max5x", months: 1 }, { Authorization: `Bearer ${session}` });
+    assert.strictEqual(broke.status, 403);
+    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1 })).status, 401);
   });
 
   // ---------- rejection + refund ----------

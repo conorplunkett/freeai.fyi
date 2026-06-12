@@ -257,6 +257,57 @@ a { color: inherit; text-decoration: none; }
 .install-fine { font-size: 13.5px; color: var(--gray-2); margin-top: 22px; }
 .install-fine strong { color: var(--green-d); }
 
+/* REDEEM PAGE */
+.redeem { max-width: 780px; margin: 0 auto; padding: 40px 32px 0; }
+.redeem-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 24px;
+  padding: 40px 44px; box-shadow: 0 30px 70px -45px rgba(20,30,40,.4);
+}
+.redeem-card h1 { font-size: clamp(28px, 6vw, 40px); font-weight: 900; letter-spacing: -.04em; line-height: 1.05; margin: 8px 0 14px; }
+.redeem-card h2 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 28px 0 10px; }
+.redeem-lead { font-size: 15.5px; color: var(--gray); line-height: 1.6; margin: 0 0 24px; max-width: 600px; }
+.redeem-lead strong { color: var(--ink); }
+.login-form { display: grid; gap: 16px; max-width: 420px; }
+.login-msg { font-size: 14.5px; color: var(--accent-d); margin: 18px 0 0; line-height: 1.5; }
+
+.balance-row { display: flex; align-items: center; justify-content: space-between; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.balance { font-size: 44px; font-weight: 900; letter-spacing: -.04em; line-height: 1; margin-top: 4px; }
+.balance-sub { font-size: 13.5px; color: var(--gray-2); margin-top: 6px; }
+
+.gift-menu { display: grid; gap: 14px; margin-bottom: 26px; }
+.gift-row {
+  display: grid; grid-template-columns: 1fr; gap: 12px;
+  padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fcfbf9;
+}
+.gift-plan { display: flex; flex-direction: column; gap: 3px; }
+.gp-name { font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
+.gp-tag { font-family: var(--mono); font-size: 11.5px; color: var(--gray-2); text-transform: uppercase; letter-spacing: .06em; }
+.gift-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gift-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 12px 6px; border: 1px solid var(--line); border-radius: 11px;
+  background: #fff; cursor: pointer; font-family: var(--sans); transition: border-color .12s, background .12s, transform .1s;
+}
+.gift-cell:hover:not([disabled]) { border-color: var(--accent); transform: translateY(-1px); }
+.gift-cell.sel { border-color: var(--accent); background: #fbf0ea; box-shadow: 0 0 0 2px rgba(217,119,87,.18); }
+.gift-cell[disabled] { opacity: .4; cursor: not-allowed; }
+.gc-term { font-family: var(--mono); font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: .06em; }
+.gc-price { font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+
+.redeem-foot { display: grid; gap: 16px; padding-top: 22px; border-top: 1px solid var(--line); }
+.recipient { max-width: 420px; }
+.redeem-summary { font-size: 15px; color: var(--ink-2); }
+.redeem-summary .sum-after { color: var(--gray-2); }
+.redeem-foot .btn-green { justify-self: start; border: none; cursor: pointer; font-family: var(--sans); }
+.redeem-foot .btn-green:disabled { opacity: .45; cursor: not-allowed; }
+.redeem-result { font-size: 15px; line-height: 1.55; margin: 18px 0 0; padding: 14px 16px; border-radius: 12px; }
+.redeem-result.ok { background: #f1f8f2; color: #2c6b3f; border: 1px solid #cfe6d5; }
+.redeem-result.err { background: #fbeeea; color: #9a3b22; border: 1px solid #f0cdc0; }
+
+@media (min-width: 640px) {
+  .gift-row { grid-template-columns: 200px 1fr; align-items: center; }
+}
+
 /* FOOTER */
 .footer { max-width: 760px; margin: 80px auto 0; padding: 34px 32px 50px; text-align: center; border-top: 1px solid var(--line); }
 .footer p { margin: 0 0 8px; font-size: 13.5px; color: var(--gray); }
