@@ -1,3 +1,27 @@
+// --- Live ticker (top banner) ---
+// Seeded with mock winning bids. When the API is wired, the leaderboard feed
+// can populate this the same way loadLeaderboard() fills the board below.
+const TICKER_ADS = [
+  { brand: "Ramp", text: "Save time and money on every dollar you spend" },
+  { brand: "Linear", text: "Issue tracking built for high-performance teams" },
+  { brand: "Vercel", text: "Ship your agent to production in seconds" },
+  { brand: "Neon", text: "Serverless Postgres your agent can branch" },
+  { brand: "Resend", text: "The email API built for developers" },
+  { brand: "Fluidstack", text: "Building 10GW of compute. Join us." },
+  { brand: "Tuple", text: "Remote pair programming, done right" },
+  { brand: "Stripe", text: "Financial infrastructure for the internet" },
+];
+(function buildTicker() {
+  const track = document.getElementById("ticker-track");
+  if (!track) return;
+  const cell = (ad) =>
+    `<span class="tick"><span class="tick-brand">${ad.brand}</span>` +
+    `<span class="tick-text">${ad.text}</span></span>`;
+  // Duplicate the run so the -50% scroll loops seamlessly.
+  const run = TICKER_ADS.map(cell).join("");
+  track.innerHTML = run + run;
+})();
+
 // --- Spinner word rotation (stock Claude Code vibes) ---
 const STOCK_WORDS = [
   "Baking", "Discombobulating", "Percolating", "Simmering", "Marinating",

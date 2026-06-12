@@ -14,6 +14,11 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%233fb265'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
+  <!-- LIVE TICKER -->
+  <div class="ticker" aria-label="Live sponsored lines">
+    <div class="ticker-track" id="ticker-track"></div>
+  </div>
+
   <!-- NAV -->
   <header class="nav">
     <a class="brand" href="#top">
@@ -21,8 +26,9 @@
       <span class="brand-name">FreeAI.fyi</span>
     </a>
     <nav class="nav-btns">
-      <a href="#advertisers" class="navbtn">Advertisers</a>
-      <a href="#install" class="navbtn">Users</a>
+      <a href="#advertisers" class="navbtn">Advertisers Portal</a>
+      <a href="#install" class="navbtn">User Login</a>
+      <a href="#install" class="navbtn navbtn-cta">Install</a>
     </nav>
   </header>
 
@@ -31,7 +37,7 @@
     <section class="hero">
       <h1>Get paid for waiting.</h1>
       <p class="sub">
-        We turned “Discombobulating…” into an ad marketplace.<br />
+        We turned the loading spinner into an ad marketplace.
         <strong>90%</strong> of the <span class="hl">revenue</span> goes to you.
       </p>
 
@@ -41,7 +47,7 @@
           <span class="demo-label">Stock ChatGPT</span>
           <div class="demo-line"><span class="ast">✳</span> <span id="word-stock">Thinking</span>…</div>
         </div>
-        <div class="demo-chevs">⌄</div>
+        <div class="demo-chevs">»</div>
         <div class="demo-card">
           <span class="demo-label">With FreeAI</span>
           <div class="demo-line">
@@ -53,14 +59,14 @@
 
       <!-- INSTALL CARD -->
       <a href="#install" class="install-card">
-        <span class="money">🤑</span>
         <span class="install-title">Add the Chrome extension</span>
         <span class="install-pill" id="earn-pill">$76.71<span class="per">/mo</span></span>
+        <span class="install-arrow">→</span>
       </a>
 
       <p class="hero-note">
-        Works on <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle
-        sponsored line shows while the AI thinks — you keep <strong>90%</strong>.
+        Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle
+        sponsored line appears while the model thinks — and you keep <strong>90%</strong> of every dollar it earns.
       </p>
 
       <a href="#advertisers" class="jump">
@@ -206,7 +212,7 @@
 
   <footer class="footer">
     <p>© 2026 FreeAI.fyi · <a href="privacy.html">Privacy</a> · <a href="#">Terms</a></p>
-    <p class="fdim">Built for people who watch spinners professionally. Like kickbacks.ai, but better.</p>
+    <p class="fdim">An open marketplace for the time you already spend waiting on AI.</p>
     <p class="fdim tiny">Not affiliated with Anthropic, OpenAI, or Google.</p>
   </footer>
 
