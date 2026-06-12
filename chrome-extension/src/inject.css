@@ -52,26 +52,6 @@
 .bb-bar:hover {
   background: rgba(24, 28, 34, 0.96);
 }
-.bb-spin {
-  color: #e8a486;
-  display: inline-block;
-  animation: bb-spin 1s linear infinite;
-}
-@keyframes bb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.bb-word {
-  color: #cfd5df;
-}
-.bb-dots {
-  color: #8b94a4;
-  margin-left: -4px;
-}
-.bb-sep {
-  color: #58606e;
-}
 .bb-chip {
   display: inline-grid;
   place-items: center;

@@ -15,9 +15,6 @@
   if (window.__freeaiLoaded) return;
   window.__freeaiLoaded = true;
 
-  const SPIN = ["✳", "✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷", "✶"];
-  const WORDS = ["Thinking", "Discombobulating", "Percolating", "Simmering", "Noodling", "Conjuring", "Computing"];
-
   // Site-specific "the model is generating" controls. Each is the Stop button
   // that only exists while a response streams. Kept broad + case-insensitive so
   // small UI revisions don't silently break detection.
@@ -66,8 +63,6 @@
   let active = false;
   let demoUntil = 0;
   let adIdx = 0;
-  let wordIdx = 0;
-  let frame = 0;
   let lastImpressionAt = 0;
 
   // ---------- safe messaging (service worker may be asleep / context torn down) ----------
@@ -89,14 +84,9 @@
   bar.className = "bb-bar";
   bar.setAttribute("role", "complementary");
   bar.innerHTML =
-    '<span class="bb-spin">✳</span>' +
-    '<span class="bb-word">Thinking</span><span class="bb-dots">…</span>' +
-    '<span class="bb-sep">·</span>' +
     '<span class="bb-chip">R</span>' +
     '<span class="bb-line">Ramp · save time and money</span>' +
     '<span class="bb-tag">sponsored · 50% back as Claude credits</span>';
-  const elSpin = bar.querySelector(".bb-spin");
-  const elWord = bar.querySelector(".bb-word");
   const elChip = bar.querySelector(".bb-chip");
   const elLine = bar.querySelector(".bb-line");
   const elTag = bar.querySelector(".bb-tag");
@@ -167,8 +157,6 @@
   // ---------- render ----------
   function render() {
     const ad = currentAd();
-    elSpin.textContent = SPIN[frame % SPIN.length];
-    elWord.textContent = WORDS[wordIdx % WORDS.length];
     if (ad) {
       elChip.textContent = ad.chip;
       elChip.style.background = ad.color;
@@ -182,7 +170,6 @@
       elTag.textContent = "sponsored · 50% back as Claude credits";
       bar.classList.remove("bb-test");
     }
-    frame++;
   }
 
   // ---------- generation detector ----------
@@ -232,11 +219,10 @@
     else bar.classList.remove("bb-show");
     render();
     frameCount++;
-    // rotate the ad + word roughly every 2.6s (skip rotation while testing —
-    // the mock ad should stay put so it's easy to inspect)
+    // rotate the ad roughly every 2.6s (skip rotation while testing — the
+    // mock ad should stay put so it's easy to inspect)
     if (!testMode && frameCount % 26 === 0) {
       adIdx++;
-      wordIdx++;
     }
     // one impression every 5s of serving — only while actually visible
     if (!bar.classList.contains("bb-show")) return;
