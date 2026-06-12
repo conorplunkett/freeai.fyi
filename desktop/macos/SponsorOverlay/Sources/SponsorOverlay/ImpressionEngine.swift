@@ -36,7 +36,11 @@ final class ImpressionEngine {
         counted = false
     }
 
-    func tick(signals: Signals, windowState: ClaudeState, nowMs: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000)) {
+    /// Calls `onQualified` exactly once per armed display, with the accrued
+    /// visibility in ms, when 5 continuous eligible seconds are reached.
+    func tick(signals: Signals,
+              nowMs: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000),
+              onQualified: (UInt64) -> Void) {
         guard signals.qualifies, !counted else {
             accruedMs = 0
             lastTickMs = nil
@@ -50,14 +54,7 @@ final class ImpressionEngine {
 
         if accruedMs >= Self.qualifyMs {
             counted = true
-            emitImpression(visibilityMs: accruedMs, generating: windowState.generating)
+            onQualified(accruedMs)
         }
-    }
-
-    private func emitImpression(visibilityMs: UInt64, generating: Bool) {
-        // TODO(milestone 3): enqueue to the persisted retry queue and POST to
-        // the events API. Payload is restricted to overlay-core's allowed key
-        // set — see core/src/events.rs.
-        NSLog("qualified impression: visible=\(visibilityMs)ms generating=\(generating)")
     }
 }

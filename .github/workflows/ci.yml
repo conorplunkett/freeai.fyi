@@ -51,6 +51,36 @@ jobs:
       - name: End-to-end tests (real Postgres, fake Stripe)
         run: npm test
 
+  desktop-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings
+      - run: cargo test
+
+  desktop-macos:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: desktop/macos/SponsorOverlay
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (debug + release)
+        run: |
+          swift build
+          swift build -c release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SponsorOverlay-macos
+          path: desktop/macos/SponsorOverlay/.build/release/SponsorOverlay
+
   site:
     runs-on: ubuntu-latest
     steps:

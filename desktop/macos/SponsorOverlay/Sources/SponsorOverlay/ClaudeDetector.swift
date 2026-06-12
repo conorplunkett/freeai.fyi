@@ -101,11 +101,3 @@ enum SystemState {
         CGDisplayIsAsleep(CGMainDisplayID()) != 0
     }
 }
-
-/// Placeholder auth session until Supabase auth lands (Milestone 1).
-final class Session {
-    static let shared = Session()
-    var isSignedIn = false
-    var userID: String?
-    var deviceID = ProcessInfo.processInfo.globallyUniqueString
-}

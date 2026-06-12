@@ -1,35 +1,138 @@
-// FreeAI Sponsor Overlay — menu bar shell (Milestone 1 + 2 rough-out).
+// FreeAI Sponsor Overlay — menu bar shell.
 //
-// Responsibilities of this shell, by design, are dumb: read platform signals,
-// hand them to the decision logic (overlay-core, ../../core — to be linked as
-// a staticlib via cbindgen; an interim Swift port lives in ImpressionEngine),
-// and render/position the overlay panel. It never reads Claude content,
-// injects code, or touches Claude's files.
+// The shell is intentionally dumb: read platform signals (Claude focused?
+// generating? screen locked?), let the decision logic (a port of
+// ../../core's tested rules) decide when an impression qualifies, render the
+// card, queue events. It never injects code into Claude, never modifies
+// Claude's files, never reads conversation content.
+//
+// Demo mode for local testing without a server or Claude Desktop:
+//   FREEAI_DEMO=1 swift run SponsorOverlay
+// In demo mode any frontmost app counts as "Claude generating", a seeded
+// campaign is shown, and qualified impressions/clicks are logged to the
+// console instead of POSTed.
 
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem!
+    private let demoMode = ProcessInfo.processInfo.environment["FREEAI_DEMO"] == "1"
+
     private let detector = ClaudeDetector()
     private let overlay = OverlayPanelController()
     private let engine = ImpressionEngine()
+    private let store = EventStore()
+    private let client = BackendClient(baseURL: BackendClient.configuredBaseURL)
+
+    private var statusItem: NSStatusItem!
+    private var balanceItem: NSMenuItem!
     private var pollTimer: Timer?
     private var adsPaused = false
+
+    private var credentials: DeviceCredentials?
+    private var ads: [Ad] = []
+    private var currentAd: Ad?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenuBar()
         requestAccessibilityIfNeeded()
-        // Signal poll. AX notifications will replace most polling later; 500ms
-        // matches the tick granularity overlay-core's tests assume.
+        bootstrap()
+
+        overlay.onClick = { [weak self] card in self?.handleClick(campaignId: card.campaignID) }
+        overlay.onDismiss = { [weak self] _ in
+            self?.adsPaused = true // dismiss pauses until next generation burst
+            DispatchQueue.main.asyncAfter(deadline: .now() + 300) { self?.adsPaused = false }
+        }
+
+        // 500ms signal poll; AX notifications can replace most of this later.
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.tick()
         }
     }
 
+    // MARK: bootstrap (device registration + campaign sync)
+
+    private func bootstrap() {
+        if demoMode {
+            ads = [Ad(id: "demo-1", brand: "Linear", line: "Plan your next sprint faster",
+                      url: "https://linear.app", cat: "dev-tools")]
+            rotateAd()
+            NSLog("[freeai] DEMO MODE: overlay follows any focused window; events log locally")
+            return
+        }
+        // Device credentials persist across launches (Keychain is the TODO;
+        // UserDefaults for the rough-out).
+        if let data = UserDefaults.standard.data(forKey: "deviceCredentials"),
+           let creds = try? JSONDecoder().decode(DeviceCredentials.self, from: data) {
+            credentials = creds
+            didSignIn()
+        } else {
+            client.registerDevice { [weak self] creds in
+                DispatchQueue.main.async {
+                    guard let self, let creds else { return }
+                    self.credentials = creds
+                    if let data = try? JSONEncoder().encode(creds) {
+                        UserDefaults.standard.set(data, forKey: "deviceCredentials")
+                    }
+                    self.didSignIn()
+                }
+            }
+        }
+    }
+
+    private func didSignIn() {
+        refreshAds()
+        refreshBalance()
+        Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            self?.refreshAds()
+            self?.refreshBalance()
+        }
+    }
+
+    private func refreshAds() {
+        client.fetchAds { [weak self] ads in
+            DispatchQueue.main.async {
+                self?.ads = ads
+                if self?.currentAd == nil { self?.rotateAd() }
+            }
+        }
+    }
+
+    private func refreshBalance() {
+        guard let credentials else { return }
+        client.earnings(credentials: credentials) { [weak self] e in
+            DispatchQueue.main.async {
+                if let e { self?.balanceItem.title = String(format: "Balance: $%.2f", e.balanceUsd) }
+            }
+        }
+    }
+
+    private func rotateAd() {
+        currentAd = ads.randomElement()
+        if let ad = currentAd, let url = URL(string: ad.url) {
+            overlay.setCard(SponsorCard(campaignID: ad.id, sponsorName: ad.brand,
+                                        message: ad.line, destinationURL: url))
+        }
+        engine.rearm()
+    }
+
+    // MARK: per-tick pipeline
+
     private func tick() {
-        let state = detector.currentState()
+        var state = detector.currentState()
+        if demoMode {
+            // Pretend the frontmost window is Claude mid-generation.
+            state.running = true
+            state.focused = NSApp.isActive || NSWorkspace.shared.frontmostApplication != nil
+            state.generating = true
+            if state.windowBounds == nil, let screen = NSScreen.main {
+                let f = screen.visibleFrame
+                state.windowBounds = CGRect(x: f.midX - 400, y: 120, width: 800, height: f.height - 240)
+            }
+        }
+
+        let signedIn = demoMode || credentials != nil
         let signals = Signals(
-            signedIn: Session.shared.isSignedIn,
+            signedIn: signedIn,
             claudeFocused: state.focused,
             claudeGenerating: state.generating,
             overlayVisible: overlay.isShown,
@@ -39,30 +142,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             adsPaused: adsPaused
         )
 
-        // MVP display rule: show the overlay only while Claude is focused and
-        // appears to be generating (PRD fallback: focused + recent activity).
-        if state.focused && state.generating && !adsPaused, let bounds = state.windowBounds {
+        let shouldShow = state.focused && state.generating && !adsPaused && currentAd != nil
+        if shouldShow, let bounds = state.windowBounds {
             overlay.show(over: bounds)
         } else {
+            if overlay.isShown { rotateAd() } // hidden -> next show re-arms with a fresh ad
             overlay.hide()
-            engine.rearm()
         }
 
-        engine.tick(signals: signals, windowState: state)
+        engine.tick(signals: signals) { [weak self] visibilityMs in
+            self?.handleQualifiedImpression(visibilityMs: visibilityMs)
+        }
+
+        if let credentials { store.flush(client: client, credentials: credentials) }
     }
+
+    private func handleQualifiedImpression(visibilityMs: UInt64) {
+        guard let ad = currentAd else { return }
+        if demoMode {
+            NSLog("[freeai] qualified impression: campaign=%@ visible=%dms", ad.id, Int(visibilityMs))
+            return
+        }
+        store.recordImpression(campaignId: ad.id)
+    }
+
+    private func handleClick(campaignId: String) {
+        guard let ad = currentAd, ad.id == campaignId else { return }
+        if demoMode {
+            NSLog("[freeai] click: campaign=%@", campaignId)
+            NSWorkspace.shared.open(ad.destinationURLOrFallback)
+            return
+        }
+        guard let credentials else { return }
+        // Server-issued single-use tracking URL; falls back to the plain URL
+        // (uncredited) if the intent call fails.
+        client.clickIntent(credentials: credentials, campaignId: campaignId) { url in
+            DispatchQueue.main.async {
+                NSWorkspace.shared.open(url ?? ad.destinationURLOrFallback)
+            }
+        }
+        store.recordClick(campaignId: campaignId)
+    }
+
+    // MARK: menu bar
 
     private func setUpMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "₿"
         let menu = NSMenu()
-        menu.addItem(withTitle: "Balance: —", action: nil, keyEquivalent: "")
-        let pause = NSMenuItem(title: "Pause sponsor messages", action: #selector(togglePause), keyEquivalent: "p")
+        balanceItem = NSMenuItem(title: demoMode ? "Demo mode" : "Balance: —", action: nil, keyEquivalent: "")
+        menu.addItem(balanceItem)
+        let pause = NSMenuItem(title: "Pause sponsor messages", action: #selector(togglePause(_:)), keyEquivalent: "p")
         pause.target = self
         menu.addItem(pause)
-        menu.addItem(withTitle: "Open dashboard…", action: #selector(openDashboard), keyEquivalent: "d")
-        menu.items.last?.target = self
+        let dash = NSMenuItem(title: "Why am I seeing this?", action: #selector(openPrivacy), keyEquivalent: "")
+        dash.target = self
+        menu.addItem(dash)
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 
@@ -71,13 +208,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.title = adsPaused ? "Resume sponsor messages" : "Pause sponsor messages"
     }
 
-    @objc private func openDashboard() {
-        NSWorkspace.shared.open(URL(string: "https://freeai.fyi/dashboard")!)
+    @objc private func openPrivacy() {
+        NSWorkspace.shared.open(URL(string: "https://freeai.fyi/privacy.html")!)
     }
 
     private func requestAccessibilityIfNeeded() {
+        guard !demoMode else { return }
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(opts)
+    }
+}
+
+extension Ad {
+    var destinationURLOrFallback: URL {
+        URL(string: url) ?? URL(string: "https://freeai.fyi")!
     }
 }
 

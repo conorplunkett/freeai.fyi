@@ -52,19 +52,54 @@ serialized key set exactly — adding a field that smuggles content fails CI.
   frequency cap, budget check rounds impression cost *up*.
 - Campaign hygiene: ≤60-char message, https-only destination URLs.
 
-## Run the tests
+## Backend
 
+The app speaks the **existing FreeAI API** (`server/`), same protocol as
+the VS Code extension: `POST /v1/devices/register` (anonymous device auth),
+`GET /v1/ads`, `POST /v1/events` (idempotent batches keyed by `batchKey`),
+`POST /v1/clicks/intent` (server-issued single-use click URLs, so clicks
+can't be forged), `GET /v1/me/earnings`. Point the app elsewhere with
+`FREEAI_API_URL`.
+
+## Testing
+
+**Core logic (any OS):**
 ```sh
 cd desktop/core && cargo test
 ```
 
-## Next steps (mapped to PRD milestones)
+**The app, on a Mac — demo mode (no server, no Claude needed):**
+```sh
+cd desktop/macos/SponsorOverlay
+FREEAI_DEMO=1 swift run SponsorOverlay
+```
+Demo mode treats whatever window is frontmost as "Claude generating", shows a
+seeded Linear card bottom-center, and logs qualified impressions/clicks to
+the console after the 5-second timer. Watch with
+`log stream --predicate 'eventMessage CONTAINS "freeai"'` or just the
+terminal output.
 
-1. **M1:** Supabase auth in the shell; permission onboarding flow UI;
-   validate bundle id + AX tree against a real Claude Desktop build.
-2. **M2:** cbindgen FFI so the shell uses `overlay-core` directly; campaign
-   sync endpoint; "Why am I seeing this?" affordance.
-3. **M3:** persisted queue file + flush loop; events API on the existing
-   `server/` backend (it already has ledger/auction plumbing to reuse).
-4. **M4/M5:** dashboard (balance/earnings/redemptions) and manual admin
-   campaign tooling — likely extensions of the existing `server/` + site.
+**Against the real thing:**
+```sh
+swift run SponsorOverlay                  # uses FREEAI_API_URL or the default API
+```
+Grant Accessibility when prompted, open Claude Desktop, start a generation.
+The card should appear while Claude streams; 5 visible seconds → one
+impression batch lands in the server ledger; clicking routes through
+`/v1/go/:token` and credits the click.
+
+**CI** builds the Swift app on a `macos-14` runner on every push/PR and
+uploads the release binary as the `SponsorOverlay-macos` artifact —
+download it from the Actions run, `chmod +x`, clear quarantine
+(`xattr -d com.apple.quarantine SponsorOverlay`), and run.
+
+## Still to do
+
+1. Validate Claude's real bundle id + whether its Electron AX tree exposes
+   the Stop button (the riskiest assumption — see ClaudeDetector.swift).
+2. Keychain for device credentials (UserDefaults in the rough-out).
+3. cbindgen FFI so the shell links `overlay-core` instead of the Swift port.
+4. Real sign-in (email verify exists server-side), local frequency caps in
+   the shell, app bundle + code signing + notarization for distribution.
+5. Redemption catalog UI (server currently pays out via Stripe Connect;
+   PRD wants gift-card style redemptions too).
