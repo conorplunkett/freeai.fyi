@@ -13,6 +13,9 @@ struct ClaudeState {
     var generating = false
     var minimized = false
     var windowBounds: CGRect?
+    /// Frame of Claude's prompt composer (AXTextArea), used to anchor the
+    /// sponsor card just above it. Geometry only — content is never read.
+    var composerBounds: CGRect?
 }
 
 final class ClaudeDetector {
@@ -46,6 +49,7 @@ final class ClaudeDetector {
         guard let window = focusedWindow(of: axApp) else { return state }
         state.minimized = isMinimized(window)
         state.windowBounds = frame(of: window)
+        state.composerBounds = composerFrame(in: window)
         state.generating = looksGenerating(window: window)
         return state
     }
@@ -77,6 +81,37 @@ final class ClaudeDetector {
         AXValueGetValue(posRef as! AXValue, .cgPoint, &pos)
         AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
         return CGRect(origin: pos, size: size)
+    }
+
+    /// Locates the prompt composer — the AXTextArea whose placeholder
+    /// description mentions "prompt" (probe-verified: "Write your prompt to
+    /// Claude"). Same privacy rule as the Stop scan: structural attributes
+    /// only, never the field's value.
+    private func composerFrame(in window: AXUIElement) -> CGRect? {
+        guard let composer = findComposer(window, depth: 0) else { return nil }
+        return frame(of: composer)
+    }
+
+    private func findComposer(_ element: AXUIElement, depth: Int) -> AXUIElement? {
+        guard depth < Self.maxScanDepth else { return nil }
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+        if (roleRef as? String) == kAXTextAreaRole as String {
+            var v: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &v)
+            if let s = (v as? String)?.lowercased(), s.contains("prompt") {
+                return element
+            }
+        }
+        var childrenRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+              let children = childrenRef as? [AXUIElement] else {
+            return nil
+        }
+        for child in children {
+            if let found = findComposer(child, depth: depth + 1) { return found }
+        }
+        return nil
     }
 
     /// Generation heuristic, local-only and intentionally conservative: the
