@@ -45,6 +45,7 @@ function makeEl(tag) {
     isConnected: false,
     _click: null,
     classList: { add: (c) => set.add(c), remove: (c) => set.delete(c), contains: (c) => set.has(c) },
+    appendChild(child) { child.isConnected = true; },
     setAttribute(k, v) { this._attrs[k] = v; },
     getAttribute(k) { return this._attrs[k]; },
     addEventListener(ev, fn) { if (ev === "click") this._click = fn; },
@@ -177,6 +178,7 @@ function makeChrome(stateRef, sentRef) {
 
   await check("Test Mode while generating ⇒ swaps in the mock ad", () => {
     page.add("button", { "data-testid": "stop-button" }); // model is thinking
+    page.add("div", { "data-message-author-role": "assistant" }); // the reply area to anchor to
     assert.strictEqual(T.isThinking(), true, "mock ad should show while generating");
     const ad = T.currentAd();
     assert.ok(ad && ad.mock === true, "current ad is not the mock");

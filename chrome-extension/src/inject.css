@@ -40,7 +40,11 @@
   bottom: auto;
   width: fit-content;
   max-width: 100%;
-  margin: 10px 0 4px;
+  /* hard-left: hosts vary (flex / grid / text-align), pin against all of them */
+  margin: 10px auto 4px 0;
+  align-self: flex-start;
+  justify-self: start;
+  text-align: left;
 }
 .bb-bar.bb-inline.bb-show {
   transform: none;

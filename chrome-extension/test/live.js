@@ -50,7 +50,7 @@ const PAGE = `<!doctype html><html><body>
   </main>
   <script>
     // test page hook: toggle a ChatGPT-style stop button on demand
-    window.setGenerating = (on) => {
+    window.setGenerating = (on, withReply = true) => {
       let b = document.querySelector('[data-testid="stop-button"]');
       let m = document.querySelector('[data-message-author-role="assistant"]');
       if (on) {
@@ -60,7 +60,7 @@ const PAGE = `<!doctype html><html><body>
           b.textContent = "Stop";
           document.getElementById("composer").appendChild(b);
         }
-        if (!m) {
+        if (withReply && !m) {
           // the streaming assistant reply — what the bar should anchor to
           m = document.createElement("div");
           m.setAttribute("data-message-author-role", "assistant");
@@ -118,6 +118,13 @@ async function main() {
       assert.strictEqual(shown, null);
     });
 
+    await check("thinking but no reply area yet ⇒ bar stays hidden (no bottom flash)", async () => {
+      await page.evaluate(() => window.setGenerating(true, false)); // stop button only
+      await sleep(1200);
+      const shown = await page.$(".bb-bar.bb-show");
+      assert.strictEqual(shown, null, "bar must not appear before the reply area exists");
+    });
+
     await check("Stop button appears ⇒ bar shows (real detection path)", async () => {
       await page.evaluate(() => window.setGenerating(true));
       await page.waitForSelector(".bb-bar.bb-show", { timeout: 10000 });
@@ -134,6 +141,35 @@ async function main() {
       assert.ok(placed.inline, "bar missing bb-inline");
       assert.ok(placed.inReply, "bar not inside the assistant's reply");
       assert.notStrictEqual(placed.position, "fixed", "bar still fixed-positioned");
+    });
+
+    await check("bar is left-aligned in the reply", async () => {
+      const d = await page.$eval(".bb-bar", (el) => {
+        const p = el.closest('[data-message-author-role="assistant"]').getBoundingClientRect();
+        return el.getBoundingClientRect().left - p.left;
+      });
+      assert.ok(d < 24, `bar starts ${d}px from the reply's left edge — not left-aligned`);
+    });
+
+    await check("Claude star-only stage (data-test-render-count turn) anchors the bar", async () => {
+      // simulate Claude before any streaming text: just a turn container + Stop
+      await page.evaluate(() => {
+        document.querySelector('[data-message-author-role="assistant"]').remove();
+        const turn = document.createElement("div");
+        turn.setAttribute("data-test-render-count", "1");
+        turn.id = "claude-turn";
+        document.getElementById("messages").appendChild(turn);
+      });
+      await page.waitForFunction(
+        () => document.querySelector("#claude-turn .bb-bar.bb-show"),
+        { timeout: 5000 }
+      );
+      // restore the ChatGPT-style reply for the rest of the checks
+      await page.evaluate(() => {
+        document.getElementById("claude-turn").remove();
+        window.setGenerating(true);
+      });
+      await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
     });
 
     await check("bar is actually rendered (visible, has ad copy)", async () => {
