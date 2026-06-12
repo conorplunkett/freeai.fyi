@@ -90,6 +90,15 @@ window every 2s plus a `generating=true/false` verdict. Focus Claude, start a
 generation, and watch the terminal: a "Stop …" button appearing while
 streaming means detection works.
 
+**Window-tracking gates — manual checks (demo mode or real Claude):**
+```sh
+FREEAI_DEMO=1 swift run SponsorOverlay    # or plain `swift run` with Claude open
+```
+- *Minimized*: minimize the tracked window → card hides; restore → card returns.
+- *Usable bounds*: shrink the window below 360×300 → card hides; enlarge → returns.
+- *Move/resize dedupe*: drag or resize the window → card follows; once you stop,
+  the panel frame is no longer reset on every 500ms tick.
+
 **Against the real thing:**
 ```sh
 swift run SponsorOverlay                  # uses FREEAI_API_URL or the default API
