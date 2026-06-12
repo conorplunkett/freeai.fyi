@@ -16,8 +16,8 @@
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
   line-height: 1;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   cursor: pointer;
@@ -29,6 +29,21 @@
   display: flex;
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+/* Inline mode — anchored right where the assistant's reply is streaming
+   ("where the thinking icon is"), flowing with the message instead of
+   floating over the composer. */
+.bb-bar.bb-inline {
+  position: static;
+  transform: none;
+  left: auto;
+  bottom: auto;
+  width: fit-content;
+  max-width: 100%;
+  margin: 10px 0 4px;
+}
+.bb-bar.bb-inline.bb-show {
+  transform: none;
 }
 .bb-bar:hover {
   background: rgba(24, 28, 34, 0.96);
@@ -88,10 +103,9 @@
   letter-spacing: 0.02em;
   flex: 0 0 auto;
 }
-/* Test Mode — make the mock ad unmistakable. */
+/* Test Mode — identifiable via the badge, border kept subtle. */
 .bb-bar.bb-test {
-  border-color: rgba(124, 246, 168, 0.5);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(124, 246, 168, 0.25);
+  border-color: rgba(124, 246, 168, 0.18);
 }
 .bb-bar.bb-test .bb-tag {
   background: rgba(124, 246, 168, 0.22);

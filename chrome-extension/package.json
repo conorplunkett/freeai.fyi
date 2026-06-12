@@ -5,6 +5,10 @@
   "description": "FreeAI.fyi Chrome extension — earn while you use ChatGPT, Claude, and Gemini.",
   "scripts": {
     "lint": "node -c src/ads.js && node -c src/content.js && node -c src/background.js && node -c popup/popup.js && echo \"syntax ok\"",
-    "test": "node test/run.js"
+    "test": "node test/run.js",
+    "test:live": "node test/live.js"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.1.0"
   }
 }

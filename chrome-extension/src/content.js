@@ -32,6 +32,18 @@
   ];
   const BUSY_SELECTORS = ['[aria-busy="true"]', '.result-streaming', "[data-is-streaming='true']", ".streaming-animation"];
 
+  // Where to put the bar: inline, right where the assistant's reply is being
+  // streamed ("where the thinking icon is"), not floating at the bottom.
+  // Ordered by priority — Claude first. Falls back to a fixed bottom bar only
+  // if no anchor is found.
+  const ANCHOR_SELECTORS = [
+    '[data-is-streaming="true"]',             // Claude — the streaming message bubble
+    '[data-message-author-role="assistant"]', // ChatGPT — last assistant turn
+    ".result-streaming",                      // ChatGPT (older streaming marker)
+    "model-response",                         // Gemini
+    '[aria-busy="true"]',                     // generic live region
+  ];
+
   let ads = [];
   let mockAd = (typeof self !== "undefined" && self.BB_MOCK_AD) || null;
   let enabled = true;
@@ -87,7 +99,37 @@
     window.open(ad.url, "_blank", "noopener");
   });
 
+  // Attach the bar inline at the streaming reply if we can find it; otherwise
+  // fall back to the fixed bottom pill. Re-checked every tick because these
+  // apps re-render aggressively (React may evict us) and the anchor only
+  // exists once streaming starts.
+  let anchorEl = null;
+  function findAnchor() {
+    for (const sel of ANCHOR_SELECTORS) {
+      try {
+        const els = document.querySelectorAll(sel);
+        if (els.length) return els[els.length - 1];
+      } catch (_) {}
+    }
+    return null;
+  }
   function mount() {
+    const a = findAnchor();
+    if (a && typeof a.appendChild === "function") {
+      if (anchorEl !== a || !bar.isConnected) {
+        anchorEl = a;
+        bar.classList.add("bb-inline");
+        try {
+          a.appendChild(bar);
+          return;
+        } catch (_) {}
+      } else {
+        return;
+      }
+    }
+    // fallback: fixed pill above the composer
+    anchorEl = null;
+    bar.classList.remove("bb-inline");
     if (!bar.isConnected && document.body) document.body.appendChild(bar);
   }
 
@@ -120,7 +162,8 @@
     return r.width > 0 && r.height > 0;
   }
   function isThinking() {
-    if (testMode) return true; // Test Mode keeps the bar up regardless
+    // NB: Test Mode no longer forces the bar on — it swaps in the mock ad, but
+    // the bar still only shows while the model is actually generating.
     if (Date.now() < demoUntil) return true;
     for (const sel of STOP_SELECTORS) {
       const els = document.querySelectorAll(sel);
@@ -153,6 +196,7 @@
   }
   let frameCount = 0;
   function tick() {
+    mount(); // keep the bar pinned to the streaming reply across re-renders
     render();
     frameCount++;
     // rotate the ad + word roughly every 2.6s (skip rotation while testing —
