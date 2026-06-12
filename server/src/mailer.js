@@ -14,10 +14,10 @@ function createMailer(config) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: config.mailFrom || "Betterbacks <hello@betterbacks.ai>",
+          from: config.mailFrom || "FreeAI <hello@freeai.fyi>",
           to,
           subject: "Verify your email to get paid",
-          html: `<p>Confirm this address to start receiving Betterbacks payouts.</p>
+          html: `<p>Confirm this address to start receiving FreeAI payouts.</p>
                  <p><a href="${link}">Verify my email</a></p>
                  <p>This link expires in 30 minutes. If you didn't request it, ignore this email.</p>`,
         }),
@@ -26,7 +26,7 @@ function createMailer(config) {
       return;
     }
     // console transport
-    console.log(`[betterbacks][mail] verify ${to} -> ${link}`);
+    console.log(`[freeai][mail] verify ${to} -> ${link}`);
   }
 
   return { sendVerifyEmail };

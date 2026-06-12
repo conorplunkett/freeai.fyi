@@ -1,11 +1,11 @@
-# Betterbacks API — Fly.io deploy config.
+# FreeAI API — Fly.io deploy config.
 # Usage:
 #   fly launch --no-deploy            # create the app
 #   fly secrets set DATABASE_URL=... STRIPE_SECRET_KEY=... STRIPE_WEBHOOK_SECRET=... \
-#       ADMIN_KEY=... SITE_URL=https://betterbacks.ai API_BASE_URL=https://api.betterbacks.ai
+#       ADMIN_KEY=... SITE_URL=https://freeai.fyi API_BASE_URL=https://api.freeai.fyi
 #   fly deploy
 
-app = "betterbacks-api"
+app = "freeai-api"
 primary_region = "iad"
 
 [build]

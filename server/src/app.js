@@ -1,4 +1,4 @@
-// Betterbacks API — plain node:http, no framework.
+// FreeAI API — plain node:http, no framework.
 // Dependency-injected ({ repo, stripe, mailer, rateLimiter, config }) so the test
 // harness runs the real routes against a real database with fake Stripe/mail.
 
@@ -136,7 +136,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
         quantity: nBlocks,
         price_data: {
           currency: "usd", unit_amount: priceCents,
-          product_data: { name: "Betterbacks spinner block — 1,000 impressions", description: `"${adLine}"` },
+          product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `"${adLine}"` },
         },
       }],
       metadata: { campaign_id: campaignId },
@@ -243,7 +243,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!result) return json(res, 404, { ok: false });
     if (result.paymentIntentId) {
       try { await stripe.createRefund({ payment_intent: result.paymentIntentId }); }
-      catch (err) { console.error("[betterbacks] refund failed:", err.message); }
+      catch (err) { console.error("[freeai] refund failed:", err.message); }
     }
     json(res, 200, { ok: true, refunded: !!result.paymentIntentId });
   });
@@ -264,7 +264,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
           <button class="rej" onclick="act('reject','${escapeHtml(c.id)}')">Reject</button>
         </td>
       </tr>`).join("");
-    html(res, 200, `<!doctype html><meta charset=utf-8><title>Betterbacks moderation</title>
+    html(res, 200, `<!doctype html><meta charset=utf-8><title>FreeAI moderation</title>
 <style>body{font:14px system-ui;margin:40px;max-width:900px}table{width:100%;border-collapse:collapse}
 td,th{padding:10px;border-bottom:1px solid #eee;text-align:left}.line{font-family:monospace}
 button{padding:6px 12px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer}
@@ -342,11 +342,11 @@ async function act(kind,id){
     try {
       await handler(req, res, body, rawBody, url.searchParams, routeParams);
     } catch (err) {
-      console.error(`[betterbacks] ${req.method} ${url.pathname} failed:`, err.message);
+      console.error(`[freeai] ${req.method} ${url.pathname} failed:`, err.message);
       if (!res.headersSent) json(res, 500, { error: "internal error" });
     } finally {
       if (config.logRequests !== false) {
-        console.log(`[betterbacks] ${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - started}ms`);
+        console.log(`[freeai] ${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - started}ms`);
       }
     }
   });

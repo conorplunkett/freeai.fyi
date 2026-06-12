@@ -10,7 +10,7 @@ setInterval(() => {
   if (wordStock) wordStock.textContent = STOCK_WORDS[sw];
 }, 1600);
 
-// --- Sponsored ad rotation (the "with betterbacks" line) ---
+// --- Sponsored ad rotation (the "with freeai" line) ---
 const ADS = [
   { chip: "R", color: "#ffd54a", ink: "#1b1e25", text: "Ramp · save time and money" },
   { chip: "L", color: "#5b5bd6", ink: "#fff", text: "Linear — issue tracking built for speed" },
@@ -93,13 +93,13 @@ document.querySelectorAll(".copy-btn").forEach((btn) => {
 });
 
 // --- API wiring ---------------------------------------------------------
-// Set window.BETTERBACKS_API (or a <meta name="betterbacks-api">) to point the
+// Set window.FREEAI_API (or a <meta name="freeai-api">) to point the
 // bid form and leaderboard at the live backend. With no API configured, the
 // page stays in its self-contained demo mode (hardcoded leaderboard, no
 // network) so it works anywhere.
 const API_BASE = (
-  window.BETTERBACKS_API ||
-  document.querySelector('meta[name="betterbacks-api"]')?.content ||
+  window.FREEAI_API ||
+  document.querySelector('meta[name="freeai-api"]')?.content ||
   ""
 ).replace(/\/+$/, "");
 

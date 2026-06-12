@@ -1,4 +1,4 @@
-// Betterbacks — verification harness.
+// FreeAI — verification harness.
 // Runs extension.js against a mock `vscode` module so the whole flow can be
 // verified headlessly: activate → simulate an agent run → impressions accrue
 // at the 90% share → a click pays 50× → dashboard renders.
@@ -156,27 +156,27 @@ const check = (name, fn) => {
   done();
 };
 
-console.log("betterbacks verification\n");
+console.log("freeai verification\n");
 
 check("activates and registers all 5 commands", () => {
   ext.activate(context);
   for (const id of [
-    "betterbacks.toggle",
-    "betterbacks.simulateAgent",
-    "betterbacks.showEarnings",
-    "betterbacks.openCurrentAd",
-    "betterbacks.resetEarnings",
+    "freeai.toggle",
+    "freeai.simulateAgent",
+    "freeai.showEarnings",
+    "freeai.openCurrentAd",
+    "freeai.resetEarnings",
   ]) assert.ok(commands.has(id), "missing command: " + id);
 });
 
 check("idle status bar shows brand + $0.00 and is visible", () => {
   assert.ok(statusBar.shown, "status bar not shown");
-  assert.ok(statusBar.text.includes("betterbacks"), "no brand in: " + statusBar.text);
+  assert.ok(statusBar.text.includes("freeai"), "no brand in: " + statusBar.text);
   assert.ok(statusBar.text.includes("$0.00"), "expected $0.00 in: " + statusBar.text);
 });
 
 check("simulated agent run serves a sponsored line in the spinner", () => {
-  commands.get("betterbacks.simulateAgent")();
+  commands.get("freeai.simulateAgent")();
   advance(200); // a couple of animation frames
   assert.ok(/[✳✶✷✸✹✺]/.test(statusBar.text), "no spinner glyph in: " + statusBar.text);
   assert.ok(statusBar.text.includes("·"), "no sponsored separator in: " + statusBar.text);
@@ -203,9 +203,9 @@ check("unfocused window earns nothing (viewability)", () => {
 
 check("a click opens the ad URL and pays 50× an impression", () => {
   const before = store.get("bb.earnings");
-  commands.get("betterbacks.openCurrentAd")();
+  commands.get("freeai.openCurrentAd")();
   assert.strictEqual(openedUrls.length, 1, "ad URL not opened");
-  assert.ok(openedUrls[0].startsWith("https://betterbacks.ai/go/"), openedUrls[0]);
+  assert.ok(openedUrls[0].startsWith("https://freeai.fyi/go/"), openedUrls[0]);
   const gained = store.get("bb.earnings") - before;
   const expected = (12 / 1000) * 0.9 * 50;
   assert.ok(Math.abs(gained - expected) < 1e-9, `click paid ${gained}, expected ${expected}`);
@@ -213,7 +213,7 @@ check("a click opens the ad URL and pays 50× an impression", () => {
 });
 
 check("earnings dashboard renders the 90% split and the bid market", () => {
-  commands.get("betterbacks.showEarnings")();
+  commands.get("freeai.showEarnings")();
   assert.ok(webviewHtml.includes("You keep 90%"), "dashboard missing 90% headline");
   assert.ok(webviewHtml.includes("Live bid market"), "dashboard missing bid market");
   assert.ok(webviewHtml.includes("Fluidstack"), "dashboard missing top bidder");
@@ -221,7 +221,7 @@ check("earnings dashboard renders the 90% split and the bid market", () => {
 
 check("blocked categories are never served", () => {
   config.set("blockedCategories", ["finance"]);
-  commands.get("betterbacks.showEarnings")();
+  commands.get("freeai.showEarnings")();
   assert.ok(!webviewHtml.includes("Ramp"), "blocked 'finance' ad (Ramp) still served");
   config.set("blockedCategories", []);
 });
@@ -252,7 +252,7 @@ check("blocked categories are never served", () => {
   });
 
   check("live auction ad serves in the spinner", () => {
-    commands.get("betterbacks.simulateAgent")();
+    commands.get("freeai.simulateAgent")();
     advance(200);
     assert.ok(statusBar.text.includes("TESTAD"), "live ad not serving: " + statusBar.text);
   });
@@ -274,15 +274,15 @@ check("blocked categories are never served", () => {
     advance(300000); // the 5-minute killswitch poll fires
     await tickAsync();
     await tickAsync();
-    assert.ok(statusBar.text.includes("betterbacks"), "not idle after killswitch: " + statusBar.text);
-    commands.get("betterbacks.simulateAgent")();
+    assert.ok(statusBar.text.includes("freeai"), "not idle after killswitch: " + statusBar.text);
+    commands.get("freeai.simulateAgent")();
     advance(200);
     assert.ok(!/[✳✶✷✸✹✺]/.test(statusBar.text), "served while killed: " + statusBar.text);
     configServing = true;
   });
 
   // the reset command awaits globalState updates, so await it before asserting
-  await commands.get("betterbacks.resetEarnings")();
+  await commands.get("freeai.resetEarnings")();
   check("reset zeroes the counters", () => {
     assert.strictEqual(store.get("bb.impressions"), 0);
     assert.strictEqual(store.get("bb.earnings"), 0);

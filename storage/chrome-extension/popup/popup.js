@@ -1,4 +1,4 @@
-// Betterbacks.ai — popup logic
+// FreeAI.fyi — popup logic
 const $ = (id) => document.getElementById(id);
 
 function send(msg) {

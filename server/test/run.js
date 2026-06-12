@@ -1,4 +1,4 @@
-// Betterbacks API — end-to-end verification.
+// FreeAI API — end-to-end verification.
 // Boots the REAL app + repository against a REAL Postgres (DATABASE_URL), with
 // only Stripe + mail transports faked, and drives the full hardened flow:
 //   checkout -> webhook (deduped) -> moderation -> auction -> 90% ledger ->
@@ -57,8 +57,8 @@ const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, l
 
   const config = {
     revenueShare: 0.9, dailyImpressionCap: 5000, payoutThresholdCents: 1000,
-    stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://betterbacks.ai",
-    apiBaseUrl: "", corsOrigin: "https://betterbacks.ai", adminKey: "test-admin",
+    stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
+    apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
     emailTokenTtlMs: 1800000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
     logRequests: false,
   };
@@ -94,14 +94,14 @@ const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, l
   };
   const approve = (campaignId) => api("POST", "/v1/admin/campaigns/approve", { adminKey: "test-admin", campaignId });
 
-  console.log("betterbacks api verification (real postgres, fake stripe + mail)\n");
+  console.log("freeai api verification (real postgres, fake stripe + mail)\n");
 
   await check("healthz", async () => assert.strictEqual((await api("GET", "/healthz")).status, 200));
 
   await check("CORS preflight returns 204 with allow-origin", async () => {
     const r = await fetch(base + "/v1/ads", { method: "OPTIONS" });
     assert.strictEqual(r.status, 204);
-    assert.strictEqual(r.headers.get("access-control-allow-origin"), "https://betterbacks.ai");
+    assert.strictEqual(r.headers.get("access-control-allow-origin"), "https://freeai.fyi");
   });
 
   // ---------- checkout + validation ----------
@@ -220,7 +220,7 @@ const fakeMailer = { sendVerifyEmail: async (to, link) => { mailbox.push({ to, l
     const token = new URL(link).searchParams.get("token");
     const verify = await api("GET", `/v1/auth/verify?token=${token}`);
     assert.strictEqual(verify.status, 302);
-    assert.strictEqual(verify.headers.get("location"), "https://betterbacks.ai/?verified=1");
+    assert.strictEqual(verify.headers.get("location"), "https://freeai.fyi/?verified=1");
 
     const ok = await api("POST", "/v1/connect/onboard", device);
     assert.strictEqual(ok.status, 200);

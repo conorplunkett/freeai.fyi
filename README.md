@@ -1,11 +1,11 @@
-# Betterbacks.ai 🤑
+# FreeAI.fyi 🤑
 
 **Get paid for waiting.** Like [kickbacks.ai](https://kickbacks.ai), but better —
 **you keep 90% of the revenue** instead of 50%.
 
 Your agent spends half its life thinking. Claude Code spins, Codex spins, and you
 read one line — *"Discombobulating…"* — over and over. It's the most-watched line in
-software. Betterbacks turns it into a tiny ad marketplace and pays the developer
+software. FreeAI turns it into a tiny ad marketplace and pays the developer
 whose machine showed the ad.
 
 ## What's in here
@@ -32,7 +32,7 @@ cd extension
 code .          # open in VS Code, then press F5 to launch an Extension Development Host
 ```
 
-Then run **"Betterbacks: Show me the money"** from the Command Palette to watch
+Then run **"FreeAI: Show me the money"** from the Command Palette to watch
 sponsored lines serve and your earnings tick up. See
 [`extension/README.md`](extension/README.md) for full docs.
 
@@ -51,7 +51,7 @@ Built and working, but shelved for now while we nail the VS Code replica — see
 
 ## The kicker
 
-| | kickbacks.ai | **Betterbacks.ai** |
+| | kickbacks.ai | **FreeAI.fyi** |
 | --- | --- | --- |
 | Developer revenue share | 50% | **90%** |
 

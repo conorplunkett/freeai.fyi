@@ -1,10 +1,10 @@
-# Betterbacks.ai — Chrome extension 🤑
+# FreeAI.fyi — Chrome extension 🤑
 
 > Get paid for waiting — in the browser. **You keep 90%.**
 
 The VS Code extension monetizes the spinner in Claude Code & Codex. This is the same
 idea for **web-based agents**: claude.ai, ChatGPT/Codex web, Gemini, Perplexity,
-v0, bolt.new. While the assistant is thinking/streaming, Betterbacks shows one
+v0, bolt.new. While the assistant is thinking/streaming, FreeAI shows one
 subtle, clickable sponsored line — and pays you 90% of the revenue.
 
 ## Install (developer mode)
@@ -12,7 +12,7 @@ subtle, clickable sponsored line — and pays you 90% of the revenue.
 1. Open `chrome://extensions`
 2. Toggle **Developer mode** (top-right)
 3. Click **Load unpacked** and select this `chrome-extension/` folder
-4. Pin the Betterbacks icon, then open **claude.ai** or **chatgpt.com** and ask
+4. Pin the FreeAI icon, then open **claude.ai** or **chatgpt.com** and ask
    something. The sponsored line appears while it thinks.
 
 Prefer a quick look? Click the toolbar icon → **"Show me the money"** to run a 30s

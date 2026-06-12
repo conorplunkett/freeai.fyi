@@ -1,7 +1,7 @@
 {
-  "name": "betterbacks-server",
+  "name": "freeai-server",
   "version": "0.1.0",
-  "description": "Betterbacks.ai backend — ad auction, impression ledger, Stripe money in/out. Developers keep 90%.",
+  "description": "FreeAI.fyi backend — ad auction, impression ledger, Stripe money in/out. Developers keep 90%.",
   "private": true,
   "main": "src/index.js",
   "scripts": {

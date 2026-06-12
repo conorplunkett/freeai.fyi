@@ -8,8 +8,8 @@ const path = require("node:path");
   const sql = fs.readFileSync(path.join(__dirname, "..", "db", "schema.sql"), "utf8");
   await pool.query(sql);
   await pool.end();
-  console.log("[betterbacks] schema applied");
+  console.log("[freeai] schema applied");
 })().catch((err) => {
-  console.error("[betterbacks] migrate failed:", err.message);
+  console.error("[freeai] migrate failed:", err.message);
   process.exit(1);
 });

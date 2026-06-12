@@ -6,13 +6,13 @@ boot()
   .then(({ deps, pool }) => {
     const { server } = createApp(deps);
     server.listen(deps.config.port, () => {
-      console.log(`[betterbacks] api on :${deps.config.port} — developers keep ${deps.config.revenueShare * 100}%`);
+      console.log(`[freeai] api on :${deps.config.port} — developers keep ${deps.config.revenueShare * 100}%`);
     });
     // periodic rate-limiter sweep
     const sweep = setInterval(() => deps.rateLimiter.sweep(), 300000).unref();
 
     async function shutdown(sig) {
-      console.log(`[betterbacks] ${sig} — draining…`);
+      console.log(`[freeai] ${sig} — draining…`);
       clearInterval(sweep);
       server.close(async () => {
         try { await pool.end(); } catch {}
@@ -24,6 +24,6 @@ boot()
     process.on("SIGINT", () => shutdown("SIGINT"));
   })
   .catch((err) => {
-    console.error("[betterbacks] failed to boot:", err.message);
+    console.error("[freeai] failed to boot:", err.message);
     process.exit(1);
   });

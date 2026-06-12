@@ -21,11 +21,11 @@ jobs:
       - name: Test (mock-vscode harness)
         run: npm test
       - name: Package .vsix
-        run: npx --yes @vscode/vsce package --no-dependencies -o betterbacks-ai.vsix
+        run: npx --yes @vscode/vsce package --no-dependencies -o freeai-fyi.vsix
       - uses: actions/upload-artifact@v4
         with:
-          name: betterbacks-vsix
-          path: extension/betterbacks-ai.vsix
+          name: freeai-vsix
+          path: extension/freeai-fyi.vsix
 
   server:
     runs-on: ubuntu-latest
@@ -36,7 +36,7 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: betterbacks
+          POSTGRES_DB: freeai
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
@@ -47,7 +47,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/betterbacks
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/freeai
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

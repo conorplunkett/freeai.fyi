@@ -1,9 +1,9 @@
 {
-  "name": "betterbacks-ai",
-  "displayName": "Betterbacks.ai — Get paid for waiting",
+  "name": "freeai-fyi",
+  "displayName": "FreeAI.fyi — Get paid for waiting",
   "description": "Turns the Claude Code & Codex loading spinner into a tiny ad marketplace. You keep 90% of the revenue.",
   "version": "0.3.0",
-  "publisher": "betterbacks",
+  "publisher": "freeai",
   "license": "MIT",
   "icon": "media/icon.png",
   "engines": {
@@ -22,9 +22,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/conorplunkett/betterbacks.ai"
+    "url": "https://github.com/conorplunkett/freeai.fyi"
   },
-  "homepage": "https://betterbacks.ai",
+  "homepage": "https://freeai.fyi",
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -32,66 +32,66 @@
   "contributes": {
     "commands": [
       {
-        "command": "betterbacks.toggle",
-        "title": "Betterbacks: Enable / Disable earning",
-        "category": "Betterbacks"
+        "command": "freeai.toggle",
+        "title": "FreeAI: Enable / Disable earning",
+        "category": "FreeAI"
       },
       {
-        "command": "betterbacks.simulateAgent",
-        "title": "Betterbacks: Show me the money (simulate an agent run)",
-        "category": "Betterbacks"
+        "command": "freeai.simulateAgent",
+        "title": "FreeAI: Show me the money (simulate an agent run)",
+        "category": "FreeAI"
       },
       {
-        "command": "betterbacks.showEarnings",
-        "title": "Betterbacks: Open earnings dashboard",
-        "category": "Betterbacks"
+        "command": "freeai.showEarnings",
+        "title": "FreeAI: Open earnings dashboard",
+        "category": "FreeAI"
       },
       {
-        "command": "betterbacks.openCurrentAd",
-        "title": "Betterbacks: Open the currently shown ad",
-        "category": "Betterbacks"
+        "command": "freeai.openCurrentAd",
+        "title": "FreeAI: Open the currently shown ad",
+        "category": "FreeAI"
       },
       {
-        "command": "betterbacks.resetEarnings",
-        "title": "Betterbacks: Reset earnings (testing)",
-        "category": "Betterbacks"
+        "command": "freeai.resetEarnings",
+        "title": "FreeAI: Reset earnings (testing)",
+        "category": "FreeAI"
       }
     ],
     "configuration": {
-      "title": "Betterbacks",
+      "title": "FreeAI",
       "properties": {
-        "betterbacks.enabled": {
+        "freeai.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Show sponsored lines in the spinner and earn while you wait."
         },
-        "betterbacks.revenueShare": {
+        "freeai.revenueShare": {
           "type": "number",
           "default": 0.9,
           "minimum": 0,
           "maximum": 1,
-          "description": "Your cut of ad revenue. Betterbacks pays 90% — the better split."
+          "description": "Your cut of ad revenue. FreeAI pays 90% — the better split."
         },
-        "betterbacks.grossCpm": {
+        "freeai.grossCpm": {
           "type": "number",
           "default": 12,
           "description": "Effective gross revenue per 1,000 five-second impressions (USD), before your share."
         },
-        "betterbacks.blockedCategories": {
+        "freeai.blockedCategories": {
           "type": "array",
           "items": { "type": "string" },
           "default": [],
           "description": "Ad categories to never show (e.g. \"crypto\", \"gambling\")."
         },
-        "betterbacks.autoShowOnTerminal": {
+        "freeai.autoShowOnTerminal": {
           "type": "boolean",
           "default": true,
           "description": "Automatically show a sponsored line while an integrated terminal is focused (where your agent runs)."
         },
-        "betterbacks.serverUrl": {
+        "freeai.serverUrl": {
           "type": "string",
           "default": "",
-          "description": "Betterbacks API base URL (e.g. https://api.betterbacks.ai). When set, ads come from the live auction and your earnings settle for real. Leave empty for offline/demo mode."
+          "description": "FreeAI API base URL (e.g. https://api.freeai.fyi). When set, ads come from the live auction and your earnings settle for real. Leave empty for offline/demo mode."
         }
       }
     }

@@ -1,4 +1,4 @@
-// Betterbacks.ai — service worker
+// FreeAI.fyi — service worker
 // Holds earnings state and the revenue math. You keep 90%.
 
 importScripts("ads.js");

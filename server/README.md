@@ -1,4 +1,4 @@
-# Betterbacks API — the money loop 🤑
+# FreeAI API — the money loop 🤑
 
 Node + Postgres backend that makes the 90% split real: a live ad auction,
 an append-only ledger, Stripe Checkout for money **in**, Stripe Connect for
@@ -72,7 +72,7 @@ business: Stripe handles KYC, bank accounts, and tax forms (1099s).
 1. Stripe Dashboard → enable **Connect**, choose **Express**.
 2. Developers → API keys → copy `sk_test_...` → `STRIPE_SECRET_KEY`.
 3. Developers → Webhooks → add endpoint
-   `https://api.betterbacks.ai/v1/webhooks/stripe`, subscribe to
+   `https://api.freeai.fyi/v1/webhooks/stripe`, subscribe to
    `checkout.session.completed` and `account.updated` → copy the signing
    secret → `STRIPE_WEBHOOK_SECRET`.
    Locally: `stripe listen --forward-to localhost:8787/v1/webhooks/stripe`.
@@ -121,7 +121,7 @@ curl -X POST localhost:8787/v1/checkout -H 'content-type: application/json' \
 ### Tests
 
 ```bash
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/betterbacks npm test
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/freeai npm test
 ```
 
 15 end-to-end checks drive the real routes against a real Postgres (isolated
@@ -134,7 +134,7 @@ caps → budget exhaustion → Connect onboarding → payout sweep.
 Set one setting in VS Code:
 
 ```json
-{ "betterbacks.serverUrl": "https://api.betterbacks.ai" }
+{ "freeai.serverUrl": "https://api.freeai.fyi" }
 ```
 
 The extension then registers a device, pulls auction-ranked ads from
@@ -148,7 +148,7 @@ bundled demo inventory).
   step. Point `DATABASE_URL` at Neon/Supabase/RDS.
 - **DB**: Neon free tier is plenty to start; `npm run migrate` is idempotent.
 - **Site**: static — Cloudflare Pages / Vercel / Netlify + the
-  `betterbacks.ai` domain; point the bid form's submit at `POST /v1/checkout`
+  `freeai.fyi` domain; point the bid form's submit at `POST /v1/checkout`
   and redirect to the returned `checkoutUrl`.
 - **Cron**: weekly `npm run payouts` (or hit `POST /v1/admin/payouts` with the
   admin key).
@@ -224,7 +224,7 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 
 - Real Stripe account + Connect enablement; swap test keys for live.
 - Pick hosts (Neon + Fly + Cloudflare Pages are the defaults assumed here) and
-  point `betterbacks.ai` / `api.betterbacks.ai` DNS.
+  point `freeai.fyi` / `api.freeai.fyi` DNS.
 - Set `MAIL_PROVIDER=resend` + `RESEND_API_KEY` for real verification emails.
 - Optional next: GitHub OAuth instead of email-only identity, per-IP device
   limits and click anomaly detection, edge WAF.

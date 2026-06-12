@@ -1,4 +1,4 @@
--- Betterbacks.ai — core schema (Postgres 14+)
+-- FreeAI.fyi — core schema (Postgres 14+)
 -- Money rule: developers keep 90% of every dollar. The ledger is append-only;
 -- balances are always derived from it, never stored.
 

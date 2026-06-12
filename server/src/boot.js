@@ -6,7 +6,7 @@ const { createMailer } = require("./mailer");
 const { createRateLimiter } = require("./ratelimit");
 
 function loadConfig(env = process.env) {
-  const siteUrl = env.SITE_URL || "https://betterbacks.ai";
+  const siteUrl = env.SITE_URL || "https://freeai.fyi";
   return {
     port: parseInt(env.PORT || "8787", 10),
     databaseUrl: env.DATABASE_URL,

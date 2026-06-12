@@ -21,7 +21,7 @@
 
 ## 0.2.0
 
-- Server mode: set `betterbacks.serverUrl` to pull auction-ranked ads from the
+- Server mode: set `freeai.serverUrl` to pull auction-ranked ads from the
   live API and batch impressions/clicks to it (idempotent, offline-safe).
   Empty by default — local/demo mode unchanged.
 

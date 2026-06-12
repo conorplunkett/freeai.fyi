@@ -1,9 +1,9 @@
-// Betterbacks.ai — content script
+// FreeAI.fyi — content script
 // Detects when the AI assistant on this page is "thinking"/streaming, and shows
 // ONE subtle, clickable sponsored line next to the spinner. You keep 90%.
 (function () {
-  if (window.__betterbacksLoaded) return;
-  window.__betterbacksLoaded = true;
+  if (window.__freeaiLoaded) return;
+  window.__freeaiLoaded = true;
 
   const SPIN = ["✳", "✶", "✷", "✸", "✹", "✺", "✹", "✸", "✷", "✶"];
   const WORDS = ["Thinking", "Discombobulating", "Percolating", "Simmering", "Noodling", "Conjuring", "Computing"];
