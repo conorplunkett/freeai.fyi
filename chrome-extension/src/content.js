@@ -50,10 +50,13 @@
     { sel: "div[data-test-render-count]", mode: "after" },             // Claude — star-only stage
     { sel: '[data-message-author-role="assistant"]', mode: "inside" }, // ChatGPT
     { sel: ".result-streaming", mode: "inside" },                      // ChatGPT (older)
-    { sel: "model-response", mode: "inside" },                         // Gemini — reply
+    // Gemini: the dots stage MUST outrank model-response — an empty
+    // model-response shell exists while the dots are showing, and anchoring
+    // inside it puts the bar above the dots.
     { sel: "thinking-dots-animation", mode: "after" },                 // Gemini — dots stage
     { sel: ".thinking-dots-animation", mode: "after" },
     { sel: '[class*="thinking-dots"]', mode: "after" },
+    { sel: "model-response", mode: "inside" },                         // Gemini — reply
   ];
 
   let ads = [];
@@ -136,16 +139,19 @@
       let target = found.el;
       if (found.mode === "after" && target.parentElement) target = target.parentElement;
       if (typeof target.appendChild === "function") {
-        if (anchorEl !== target || !bar.isConnected) {
-          anchorEl = target;
-          bar.classList.add("bb-inline");
-          try {
-            target.appendChild(bar);
-            return true;
-          } catch (_) {}
-        } else {
+        // These apps keep inserting elements (the star, the dots, streamed
+        // text) AFTER we've mounted, which leaves the bar sitting above the
+        // thinking indicator. So: whenever the bar isn't the LAST element of
+        // its anchor, re-append it to push it back below everything.
+        const isLast =
+          bar.isConnected && bar.parentElement === target && target.lastElementChild === bar;
+        if (isLast) return true;
+        anchorEl = target;
+        bar.classList.add("bb-inline");
+        try {
+          target.appendChild(bar);
           return true;
-        }
+        } catch (_) {}
       }
     }
     anchorEl = null;

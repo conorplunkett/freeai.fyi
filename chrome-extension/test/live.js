@@ -206,6 +206,48 @@ async function main() {
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
     });
 
+    await check("elements inserted after the bar push it back below within a tick", async () => {
+      // the apps keep appending (star, dots, streamed text) after we mount —
+      // the bar must re-seat itself at the bottom
+      await page.evaluate(() => {
+        const turn = document.querySelector('[data-message-author-role="assistant"]');
+        const late = document.createElement("div");
+        late.id = "late-insert";
+        late.textContent = "streamed-in later";
+        turn.appendChild(late); // now sits BELOW the bar
+      });
+      await page.waitForFunction(() => {
+        const turn = document.querySelector('[data-message-author-role="assistant"]');
+        return turn && turn.lastElementChild && turn.lastElementChild.classList.contains("bb-bar");
+      }, { timeout: 3000 });
+    });
+
+    await check("Gemini: empty model-response shell + dots ⇒ bar still below the dots", async () => {
+      await page.evaluate(() => {
+        window.setGenerating(false);
+        document.querySelector('[data-message-author-role="assistant"]').remove();
+        const msgs = document.getElementById("messages");
+        const resp = document.createElement("model-response"); // empty shell, renders first
+        resp.id = "gem-resp";
+        msgs.appendChild(resp);
+        const dots = document.createElement("thinking-dots-animation");
+        dots.id = "gem-dots2";
+        dots.innerHTML = '<div class="thinking-dots-animation"></div>';
+        msgs.appendChild(dots);
+      });
+      await page.waitForFunction(() => {
+        const b = document.querySelector(".bb-bar.bb-show");
+        const dots = document.getElementById("gem-dots2");
+        return b && dots && !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      }, { timeout: 5000 });
+      await page.evaluate(() => {
+        document.getElementById("gem-resp").remove();
+        document.getElementById("gem-dots2").remove();
+        window.setGenerating(true);
+      });
+      await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
+    });
+
     await check("bar is actually rendered (visible, has ad copy)", async () => {
       const info = await page.$eval(".bb-bar", (el) => {
         const r = el.getBoundingClientRect();
