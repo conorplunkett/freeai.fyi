@@ -41,6 +41,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Last Claude bounds the overlay was positioned over, for move/resize
     /// deduplication (spec `lastBounds`).
     private var lastShownBounds: CGRect?
+    /// Composer frame at last positioning — the card re-anchors when the
+    /// composer moves within an unchanged window (e.g. sidebar resize).
+    private var lastComposerBounds: CGRect?
 
     private var credentials: DeviceCredentials?
     private var ads: [Ad] = []
@@ -172,16 +175,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldShow = state.focused && state.generating && !state.minimized
             && usableBounds && !adsPaused && currentAd != nil
         if shouldShow, let bounds = state.windowBounds {
-            // Only re-position on a real move/resize; otherwise we'd setFrame
-            // every tick. Always (re)show when the panel is currently hidden.
-            if !overlay.isShown || !Self.boundsEqual(lastShownBounds, bounds) {
-                overlay.show(over: bounds)
+            // Only re-position on a real move/resize (of the window or the
+            // composer); otherwise we'd setFrame every tick. Always (re)show
+            // when the panel is currently hidden.
+            if !overlay.isShown || !Self.boundsEqual(lastShownBounds, bounds)
+                || lastComposerBounds != state.composerBounds {
+                overlay.show(over: bounds, composer: state.composerBounds)
                 lastShownBounds = bounds
+                lastComposerBounds = state.composerBounds
             }
         } else {
             if overlay.isShown { rotateAd() } // hidden -> next show re-arms with a fresh ad
             overlay.hide()
             lastShownBounds = nil
+            lastComposerBounds = nil
         }
 
         engine.tick(signals: signals) { [weak self] visibilityMs in
