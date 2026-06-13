@@ -1,6 +1,5 @@
-// FreeAI.fyi — website redemption flow. This is the ONLY place users redeem
-// credits for Claude gift cards. Email magic-link sign-in, then read the
-// server-side balance and redeem against it.
+// FreeAI.fyi — website redemption flow. Email magic-link or OAuth sign-in,
+// then read the server-side balance and redeem for a Claude gift card.
 
 const API_BASE = (
   window.FREEAI_API ||
@@ -13,14 +12,29 @@ const $ = (id) => document.getElementById(id);
 const usd = (n) => "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usdWhole = (n) => "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-// Session token arrives in the URL fragment from /v1/web/session; stash it and
-// scrub the URL so it isn't left in history.
+// Session token from OAuth or magic-link arrives in URL fragment; stash and scrub.
 (function captureSession() {
   const m = location.hash.match(/session=([^&]+)/);
   if (m) {
     localStorage.setItem(SESSION_KEY, decodeURIComponent(m[1]));
     history.replaceState(null, "", location.pathname);
   }
+})();
+
+// Show OAuth error from ?login= query param, then clean URL.
+(function captureOAuthError() {
+  const params = new URLSearchParams(location.search);
+  const login = params.get("login");
+  if (!login) return;
+  history.replaceState(null, "", location.pathname);
+  const msgs = {
+    cancelled: "Sign-in was cancelled. Try again.",
+    error:     "Something went wrong with sign-in. Try again or use email.",
+    "no-google": "Google sign-in is not configured. Use email instead.",
+    "no-apple":  "Apple sign-in is not configured. Use email instead.",
+    expired:     "That sign-in link expired. Request a new one.",
+  };
+  showError(msgs[login] || "Sign-in failed. Try again.");
 })();
 
 const getSession = () => localStorage.getItem(SESSION_KEY);
@@ -31,7 +45,6 @@ async function apiGet(path) {
   });
   return { status: res.status, body: await res.json().catch(() => ({})) };
 }
-
 async function apiPost(path, payload) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -41,18 +54,11 @@ async function apiPost(path, payload) {
   return { status: res.status, body: await res.json().catch(() => ({})) };
 }
 
-// ---- state ----
-let balanceUsd = 0;
-let catalog = null;
-let selected = null;
-let lastEmail = "";
-
 // ---- page views ----
 function showLoginPage() {
   $("login-page").hidden = false;
   $("redeem-page").hidden = true;
 }
-
 function showRedeemPage(email) {
   $("login-page").hidden = true;
   $("redeem-page").hidden = false;
@@ -66,36 +72,49 @@ function showError(msg) {
   el.textContent = msg;
   el.hidden = !msg;
 }
-
 function showStep(step) {
-  $("auth-step-email").hidden = step !== "email";
-  $("auth-step-sent").hidden = step !== "sent";
-  showError("");
+  $("auth-step-providers").hidden = step !== "providers";
+  $("auth-step-email").hidden    = step !== "email";
+  $("auth-step-sent").hidden     = step !== "sent";
+  if (step !== "sent") showError("");
 }
 
+// ── OAuth provider buttons ──
+$("google-btn").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!API_BASE) return showError("Sign-in is unavailable right now.");
+  window.location.href = `${API_BASE}/v1/auth/google`;
+});
+$("apple-btn").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!API_BASE) return showError("Sign-in is unavailable right now.");
+  window.location.href = `${API_BASE}/v1/auth/apple`;
+});
+
+// ── "Continue with email" ──
+$("email-opt-btn").addEventListener("click", () => showStep("email"));
+
+// ── "← back" from email step ──
+$("back-to-providers").addEventListener("click", () => showStep("providers"));
+
+// ── Send magic link ──
+let lastEmail = "";
+
 async function requestLink(email) {
-  if (!API_BASE) {
-    showError("Sign-in is unavailable right now. Please try again later.");
-    return false;
-  }
+  if (!API_BASE) { showError("Sign-in is unavailable right now."); return false; }
   const { status } = await apiPost("/v1/web/login", { email });
   return status === 200;
 }
 
-// ── "Email me a sign-in link" ──
 $("login-btn").addEventListener("click", async () => {
   const email = $("login-email").value.trim();
   if (!email) return;
   lastEmail = email;
-
   $("login-btn").disabled = true;
   $("login-btn").textContent = "Sending…";
-
   const ok = await requestLink(email);
-
   $("login-btn").disabled = false;
   $("login-btn").textContent = "Email me a sign-in link";
-
   if (ok) {
     $("auth-sent-msg").textContent =
       `We sent a sign-in link to ${email}. Check your inbox — it expires in 30 minutes.`;
@@ -105,12 +124,11 @@ $("login-btn").addEventListener("click", async () => {
   }
 });
 
-// Allow pressing Enter in email field
 $("login-email").addEventListener("keydown", (e) => {
   if (e.key === "Enter") $("login-btn").click();
 });
 
-// ── "Resend" (both buttons share the same handler) ──
+// ── Resend (both buttons) ──
 async function handleResend(btn) {
   if (!lastEmail) { showStep("email"); return; }
   btn.disabled = true;
@@ -121,19 +139,22 @@ async function handleResend(btn) {
   $("auth-sent-msg").textContent =
     `Resent to ${lastEmail}. Check your inbox — it expires in 30 minutes.`;
 }
-
 $("resend-btn").addEventListener("click", () => handleResend($("resend-btn")));
 $("resend-btn-2").addEventListener("click", () => handleResend($("resend-btn-2")));
 
-// ── "← back" ──
+// ── "← back" from sent step ──
 $("back-btn").addEventListener("click", () => showStep("email"));
 
 // ── Sign out ──
-$("signout").addEventListener("click", (e) => {
-  e.preventDefault();
+$("signout").addEventListener("click", () => {
   localStorage.removeItem(SESSION_KEY);
   location.reload();
 });
+
+// ---- state ----
+let balanceUsd = 0;
+let catalog = null;
+let selected = null;
 
 // ---- gift menu ----
 function renderMenu() {
@@ -165,7 +186,6 @@ function renderMenu() {
       );
     })
     .join("");
-
   menu.querySelectorAll(".gift-cell:not([disabled])").forEach((btn) => {
     btn.addEventListener("click", () => {
       selected = {
@@ -233,6 +253,7 @@ $("redeem-btn").addEventListener("click", async () => {
 
 // ---- boot ----
 async function boot() {
+  showStep("providers"); // default card state
   if (!getSession() || !API_BASE) return showLoginPage();
   const me = await apiGet("/v1/web/me");
   if (me.status !== 200) return showLoginPage();

@@ -23,7 +23,6 @@
   overflow: hidden;
 }
 
-/* Subtle decorative blob */
 .portal-left::before {
   content: "";
   position: absolute;
@@ -129,7 +128,7 @@
   color: var(--gray);
 }
 
-/* ── Right column — auth card ── */
+/* ── Right column ── */
 .portal-right {
   display: flex;
   align-items: center;
@@ -144,7 +143,7 @@
   max-width: 400px;
   background: #f8f9fa;
   border-radius: 20px;
-  padding: 32px 28px;
+  padding: 28px 24px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -153,7 +152,86 @@
     0 4px 24px -6px rgba(0,0,0,.12);
 }
 
-/* ── Divider with label ── */
+/* ── Provider buttons (Google / Apple / Email option) ── */
+.auth-btn-provider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 10px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+  letter-spacing: -.01em;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.auth-btn-provider:hover {
+  border-color: #bbb;
+  background: #fafafa;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+  color: var(--ink);
+}
+
+/* Apple button — dark style */
+.auth-btn-apple {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+
+.auth-btn-apple:hover {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+
+/* Email option button — neutral */
+.auth-btn-email-opt {
+  color: var(--gray);
+}
+
+.auth-btn-email-opt:hover {
+  color: var(--ink);
+}
+
+/* Provider icon sizing */
+.provider-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ── OR divider ── */
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-2);
+  letter-spacing: .06em;
+  margin: 2px 0;
+}
+
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e4e4e4;
+}
+
+/* ── Email step divider label ── */
 .auth-divider {
   display: flex;
   align-items: center;
@@ -169,10 +247,6 @@
   flex: 1;
   height: 1px;
   background: #e0e0e0;
-}
-
-.auth-divider span {
-  white-space: nowrap;
 }
 
 /* ── Email input ── */
@@ -199,7 +273,7 @@
   color: var(--gray-2);
 }
 
-/* ── Buttons ── */
+/* ── Primary action button ── */
 .auth-btn-primary {
   width: 100%;
   padding: 13px 20px;
@@ -213,10 +287,11 @@
   cursor: pointer;
   transition: opacity .15s, transform .1s;
   letter-spacing: -.01em;
+  -webkit-appearance: none;
 }
 
 .auth-btn-primary:hover {
-  opacity: .92;
+  opacity: .9;
 }
 
 .auth-btn-primary:active {
@@ -224,10 +299,11 @@
 }
 
 .auth-btn-primary:disabled {
-  opacity: .55;
+  opacity: .5;
   cursor: not-allowed;
 }
 
+/* ── Secondary button ── */
 .auth-btn-secondary {
   width: 100%;
   padding: 12px 20px;
@@ -240,6 +316,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: border-color .15s, background .15s;
+  -webkit-appearance: none;
 }
 
 .auth-btn-secondary:hover {
@@ -270,7 +347,7 @@
   color: var(--accent);
 }
 
-/* ── Sent state ── */
+/* ── Sent confirmation ── */
 #auth-step-sent {
   display: flex;
   flex-direction: column;
@@ -278,9 +355,9 @@
 }
 
 .auth-sent-icon {
-  font-size: 36px;
+  font-size: 38px;
   text-align: center;
-  padding: 8px 0 4px;
+  padding: 8px 0 2px;
 }
 
 .auth-sent-msg {
@@ -291,7 +368,7 @@
   margin: 0;
 }
 
-/* ── Error ── */
+/* ── Error banner ── */
 .auth-error {
   font-size: 13px;
   color: #c0392b;

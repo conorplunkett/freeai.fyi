@@ -27,6 +27,13 @@ function loadConfig(env = process.env) {
     webSessionTtlMs: parseInt(env.WEB_SESSION_TTL_MS || "2592000000", 10), // 30 days
     clickTokenTtlMs: parseInt(env.CLICK_TOKEN_TTL_MS || "120000", 10), // 2 min
     maxBodyBytes: parseInt(env.MAX_BODY_BYTES || "65536", 10), // 64 KB
+    // OAuth
+    googleClientId: env.GOOGLE_CLIENT_ID || "",
+    googleClientSecret: env.GOOGLE_CLIENT_SECRET || "",
+    appleClientId: env.APPLE_CLIENT_ID || "",
+    appleTeamId: env.APPLE_TEAM_ID || "",
+    appleKeyId: env.APPLE_KEY_ID || "",
+    applePrivateKey: (env.APPLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
     // mail
     mailProvider: env.MAIL_PROVIDER || "console",
     resendApiKey: env.RESEND_API_KEY,

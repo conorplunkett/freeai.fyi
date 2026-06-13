@@ -133,6 +133,10 @@ alter table gift_redemptions alter column device_id drop not null;
 
 -- Website login sessions. The user proves email ownership via a magic link, and
 -- the redemption page carries this bearer token to read the balance and redeem.
+-- OAuth provider IDs (added post-launch for Google/Apple sign-in)
+alter table users add column if not exists google_id text unique;
+alter table users add column if not exists apple_id text unique;
+
 create table if not exists web_sessions (
   token text primary key,
   user_id uuid not null references users(id),

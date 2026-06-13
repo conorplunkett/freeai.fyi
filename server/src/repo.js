@@ -442,6 +442,54 @@ function createRepo(pool) {
       });
     },
 
+    // ---------- OAuth sign-in ----------
+    // Find or create a user from a Google/Apple OAuth callback, then open a
+    // web session. Looks up by provider ID first, then by email. Patches any
+    // missing fields on an existing account.
+    async upsertUserByOAuth({ email, googleId, appleId }, sessionTtlMs) {
+      return tx(async (c) => {
+        let found = null;
+        if (googleId) {
+          const r = await c.query("select id, email, google_id, apple_id from users where google_id = $1", [googleId]);
+          found = r.rows[0] || null;
+        }
+        if (!found && appleId) {
+          const r = await c.query("select id, email, google_id, apple_id from users where apple_id = $1", [appleId]);
+          found = r.rows[0] || null;
+        }
+        if (!found && email) {
+          const r = await c.query("select id, email, google_id, apple_id from users where email = $1", [email]);
+          found = r.rows[0] || null;
+        }
+
+        let userId;
+        if (found) {
+          const sets = ["email_verified = true"];
+          const vals = [found.id];
+          if (email && !found.email)     { sets.push(`email = $${vals.length + 1}`);     vals.push(email); }
+          if (googleId && !found.google_id) { sets.push(`google_id = $${vals.length + 1}`); vals.push(googleId); }
+          if (appleId && !found.apple_id)   { sets.push(`apple_id = $${vals.length + 1}`);  vals.push(appleId); }
+          await c.query(`update users set ${sets.join(", ")} where id = $1`, vals);
+          userId = found.id;
+        } else {
+          const r = await c.query(
+            `insert into users (email, email_verified, google_id, apple_id)
+             values ($1, true, $2, $3) returning id`,
+            [email || null, googleId || null, appleId || null]
+          );
+          userId = r.rows[0].id;
+        }
+
+        const sessionToken = crypto.randomBytes(32).toString("base64url");
+        await c.query(
+          `insert into web_sessions (token, user_id, expires_at)
+           values ($1, $2, now() + ($3 || ' milliseconds')::interval)`,
+          [sessionToken, userId, String(sessionTtlMs)]
+        );
+        return { sessionToken };
+      });
+    },
+
     // ---------- website login sessions ----------
     // Consume a magic-link token, upsert the verified user, and open a web
     // session for them. Single-use and time-bound. Returns { sessionToken, user }

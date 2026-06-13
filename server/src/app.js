@@ -288,6 +288,160 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
   });
 
+  // ---------- OAuth helpers ----------
+  function makeOAuthState() {
+    const nonce = crypto.randomBytes(16).toString("hex");
+    const ts = Date.now();
+    const payload = `${ts}.${nonce}`;
+    const sig = crypto.createHmac("sha256", config.adminKey || "fallback").update(payload).digest("hex").slice(0, 20);
+    return `${payload}.${sig}`;
+  }
+  function verifyOAuthState(state) {
+    if (!state) return false;
+    const lastDot = state.lastIndexOf(".");
+    if (lastDot < 0) return false;
+    const payload = state.slice(0, lastDot);
+    const sig = state.slice(lastDot + 1);
+    const expected = crypto.createHmac("sha256", config.adminKey || "fallback").update(payload).digest("hex").slice(0, 20);
+    if (sig !== expected) return false;
+    const ts = parseInt(payload.split(".")[0], 10);
+    return Number.isFinite(ts) && Date.now() - ts < 10 * 60 * 1000;
+  }
+  // Convert DER-encoded ECDSA signature to IEEE P1363 (JWT ES256 format).
+  function derEcdsaToP1363(der) {
+    let i = 2; // skip SEQUENCE (0x30) tag + 1-byte length
+    i++;       // skip INTEGER (0x02) tag for r
+    const rLen = der[i++];
+    const r = der.slice(i, i + rLen);
+    i += rLen;
+    i++;       // skip INTEGER (0x02) tag for s
+    const sLen = der[i++];
+    const s = der.slice(i, i + sLen);
+    const fit32 = (b) => { const out = Buffer.alloc(32); b.slice(b.length > 32 ? b.length - 32 : 0).copy(out, 32 - Math.min(b.length, 32)); return out; };
+    return Buffer.concat([fit32(r), fit32(s)]);
+  }
+  function decodeJwtPayload(token) {
+    try { return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()); }
+    catch { return null; }
+  }
+  // Build the short-lived JWT Apple requires as its client_secret (ES256).
+  function buildAppleClientSecret() {
+    if (!config.applePrivateKey || !config.appleTeamId || !config.appleKeyId || !config.appleClientId) return null;
+    const hdr = Buffer.from(JSON.stringify({ alg: "ES256", kid: config.appleKeyId })).toString("base64url");
+    const now = Math.floor(Date.now() / 1000);
+    const pay = Buffer.from(JSON.stringify({
+      iss: config.appleTeamId, iat: now, exp: now + 300,
+      aud: "https://appleid.apple.com", sub: config.appleClientId,
+    })).toString("base64url");
+    const input = `${hdr}.${pay}`;
+    const sign = crypto.createSign("SHA256");
+    sign.update(input);
+    const der = sign.sign(config.applePrivateKey);
+    return `${input}.${derEcdsaToP1363(der).toString("base64url")}`;
+  }
+
+  // ---------- Google OAuth ----------
+  route("GET", "/v1/auth/google", async (req, res) => {
+    if (!config.googleClientId) return redirect(res, `${config.siteUrl}/redeem.html?login=no-google`);
+    const params = new URLSearchParams({
+      client_id: config.googleClientId,
+      redirect_uri: `${config.apiBaseUrl}/v1/auth/google/callback`,
+      response_type: "code",
+      scope: "email profile",
+      state: makeOAuthState(),
+      access_type: "online",
+      prompt: "select_account",
+    });
+    redirect(res, `https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  });
+
+  route("GET", "/v1/auth/google/callback", async (req, res, body, rawBody, query) => {
+    if (query.get("error") || !query.get("code")) {
+      return redirect(res, `${config.siteUrl}/redeem.html?login=cancelled`);
+    }
+    if (!verifyOAuthState(query.get("state"))) {
+      return redirect(res, `${config.siteUrl}/redeem.html?login=error`);
+    }
+    try {
+      const tokRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code: query.get("code"),
+          client_id: config.googleClientId,
+          client_secret: config.googleClientSecret,
+          redirect_uri: `${config.apiBaseUrl}/v1/auth/google/callback`,
+          grant_type: "authorization_code",
+        }).toString(),
+      });
+      const tokens = await tokRes.json();
+      if (!tokens.access_token) throw new Error("no access_token");
+      const uiRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+      const gu = await uiRes.json();
+      if (!gu.email) throw new Error("no email from Google");
+      const { sessionToken } = await repo.upsertUserByOAuth(
+        { email: gu.email, googleId: gu.sub },
+        config.webSessionTtlMs
+      );
+      redirect(res, `${config.siteUrl}/redeem.html#session=${sessionToken}`);
+    } catch (err) {
+      console.error("[freeai] google oauth:", err.message);
+      redirect(res, `${config.siteUrl}/redeem.html?login=error`);
+    }
+  });
+
+  // ---------- Apple OAuth ----------
+  route("GET", "/v1/auth/apple", async (req, res) => {
+    if (!config.appleClientId) return redirect(res, `${config.siteUrl}/redeem.html?login=no-apple`);
+    const params = new URLSearchParams({
+      client_id: config.appleClientId,
+      redirect_uri: `${config.apiBaseUrl}/v1/auth/apple/callback`,
+      response_type: "code",
+      scope: "email",
+      response_mode: "query",
+      state: makeOAuthState(),
+    });
+    redirect(res, `https://appleid.apple.com/auth/authorize?${params}`);
+  });
+
+  route("GET", "/v1/auth/apple/callback", async (req, res, body, rawBody, query) => {
+    if (query.get("error") || !query.get("code")) {
+      return redirect(res, `${config.siteUrl}/redeem.html?login=cancelled`);
+    }
+    if (!verifyOAuthState(query.get("state"))) {
+      return redirect(res, `${config.siteUrl}/redeem.html?login=error`);
+    }
+    try {
+      const secret = buildAppleClientSecret();
+      if (!secret) throw new Error("Apple credentials not configured");
+      const tokRes = await fetch("https://appleid.apple.com/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code: query.get("code"),
+          client_id: config.appleClientId,
+          client_secret: secret,
+          redirect_uri: `${config.apiBaseUrl}/v1/auth/apple/callback`,
+          grant_type: "authorization_code",
+        }).toString(),
+      });
+      const tokens = await tokRes.json();
+      if (!tokens.id_token) throw new Error("no id_token from Apple");
+      const claims = decodeJwtPayload(tokens.id_token);
+      if (!claims?.sub) throw new Error("no sub in Apple id_token");
+      const { sessionToken } = await repo.upsertUserByOAuth(
+        { email: claims.email || null, appleId: claims.sub },
+        config.webSessionTtlMs
+      );
+      redirect(res, `${config.siteUrl}/redeem.html#session=${sessionToken}`);
+    } catch (err) {
+      console.error("[freeai] apple oauth:", err.message);
+      redirect(res, `${config.siteUrl}/redeem.html?login=error`);
+    }
+  });
+
   // ---------- website login + redemption (the only place users redeem) ----------
   // Email magic link → web session → read balance → redeem for a Claude gift card.
   function sessionFrom(req, body, query) {
