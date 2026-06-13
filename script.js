@@ -46,6 +46,17 @@ const ADS = [
 let ai = 0;
 const rotator = document.getElementById("ad-rotator");
 const chip = document.querySelector(".brandchip");
+// Paint the first ad immediately so the "With FreeAI" line is never empty,
+// even before the first rotation tick.
+if (rotator && chip) {
+  const first = ADS[0];
+  rotator.textContent = first.text;
+  chip.textContent = first.chip;
+  chip.style.background = first.color;
+  chip.style.color = first.ink;
+  rotator.style.opacity = "1";
+  chip.style.opacity = "1";
+}
 setInterval(() => {
   ai = (ai + 1) % ADS.length;
   const ad = ADS[ai];
