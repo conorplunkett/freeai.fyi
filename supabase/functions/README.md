@@ -1,49 +1,65 @@
-# Supabase Edge Functions — backend rewrite proof-of-concept
+# Supabase Edge Functions — the FreeAI backend
 
-This directory is a **spike**, not the production backend. The live API is still
-the Node `node:http` server in `server/`, deployed on Fly.io (`server/fly.toml`).
+The production API runs here, as Supabase Edge Functions (Deno), on the same
+platform as the database. This replaced the Node `node:http` server that was
+deployed on Fly.io. The Node implementation is kept in `server/` as the tested
+reference + rollback (the Edge port mirrors its routes and SQL verbatim).
 
-## Why this exists
+## Functions
 
-We are evaluating moving the backend off Fly.io and onto **Supabase Edge
-Functions** so the API lives on the same platform as the database (it already
-runs on Supabase Postgres), is deployable via the Supabase MCP/CLI, and stays on
-a free tier. Before committing to porting the money-handling routes, this POC
-ports one read-only route end-to-end to prove out the hard parts:
+- **`api/`** — the whole API, ported from `server/src/*` into one function.
+  Served under the slug `api`, so the public base is
+  `https://<ref>.supabase.co/functions/v1/api` and routes arrive as `/api/v1/…`
+  (the slug prefix is stripped, then the original paths are matched). Uses
+  `npm:pg` against `SUPABASE_DB_URL` (the Supavisor pooler) so the data layer is
+  a near-verbatim copy of `server/src/repo.js` — same transactions, same
+  `pg_advisory_xact_lock` redemption guard, same millicent BigInt math.
+- **`web-referrals/`** — the original single-route proof-of-concept. Superseded
+  by `api/`; kept for reference and safe to delete.
 
-- an Edge Function (Deno) reaching the production Postgres through the Supavisor
-  pooler (`SUPABASE_DB_URL`, `prepare: false`), and
-- reproducing our hand-written SQL and response shapes verbatim.
+Both deploy with `verify_jwt=false`: the API does its own auth (web-session
+tokens, device keys, admin key, OAuth, Stripe webhook signatures), not Supabase
+JWTs.
 
-## What's here
+## Required secrets (set in the Supabase dashboard → Edge Functions → Secrets)
 
-- `web-referrals/` — a faithful port of `GET /v1/web/referrals` from
-  `server/src/app.js` + `server/src/repo.js`. Same app-session-token auth, same
-  SQL (`userForSession`, `getOrCreateReferralCode`, `referralStats`), same JSON
-  response. Deployed with `verify_jwt=false` because it authenticates with our
-  own `web_sessions` tokens, not Supabase JWTs.
+`SUPABASE_DB_URL` and `SUPABASE_URL` are injected automatically. Set the rest:
 
-## Calling it
+| Secret | Needed for |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | advertiser checkout, refunds, payouts |
+| `STRIPE_WEBHOOK_SECRET` | verifying `/v1/webhooks/stripe` |
+| `ADMIN_KEY` | `/admin`, moderation, killswitch, payouts, OAuth-state HMAC |
+| `RESEND_API_KEY` + `MAIL_PROVIDER=resend` + `MAIL_FROM` | sending login / verify / fulfillment email |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in |
+| `APPLE_CLIENT_ID` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | Apple sign-in |
+| `SITE_URL` | redirect targets (defaults to `https://freeai.fyi`) |
+| `API_BASE_URL` | optional; defaults to `${SUPABASE_URL}/functions/v1/api` |
+
+## External console changes that go with this migration
+
+The API host moved off `api.freeai.fyi`, so update these to the new base
+(`https://<ref>.supabase.co/functions/v1/api`):
+
+- **Google / Apple OAuth** redirect URIs →
+  `…/v1/auth/google/callback` and `…/v1/auth/apple/callback`.
+- **Stripe** webhook endpoint → `…/v1/webhooks/stripe`.
+
+## Two differences from the Node server
+
+- **No in-memory rate limiter.** Edge Functions are stateless, so the global
+  per-IP token bucket from `server/src/ratelimit.js` is gone. The DB-backed
+  per-device daily impression cap and per-device daily click cap (in
+  `ingestBatch` / `redeemClickToken`) are unchanged and remain the real abuse
+  controls.
+- **Killswitch is per-isolate.** `serving` is derived from the `KILLSWITCH` env
+  on each cold start; the `POST /v1/admin/killswitch` toggle only affects the
+  isolate that handles it. Drive it from env (redeploy) if you need it global.
+
+## Deploy
+
+Via the Supabase MCP `deploy_edge_function`, or the CLI:
 
 ```
-GET https://<project-ref>.supabase.co/functions/v1/web-referrals
-Authorization: Bearer <web-session-token>
+supabase functions deploy api --no-verify-jwt --project-ref <ref>
 ```
-
-(or `?session=<token>`). Returns 401 without a valid session — same as the Fly
-route.
-
-## If we proceed (notes for the full migration)
-
-- **`server/src/repo.js`** ports almost verbatim — keep the SQL, swap the `pg`
-  Pool for a pooled connection (`SUPABASE_DB_URL`, port 6543, `prepare:false`).
-  The `pg_advisory_xact_lock` redemption guard (transaction-scoped) is compatible
-  with transaction-mode pooling.
-- **`server/src/app.js`** router → one Edge Function with internal routing, or
-  one function per route group.
-- **`server/src/ratelimit.js`** is in-memory with a `setInterval` sweep — Edge
-  Functions are stateless/ephemeral, so this must move to Postgres (the per-IP /
-  per-device caps already live in the DB).
-- **Stripe webhook** → its own function with `verify_jwt=false` and raw-body
-  signature verification.
-- **`server/src/payouts.js`** (cron) → `pg_cron` or a scheduled Edge Function.

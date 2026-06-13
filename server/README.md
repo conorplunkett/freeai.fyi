@@ -1,5 +1,12 @@
 # FreeAI API — the credit loop
 
+> **Production now runs as a Supabase Edge Function** (`supabase/functions/api/`),
+> a full Deno port of this server, deployed on the same platform as the database.
+> This `server/` tree is kept as the **tested reference + rollback** — its
+> `npm test` suite still runs in CI and the Edge Function mirrors its routes and
+> SQL verbatim. The Fly.io deploy was retired; references to Fly below are
+> historical. See `supabase/functions/README.md`.
+
 Node + Postgres backend that makes the 50/50 split real: a live ad auction,
 an append-only ledger, Stripe Checkout for money **in**, and Claude gift-card
 redemption for credits **out**.

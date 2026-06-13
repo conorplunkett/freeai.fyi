@@ -1,7 +1,7 @@
 // FreeAI.fyi — service worker
 // Holds earnings state and the revenue math. 50% comes back as Claude credits.
 //
-// Talks to the production backend (https://api.freeai.fyi):
+// Talks to the production backend (Supabase Edge Function):
 //   • registers an anonymous device (deviceId + deviceKey)
 //   • pulls the live ad inventory from the auction (/v1/ads)
 //   • reports impressions to the ledger (/v1/events, idempotent batches)
@@ -12,7 +12,7 @@
 
 importScripts("ads.js");
 
-const API_BASE = "https://api.freeai.fyi";
+const API_BASE = "https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api";
 
 const DEFAULTS = {
   enabled: true,

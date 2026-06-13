@@ -40,7 +40,7 @@ final class BackendClient {
     static var configuredBaseURL: URL {
         let env = ProcessInfo.processInfo.environment["FREEAI_API_URL"]
             ?? UserDefaults.standard.string(forKey: "apiBaseURL")
-            ?? "https://api.freeai.fyi"
+            ?? "https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api"
         return URL(string: env)!
     }
 

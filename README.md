@@ -12,8 +12,9 @@ handles the ad auction, an append-only ledger, and gift-card redemption.
 | Path | What |
 | --- | --- |
 | `chrome-extension/` | **The product.** MV3 extension for ChatGPT / Claude / Gemini. Load-unpacked instructions + Test mode in its README. |
-| `server/` | Ad auction, 50/50 ledger (millicents), Stripe Checkout, Claude gift-card redemption, killswitch. |
-| `index.html` · `styles.css` · `script.js` | Marketing site. Live by default (points at `https://api.freeai.fyi`); append **`?dev=1`** to the URL for a sticky mock-data developer mode (`?dev=0` exits). |
+| `supabase/functions/api/` | **Production API** (Supabase Edge Function, Deno) — ad auction, 50/50 ledger (millicents), Stripe Checkout, Claude gift-card redemption, referrals, killswitch. A full port of `server/`; replaced the Fly.io deploy. |
+| `server/` | Original Node (`node:http`) implementation of the API — now the **tested reference + rollback** behind the Edge Function. |
+| `index.html` · `styles.css` · `script.js` | Marketing site. Live by default (points at the API at `https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api`); append **`?dev=1`** to the URL for a sticky mock-data developer mode (`?dev=0` exits). |
 | `legacy/vscode-extension/` | Archived. The original VS Code spinner extension — no longer the product. |
 
 ## Quick start
