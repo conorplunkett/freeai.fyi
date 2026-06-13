@@ -34,7 +34,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   const CORS = {
     "Access-Control-Allow-Origin": config.corsOrigin || "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Key",
+    "Access-Control-Allow-Headers": "Content-Type,X-Admin-Key,Authorization",
     "Access-Control-Max-Age": "86400",
   };
   const json = (res, status, body) => {

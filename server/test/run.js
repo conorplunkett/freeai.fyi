@@ -107,6 +107,8 @@ const fakeMailer = {
     const r = await fetch(base + "/v1/ads", { method: "OPTIONS" });
     assert.strictEqual(r.status, 204);
     assert.strictEqual(r.headers.get("access-control-allow-origin"), "https://freeai.fyi");
+    // authed web endpoints send a Bearer token, so the preflight must allow it
+    assert.ok(/authorization/i.test(r.headers.get("access-control-allow-headers")), "Authorization not in allowed headers");
   });
 
   // ---------- checkout + validation ----------
