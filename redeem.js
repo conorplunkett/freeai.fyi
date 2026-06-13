@@ -1,6 +1,6 @@
 // FreeAI.fyi — website redemption flow. This is the ONLY place users redeem
-// credits for Claude gift cards (see AGENTS.md). Email magic-link sign-in, then
-// read the server-side balance and redeem against it.
+// credits for Claude gift cards. Email magic-link sign-in, then read the
+// server-side balance and redeem against it.
 
 const API_BASE = (
   window.FREEAI_API ||
@@ -24,10 +24,14 @@ const usdWhole = (n) => "$" + Number(n).toLocaleString(undefined, { maximumFract
 })();
 
 const getSession = () => localStorage.getItem(SESSION_KEY);
+
 async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${getSession()}` } });
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${getSession()}` },
+  });
   return { status: res.status, body: await res.json().catch(() => ({})) };
 }
+
 async function apiPost(path, payload) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -39,41 +43,92 @@ async function apiPost(path, payload) {
 
 // ---- state ----
 let balanceUsd = 0;
-let catalog = null; // { plans:[{id,name,tagline,monthlyUsd}], months:[1,3,6,12] }
-let selected = null; // { plan, months, amountUsd, planName }
+let catalog = null;
+let selected = null;
+let lastEmail = "";
 
-// ---- views ----
-function showLogin(msg) {
-  $("login-view").hidden = false;
-  $("redeem-view").hidden = true;
-  $("signout").hidden = true;
-  if (msg) { $("login-msg").hidden = false; $("login-msg").textContent = msg; }
+// ---- page views ----
+function showLoginPage() {
+  $("login-page").hidden = false;
+  $("redeem-page").hidden = true;
 }
-function showRedeem(email) {
-  $("login-view").hidden = true;
-  $("redeem-view").hidden = false;
-  $("signout").hidden = false;
+
+function showRedeemPage(email) {
+  $("login-page").hidden = true;
+  $("redeem-page").hidden = false;
   $("balance-email").textContent = email;
   if (!$("recipient").value) $("recipient").value = email;
 }
 
-// ---- login ----
-$("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
+// ---- auth card steps ----
+function showError(msg) {
+  const el = $("auth-error");
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+function showStep(step) {
+  $("auth-step-email").hidden = step !== "email";
+  $("auth-step-sent").hidden = step !== "sent";
+  showError("");
+}
+
+async function requestLink(email) {
+  if (!API_BASE) {
+    showError("Sign-in is unavailable right now. Please try again later.");
+    return false;
+  }
+  const { status } = await apiPost("/v1/web/login", { email });
+  return status === 200;
+}
+
+// ── "Email me a sign-in link" ──
+$("login-btn").addEventListener("click", async () => {
   const email = $("login-email").value.trim();
   if (!email) return;
-  if (!API_BASE) return showLogin("Sign-in is unavailable right now. Please try again later.");
+  lastEmail = email;
+
   $("login-btn").disabled = true;
-  const { status } = await apiPost("/v1/web/login", { email });
+  $("login-btn").textContent = "Sending…";
+
+  const ok = await requestLink(email);
+
   $("login-btn").disabled = false;
-  if (status === 200) {
-    $("login-form").hidden = true;
-    showLogin(`Check ${email} for a sign-in link. It expires in 30 minutes.`);
+  $("login-btn").textContent = "Email me a sign-in link";
+
+  if (ok) {
+    $("auth-sent-msg").textContent =
+      `We sent a sign-in link to ${email}. Check your inbox — it expires in 30 minutes.`;
+    showStep("sent");
   } else {
-    showLogin("That didn't work. Double-check your email and try again.");
+    showError("That didn't work. Double-check your email and try again.");
   }
 });
 
+// Allow pressing Enter in email field
+$("login-email").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("login-btn").click();
+});
+
+// ── "Resend" (both buttons share the same handler) ──
+async function handleResend(btn) {
+  if (!lastEmail) { showStep("email"); return; }
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  await requestLink(lastEmail);
+  btn.disabled = false;
+  btn.textContent = "Resend sign-in email";
+  $("auth-sent-msg").textContent =
+    `Resent to ${lastEmail}. Check your inbox — it expires in 30 minutes.`;
+}
+
+$("resend-btn").addEventListener("click", () => handleResend($("resend-btn")));
+$("resend-btn-2").addEventListener("click", () => handleResend($("resend-btn-2")));
+
+// ── "← back" ──
+$("back-btn").addEventListener("click", () => showStep("email"));
+
+// ── Sign out ──
 $("signout").addEventListener("click", (e) => {
   e.preventDefault();
   localStorage.removeItem(SESSION_KEY);
@@ -156,7 +211,8 @@ $("redeem-btn").addEventListener("click", async () => {
   if (status === 200) {
     result.className = "redeem-result ok";
     result.innerHTML =
-      `Done. Your <strong>${selected.planName}</strong> gift card (${selected.months} month${selected.months > 1 ? "s" : ""}) ` +
+      `Done. Your <strong>${selected.planName}</strong> gift card ` +
+      `(${selected.months} month${selected.months > 1 ? "s" : ""}) ` +
       `is on its way to <strong>${recipientEmail}</strong> within <strong>48 hours</strong>.`;
     balanceUsd = body.balanceUsd;
     selected = null;
@@ -164,7 +220,8 @@ $("redeem-btn").addEventListener("click", async () => {
     renderMenu();
     updateSummary();
   } else if (status === 401) {
-    showLogin("Your session expired. Sign in again to redeem.");
+    localStorage.removeItem(SESSION_KEY);
+    location.reload();
   } else {
     result.className = "redeem-result err";
     result.textContent = body.error === "insufficient credits"
@@ -176,12 +233,12 @@ $("redeem-btn").addEventListener("click", async () => {
 
 // ---- boot ----
 async function boot() {
-  if (!getSession() || !API_BASE) return showLogin();
+  if (!getSession() || !API_BASE) return showLoginPage();
   const me = await apiGet("/v1/web/me");
-  if (me.status !== 200) return showLogin();
+  if (me.status !== 200) return showLoginPage();
   balanceUsd = me.body.balanceUsd || 0;
   $("balance").textContent = usd(balanceUsd);
-  showRedeem(me.body.email);
+  showRedeemPage(me.body.email);
   const cat = await apiGet("/v1/giftcards");
   if (cat.status === 200) { catalog = cat.body; renderMenu(); updateSummary(); }
 }
