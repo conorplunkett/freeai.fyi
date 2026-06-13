@@ -22,6 +22,20 @@ const TICKER_ADS = [
   track.innerHTML = run + run;
 })();
 
+// --- Stock-side spinner word rotation (the "before" card) ---
+const STOCK_WORDS = [
+  "Baking", "Discombobulating", "Percolating", "Simmering", "Marinating",
+  "Computing", "Vibing", "Noodling", "Ruminating", "Conjuring",
+];
+let sw = 0;
+const wordStock = document.getElementById("word-stock");
+if (wordStock) {
+  setInterval(() => {
+    sw = (sw + 1) % STOCK_WORDS.length;
+    wordStock.textContent = STOCK_WORDS[sw];
+  }, 1600);
+}
+
 // --- Little Claude Code guy hanging out behind the ad bar ---
 // He idles (bobbing + blinking via CSS) and every few seconds either shuffles
 // along the right end of the bar, ducks down behind it, or does a tiny hop.
