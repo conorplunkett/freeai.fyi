@@ -61,6 +61,7 @@ const fakeMailer = {
 
   const config = {
     revenueShare: 0.9, dailyImpressionCap: 5000, payoutThresholdCents: 1000,
+    referralRewardCents: 2000, referralCap: 10,
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
     emailTokenTtlMs: 1800000, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
@@ -347,6 +348,95 @@ const fakeMailer = {
       { plan: "max5x", months: 1 }, { Authorization: `Bearer ${session}` });
     assert.strictEqual(broke.status, 403);
     assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1 })).status, 401);
+  });
+
+  // ---------- referrals ----------
+  // follow a magic-link from the mailbox and return the web session token
+  const loginVia = async (email, referralCode) => {
+    await api("POST", "/v1/web/login", referralCode ? { email, referralCode } : { email });
+    const link = mailbox.at(-1).link;
+    const sess = await api("GET", link.replace(base, ""));
+    return sess.headers.get("location").match(/session=([^&]+)/)[1];
+  };
+  const userId = async (email) =>
+    (await poolNs.query("select id from users where email = $1", [email])).rows[0].id;
+
+  await check("referrer earns $20 once a referred friend redeems (single-sided, once, capped)", async () => {
+    // referrer signs up and reads their shareable code
+    const refSess = await loginVia("ref-er@example.com");
+    const refDash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${refSess}` });
+    assert.strictEqual(refDash.status, 200);
+    const code = refDash.body.code;
+    assert.ok(/^[A-Z0-9]{8}$/.test(code), "code is 8 chars");
+    assert.strictEqual(refDash.body.link, `https://freeai.fyi/redeem.html?ref=${code}`);
+
+    // friend signs up WITH the code → one pending referral, attributed to referrer
+    const friendSess = await loginVia("ref-ee@example.com", code);
+    const friendId = await userId("ref-ee@example.com");
+    let row = (await poolNs.query("select referrer_user_id, status from referrals where referred_user_id = $1", [friendId])).rows;
+    assert.strictEqual(row.length, 1);
+    assert.strictEqual(row[0].status, "pending");
+    assert.strictEqual(row[0].referrer_user_id, await userId("ref-er@example.com"));
+
+    // a code can only be applied at first sign-in: a second login is a no-op
+    await loginVia("ref-ee@example.com", code);
+    const cnt = (await poolNs.query("select count(*)::int n from referrals where referred_user_id = $1", [friendId])).rows[0].n;
+    assert.strictEqual(cnt, 1);
+
+    // before the friend redeems, the referrer has earned nothing
+    let refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
+    assert.strictEqual(refMe.body.balanceUsd, 0);
+
+    // friend earns >$20 on a linked device, then redeems their first gift card
+    const camp = await api("POST", "/v1/checkout", {
+      email: "adv@ref.co", adLine: "referral funded campaign", url: "https://example.com/",
+      brand: "RefCo", pricePerBlock: 110, blocks: 1,
+    });
+    await payWebhook(camp.body.campaignId);
+    await approve(camp.body.campaignId);
+    const dev = (await api("POST", "/v1/devices/register")).body;
+    await api("POST", "/v1/events", { ...dev, batchKey: "bref", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    await api("POST", "/v1/auth/request-link", { ...dev, email: "ref-ee@example.com" });
+    await api("GET", mailbox.at(-1).link.replace(base, ""));
+
+    const red = await api("POST", "/v1/web/redemptions",
+      { plan: "pro", months: 1, recipientEmail: "ref-ee@example.com" },
+      { Authorization: `Bearer ${friendSess}` });
+    assert.strictEqual(red.status, 200);
+
+    // referral is now rewarded and the referrer holds $20 of spendable credit
+    row = (await poolNs.query("select status, reward_millicents from referrals where referred_user_id = $1", [friendId])).rows;
+    assert.strictEqual(row[0].status, "rewarded");
+    assert.strictEqual(Number(row[0].reward_millicents), 2000000);
+    refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
+    assert.strictEqual(refMe.body.balanceUsd, 20);
+    const after = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${refSess}` });
+    assert.strictEqual(after.body.rewardedCount, 1);
+    assert.strictEqual(after.body.creditsEarnedUsd, 20);
+
+    // idempotent: a second redemption by the friend does not double-credit
+    const red2 = await api("POST", "/v1/web/redemptions",
+      { plan: "pro", months: 1, recipientEmail: "ref-ee@example.com" },
+      { Authorization: `Bearer ${friendSess}` });
+    assert.strictEqual(red2.status, 200);
+    refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
+    assert.strictEqual(refMe.body.balanceUsd, 20);
+
+    // cap: at the limit, a qualified redemption is marked 'capped' and pays nothing
+    const capSess = await loginVia("cap-er@example.com");
+    const capCode = (await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${capSess}` })).body.code;
+    await loginVia("cap-ee@example.com", capCode);
+    const capFriendId = await userId("cap-ee@example.com");
+    await poolNs.query("insert into ledger (entry_type, amount_millicents, user_id) values ('impression_credit', 2000000, $1)", [capFriendId]);
+    const rid = await repo.recordGiftRedemptionForUser({
+      userId: capFriendId, plan: "pro", months: 1, amountCents: 2000, recipientEmail: "cap-ee@example.com",
+      referralRewardMillicents: 2000000, referralCap: 0,
+    });
+    assert.ok(rid);
+    const capStatus = (await poolNs.query("select status from referrals where referred_user_id = $1", [capFriendId])).rows[0].status;
+    assert.strictEqual(capStatus, "capped");
+    const capRefBal = await repo.balanceForUser(await userId("cap-er@example.com"));
+    assert.strictEqual(capRefBal.balanceMillicents, 0);
   });
 
   // ---------- rejection + refund ----------

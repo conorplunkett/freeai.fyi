@@ -164,3 +164,43 @@ create table if not exists click_tokens (
   used_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+-- ── Referrals ──────────────────────────────────────────────────────────────
+-- Every user gets a shareable referral_code (generated lazily). A new user may
+-- be attributed to one referrer (referred_by), set only at first sign-in. When a
+-- referred user completes their first gift-card redemption, the referrer earns a
+-- one-time $20 credit, capped at 10 rewarded referrals per user.
+alter table users add column if not exists referral_code text unique;
+alter table users add column if not exists referred_by uuid references users(id);
+
+-- The referral code is entered on the signup form, so it must travel with the
+-- magic-link token from /v1/web/login through to user creation.
+alter table email_tokens add column if not exists referral_code text;
+
+-- One row per referred user. The status transition pending -> rewarded is the
+-- idempotency guard that pays the referrer exactly once.
+create table if not exists referrals (
+  id uuid primary key default gen_random_uuid(),
+  referrer_user_id uuid not null references users(id),
+  referred_user_id uuid not null references users(id) unique,
+  status text not null default 'pending'
+    check (status in ('pending', 'rewarded', 'capped', 'cancelled')),
+  reward_millicents bigint not null default 0,
+  rewarded_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists referrals_referrer_idx on referrals (referrer_user_id);
+
+-- Allow the referral bonus entry type in the ledger. Drop + re-add so re-running
+-- the migration is idempotent and existing databases pick up the new value.
+alter table ledger drop constraint if exists ledger_entry_type_check;
+alter table ledger add constraint ledger_entry_type_check check (entry_type in (
+  'campaign_credit',     -- advertiser paid; campaign funded         (+ campaign)
+  'campaign_refund',     -- rejected campaign refunded               (- campaign)
+  'impression_credit',   -- developer's 90% share of an impression   (+ device)
+  'click_credit',        -- developer's 90% share of a click (50x)   (+ device)
+  'platform_fee',        -- our 10%                                  (+ platform)
+  'payout_debit',        -- transferred to developer's bank          (- user)
+  'gift_redemption_debit', -- redeemed for a Claude gift card        (- device)
+  'referral_credit'      -- $20 bonus for a qualified referral        (+ user)
+));

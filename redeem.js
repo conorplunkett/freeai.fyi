@@ -37,6 +37,21 @@ const usdWhole = (n) => "$" + Number(n).toLocaleString(undefined, { maximumFract
   showError(msgs[login] || "Sign-in failed. Try again.");
 })();
 
+// Referral code from ?ref= (shared link). Stash it, prefill the field, scrub URL.
+let referralCode = "";
+(function captureRef() {
+  const ref = new URLSearchParams(location.search).get("ref");
+  if (!ref) return;
+  referralCode = ref.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+  history.replaceState(null, "", location.pathname);
+})();
+
+// Current referral code: whatever's typed in the field, else the captured one.
+function getReferralCode() {
+  const v = ($("referral-code")?.value || "").trim();
+  return v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+}
+
 const getSession = () => localStorage.getItem(SESSION_KEY);
 
 async function apiGet(path) {
@@ -64,7 +79,81 @@ function showRedeemPage(email) {
   $("redeem-page").hidden = false;
   $("balance-email").textContent = email;
   if (!$("recipient").value) $("recipient").value = email;
+  showRedeemView();
 }
+
+// ---- authed sub-views: Redeem vs Referrals ----
+function showRedeemView() {
+  $("redeem-view").hidden = false;
+  $("referrals-view").hidden = true;
+  $("nav-redeem").classList.add("active");
+  $("nav-referrals").classList.remove("active");
+}
+function showReferralsView() {
+  $("redeem-view").hidden = true;
+  $("referrals-view").hidden = false;
+  $("nav-redeem").classList.remove("active");
+  $("nav-referrals").classList.add("active");
+  loadReferrals();
+}
+$("nav-redeem").addEventListener("click", showRedeemView);
+$("nav-referrals").addEventListener("click", showReferralsView);
+
+async function loadReferrals() {
+  const { status, body } = await apiGet("/v1/web/referrals");
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status !== 200) return;
+  $("ref-link").value = body.link || "";
+  $("ref-earned").textContent = usd(body.creditsEarnedUsd || 0);
+  $("ref-earned-2").textContent = usd(body.creditsEarnedUsd || 0);
+  $("ref-reward").textContent = usdWhole(body.rewardUsd || 20);
+  $("ref-reward-2").textContent = usdWhole(body.rewardUsd || 20);
+  $("ref-cap").textContent = body.cap;
+  $("ref-count").textContent = `${body.rewardedCount || 0}/${body.cap}`;
+  $("ref-pending").textContent = body.pendingCount || 0;
+  renderReferralList(body.referrals || []);
+}
+
+function renderReferralList(items) {
+  const el = $("ref-list");
+  if (!items.length) {
+    el.innerHTML = `<p class="ref-empty">No referrals yet — share your link to get started.</p>`;
+    return;
+  }
+  const label = {
+    pending: "Waiting on their first redemption",
+    rewarded: "Rewarded",
+    capped: "Cap reached — not credited",
+    cancelled: "Cancelled",
+  };
+  el.innerHTML = items
+    .map((r) => {
+      const when = r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "";
+      return (
+        `<div class="ref-item">` +
+        `<span class="ref-badge ${r.status}">${r.status}</span>` +
+        `<span class="ref-desc">${label[r.status] || r.status}</span>` +
+        `<span class="ref-when">${when}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+}
+
+$("ref-copy").addEventListener("click", async () => {
+  const link = $("ref-link").value;
+  if (!link) return;
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch {
+    $("ref-link").select();
+    try { document.execCommand("copy"); } catch {}
+  }
+  const btn = $("ref-copy");
+  const old = btn.textContent;
+  btn.textContent = "Copied!";
+  setTimeout(() => (btn.textContent = old), 1500);
+});
 
 // ---- auth card steps ----
 function showError(msg) {
@@ -80,15 +169,19 @@ function showStep(step) {
 }
 
 // ── OAuth provider buttons ──
+function oauthUrl(provider) {
+  const ref = getReferralCode();
+  return `${API_BASE}/v1/auth/${provider}${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`;
+}
 $("google-btn").addEventListener("click", (e) => {
   e.preventDefault();
   if (!API_BASE) return showError("Sign-in is unavailable right now.");
-  window.location.href = `${API_BASE}/v1/auth/google`;
+  window.location.href = oauthUrl("google");
 });
 $("apple-btn").addEventListener("click", (e) => {
   e.preventDefault();
   if (!API_BASE) return showError("Sign-in is unavailable right now.");
-  window.location.href = `${API_BASE}/v1/auth/apple`;
+  window.location.href = oauthUrl("apple");
 });
 
 // ── "Continue with email" ──
@@ -102,7 +195,7 @@ let lastEmail = "";
 
 async function requestLink(email) {
   if (!API_BASE) { showError("Sign-in is unavailable right now."); return false; }
-  const { status } = await apiPost("/v1/web/login", { email });
+  const { status } = await apiPost("/v1/web/login", { email, referralCode: getReferralCode() });
   return status === 200;
 }
 
@@ -254,6 +347,15 @@ $("redeem-btn").addEventListener("click", async () => {
 // ---- boot ----
 async function boot() {
   showStep("providers"); // default card state
+  // Prefill a referral code shared via ?ref= and surface it to the new user.
+  if (referralCode) {
+    if ($("referral-code")) $("referral-code").value = referralCode;
+    const note = $("referral-note");
+    if (note) {
+      note.textContent = `🎁 Referral code ${referralCode} applied.`;
+      note.hidden = false;
+    }
+  }
   if (!getSession() || !API_BASE) return showLoginPage();
   const me = await apiGet("/v1/web/me");
   if (me.status !== 200) return showLoginPage();

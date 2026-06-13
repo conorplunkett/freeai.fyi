@@ -5,6 +5,16 @@ const crypto = require("node:crypto");
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+// Referral codes are short, human-shareable, and avoid ambiguous glyphs
+// (no 0/O/1/I) so they survive being typed by hand.
+const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+function generateReferralCode(len = 8) {
+  const bytes = crypto.randomBytes(len);
+  let out = "";
+  for (let i = 0; i < len; i++) out += REFERRAL_ALPHABET[bytes[i] % REFERRAL_ALPHABET.length];
+  return out;
+}
+
 function createRepo(pool) {
   async function tx(fn) {
     const client = await pool.connect();
@@ -19,6 +29,64 @@ function createRepo(pool) {
     } finally {
       client.release();
     }
+  }
+
+  // Attribute a brand-new user to a referrer. Called inside the user-creation
+  // transaction, and only on first sign-in, so a code can never be applied to an
+  // existing account. Unknown codes and self-referrals are silently ignored.
+  async function applyReferral(client, newUserId, refCode) {
+    if (!refCode) return;
+    const code = String(refCode).trim().toUpperCase();
+    if (!code) return;
+    const r = await client.query(
+      "select id from users where upper(referral_code) = $1",
+      [code]
+    );
+    const referrer = r.rows[0];
+    if (!referrer || referrer.id === newUserId) return;
+    await client.query(
+      "update users set referred_by = $2 where id = $1 and referred_by is null",
+      [newUserId, referrer.id]
+    );
+    await client.query(
+      `insert into referrals (referrer_user_id, referred_user_id, status)
+       values ($1, $2, 'pending')
+       on conflict (referred_user_id) do nothing`,
+      [referrer.id, newUserId]
+    );
+  }
+
+  // Pay the referrer their one-time bonus once the referred user redeems. The
+  // pending -> rewarded transition (selected FOR UPDATE) is the idempotency guard
+  // so repeat redemptions never double-credit. Past the cap, the referral is
+  // marked 'capped' and no credit is posted.
+  async function maybeRewardReferral(client, referredUserId, rewardMillicents, cap) {
+    const ref = await client.query(
+      `select id, referrer_user_id from referrals
+        where referred_user_id = $1 and status = 'pending' for update`,
+      [referredUserId]
+    );
+    if (!ref.rows[0]) return;
+    const { id, referrer_user_id } = ref.rows[0];
+    const cnt = await client.query(
+      "select count(*)::int as n from referrals where referrer_user_id = $1 and status = 'rewarded'",
+      [referrer_user_id]
+    );
+    if (cnt.rows[0].n >= cap) {
+      await client.query("update referrals set status = 'capped' where id = $1", [id]);
+      return;
+    }
+    await client.query(
+      `insert into ledger (entry_type, amount_millicents, user_id, meta)
+       values ('referral_credit', $1, $2, $3)`,
+      [String(rewardMillicents), referrer_user_id,
+       JSON.stringify({ referralId: id, referredUserId })]
+    );
+    await client.query(
+      `update referrals set status = 'rewarded', rewarded_at = now(), reward_millicents = $2
+        where id = $1`,
+      [id, String(rewardMillicents)]
+    );
   }
 
   return {
@@ -253,7 +321,7 @@ function createRepo(pool) {
     async earningsForDevice(deviceId) {
       const { rows } = await pool.query(
         `select
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit')), 0)::bigint as earned,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit')), 0)::bigint as earned,
            coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
            coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
          from ledger
@@ -281,12 +349,12 @@ function createRepo(pool) {
     },
 
     // ---------- email verification (magic link) ----------
-    async createEmailToken(email, deviceId, ttlMs) {
+    async createEmailToken(email, deviceId, ttlMs, referralCode) {
       const token = crypto.randomBytes(32).toString("base64url");
       await pool.query(
-        `insert into email_tokens (token, email, device_id, expires_at)
-         values ($1, $2, $3, now() + ($4 || ' milliseconds')::interval)`,
-        [token, email, deviceId || null, String(ttlMs)]
+        `insert into email_tokens (token, email, device_id, referral_code, expires_at)
+         values ($1, $2, $3, $4, now() + ($5 || ' milliseconds')::interval)`,
+        [token, email, deviceId || null, referralCode || null, String(ttlMs)]
       );
       return token;
     },
@@ -421,7 +489,7 @@ function createRepo(pool) {
           `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
             where (device_id = $1
                 or user_id = (select user_id from devices where id = $1 and user_id is not null))
-              and entry_type in ('impression_credit','click_credit','payout_debit','gift_redemption_debit')`,
+              and entry_type in ('impression_credit','click_credit','referral_credit','payout_debit','gift_redemption_debit')`,
           [deviceId]
         );
         const costMillicents = BigInt(amountCents) * 1000n;
@@ -446,7 +514,7 @@ function createRepo(pool) {
     // Find or create a user from a Google/Apple OAuth callback, then open a
     // web session. Looks up by provider ID first, then by email. Patches any
     // missing fields on an existing account.
-    async upsertUserByOAuth({ email, googleId, appleId }, sessionTtlMs) {
+    async upsertUserByOAuth({ email, googleId, appleId, referralCode }, sessionTtlMs) {
       return tx(async (c) => {
         let found = null;
         if (googleId) {
@@ -478,6 +546,7 @@ function createRepo(pool) {
             [email || null, googleId || null, appleId || null]
           );
           userId = r.rows[0].id;
+          await applyReferral(c, userId, referralCode); // first sign-in only
         }
 
         const sessionToken = crypto.randomBytes(32).toString("base64url");
@@ -499,23 +568,26 @@ function createRepo(pool) {
         const t = await c.query(
           `update email_tokens set used_at = now()
             where token = $1 and used_at is null and expires_at > now()
-            returning email`,
+            returning email, referral_code`,
           [token]
         );
         if (!t.rows[0]) return null;
+        // (xmax = 0) is true only for a fresh INSERT, false when ON CONFLICT
+        // updated an existing row — so we apply the referral on first sign-in only.
         const u = await c.query(
           `insert into users (email, email_verified) values ($1, true)
            on conflict (email) do update set email_verified = true
-           returning id, email`,
+           returning id, email, (xmax = 0) as is_new`,
           [t.rows[0].email]
         );
+        if (u.rows[0].is_new) await applyReferral(c, u.rows[0].id, t.rows[0].referral_code);
         const sessionToken = crypto.randomBytes(32).toString("base64url");
         await c.query(
           `insert into web_sessions (token, user_id, expires_at)
            values ($1, $2, now() + ($3 || ' milliseconds')::interval)`,
           [sessionToken, u.rows[0].id, String(sessionTtlMs)]
         );
-        return { sessionToken, user: u.rows[0] };
+        return { sessionToken, user: { id: u.rows[0].id, email: u.rows[0].email } };
       });
     },
 
@@ -534,7 +606,7 @@ function createRepo(pool) {
     async balanceForUser(userId) {
       const { rows } = await pool.query(
         `select
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit')), 0)::bigint as earned,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit')), 0)::bigint as earned,
            coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
            coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
          from ledger
@@ -556,12 +628,12 @@ function createRepo(pool) {
     // User-scoped gift redemption (website flow). Re-checks the user's balance
     // inside the transaction against the ledger so concurrent redeems can't spend
     // the same credits twice. Returns the redemption id, or null if short.
-    async recordGiftRedemptionForUser({ id, userId, plan, months, amountCents, recipientEmail }) {
+    async recordGiftRedemptionForUser({ id, userId, plan, months, amountCents, recipientEmail, referralRewardMillicents, referralCap }) {
       return tx(async (c) => {
         const bal = await c.query(
           `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
             where (user_id = $1 or device_id in (select id from devices where user_id = $1))
-              and entry_type in ('impression_credit','click_credit','payout_debit','gift_redemption_debit')`,
+              and entry_type in ('impression_credit','click_credit','referral_credit','payout_debit','gift_redemption_debit')`,
           [userId]
         );
         const costMillicents = BigInt(amountCents) * 1000n;
@@ -578,8 +650,63 @@ function createRepo(pool) {
           [(-costMillicents).toString(), userId,
            JSON.stringify({ redemptionId: rows[0].id, plan, months })]
         );
+        // Redeeming is what qualifies this user's referrer for their $20 bonus.
+        if (referralRewardMillicents) {
+          await maybeRewardReferral(c, userId, referralRewardMillicents, referralCap ?? 10);
+        }
         return rows[0].id;
       });
+    },
+
+    // ---------- referrals ----------
+    // Return the user's shareable code, minting a unique one on first request.
+    // Lazy creation means existing users are backfilled with no data migration.
+    async getOrCreateReferralCode(userId) {
+      const existing = await pool.query("select referral_code from users where id = $1", [userId]);
+      if (existing.rows[0]?.referral_code) return existing.rows[0].referral_code;
+      for (let i = 0; i < 6; i++) {
+        const code = generateReferralCode();
+        try {
+          const r = await pool.query(
+            "update users set referral_code = $2 where id = $1 and referral_code is null returning referral_code",
+            [userId, code]
+          );
+          if (r.rows[0]) return r.rows[0].referral_code;
+          // a concurrent request set it first — re-read and return that one
+          const re = await pool.query("select referral_code from users where id = $1", [userId]);
+          if (re.rows[0]?.referral_code) return re.rows[0].referral_code;
+        } catch (err) {
+          if (err.code === "23505") continue; // code collided with another user; retry
+          throw err;
+        }
+      }
+      throw new Error("could not allocate referral code");
+    },
+
+    // Counts + recent referrals for the dashboard.
+    async referralStats(userId) {
+      const stats = await pool.query(
+        `select
+           count(*) filter (where status = 'rewarded')::int as rewarded,
+           count(*) filter (where status = 'pending')::int as pending,
+           count(*) filter (where status = 'capped')::int as capped,
+           coalesce(sum(reward_millicents), 0)::bigint as earned_millicents
+         from referrals where referrer_user_id = $1`,
+        [userId]
+      );
+      const list = await pool.query(
+        `select status, created_at from referrals
+          where referrer_user_id = $1 order by created_at desc limit 50`,
+        [userId]
+      );
+      const s = stats.rows[0];
+      return {
+        rewardedCount: s.rewarded,
+        pendingCount: s.pending,
+        cappedCount: s.capped,
+        creditsEarnedMillicents: Number(s.earned_millicents),
+        referrals: list.rows.map((r) => ({ status: r.status, createdAt: r.created_at })),
+      };
     },
 
     async recordPayout(userId, amountCents, transferId) {

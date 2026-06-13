@@ -386,6 +386,22 @@
   line-height: 1.4;
 }
 
+/* ── Applied referral code note ── */
+.auth-referral-note {
+  font-size: 13px;
+  color: var(--accent-d);
+  background: #fbf0ea;
+  border: 1px solid #f0cdc0;
+  border-radius: 8px;
+  padding: 10px 13px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Stack the email step's input(s) + buttons with consistent spacing. */
+#auth-step-email { display: flex; flex-direction: column; gap: 10px; }
+#auth-step-email[hidden] { display: none; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .portal-split {

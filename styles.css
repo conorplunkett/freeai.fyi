@@ -409,3 +409,43 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 380px) {
   .brand-name { display: none; }
 }
+
+/* REFERRALS VIEW */
+.navbtn.active { border-color: var(--accent); background: #fbf0ea; color: var(--accent-d); }
+.ref-link-row { display: flex; gap: 10px; margin: 4px 0 26px; }
+.ref-link-row input {
+  flex: 1; min-width: 0; padding: 13px 14px; border: 1px solid var(--line);
+  border-radius: 12px; font-family: var(--mono); font-size: 14px; color: var(--ink);
+  background: #fcfbf9;
+}
+.ref-link-row .btn-green { border: none; cursor: pointer; font-family: var(--sans); white-space: nowrap; }
+.ref-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 26px; }
+.ref-stat {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fcfbf9;
+}
+.rs-num { font-size: 26px; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
+.rs-label { font-family: var(--mono); font-size: 11px; color: var(--gray-2); text-transform: uppercase; letter-spacing: .06em; }
+.ref-list { display: grid; gap: 8px; }
+.ref-empty { font-size: 14.5px; color: var(--gray-2); margin: 0; }
+.ref-item {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff;
+}
+.ref-desc { font-size: 14px; color: var(--ink-2); }
+.ref-when { font-family: var(--mono); font-size: 12px; color: var(--gray-2); }
+.ref-badge {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; padding: 4px 9px; border-radius: 999px; border: 1px solid transparent;
+}
+.ref-badge.pending { background: #fdf6e9; color: #946a14; border-color: #f0e0bd; }
+.ref-badge.rewarded { background: #f1f8f2; color: #2c6b3f; border-color: #cfe6d5; }
+.ref-badge.capped { background: #f3f3f1; color: var(--gray); border-color: var(--line); }
+.ref-badge.cancelled { background: #fbeeea; color: #9a3b22; border-color: #f0cdc0; }
+@media (max-width: 640px) {
+  .ref-stats { grid-template-columns: 1fr; }
+  .ref-link-row { flex-direction: column; }
+  .ref-link-row .btn-green { justify-self: stretch; }
+  .ref-item { grid-template-columns: auto 1fr; }
+  .ref-when { grid-column: 2; justify-self: start; }
+}

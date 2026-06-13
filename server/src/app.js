@@ -289,23 +289,29 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   });
 
   // ---------- OAuth helpers ----------
-  function makeOAuthState() {
+  // The signed state carries a CSRF nonce plus (optionally) the referral code the
+  // user typed on the signup form, so it survives the round-trip through the OAuth
+  // provider tamper-proof. Returns null when invalid/expired, else { ref }.
+  function makeOAuthState(ref) {
     const nonce = crypto.randomBytes(16).toString("hex");
     const ts = Date.now();
-    const payload = `${ts}.${nonce}`;
+    const code = String(ref || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+    const payload = `${ts}.${nonce}.${code}`;
     const sig = crypto.createHmac("sha256", config.adminKey || "fallback").update(payload).digest("hex").slice(0, 20);
     return `${payload}.${sig}`;
   }
   function verifyOAuthState(state) {
-    if (!state) return false;
+    if (!state) return null;
     const lastDot = state.lastIndexOf(".");
-    if (lastDot < 0) return false;
+    if (lastDot < 0) return null;
     const payload = state.slice(0, lastDot);
     const sig = state.slice(lastDot + 1);
     const expected = crypto.createHmac("sha256", config.adminKey || "fallback").update(payload).digest("hex").slice(0, 20);
-    if (sig !== expected) return false;
-    const ts = parseInt(payload.split(".")[0], 10);
-    return Number.isFinite(ts) && Date.now() - ts < 10 * 60 * 1000;
+    if (sig !== expected) return null;
+    const parts = payload.split(".");
+    const ts = parseInt(parts[0], 10);
+    if (!Number.isFinite(ts) || Date.now() - ts >= 10 * 60 * 1000) return null;
+    return { ref: parts[2] || "" };
   }
   // Convert DER-encoded ECDSA signature to IEEE P1363 (JWT ES256 format).
   function derEcdsaToP1363(der) {
@@ -341,14 +347,14 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   }
 
   // ---------- Google OAuth ----------
-  route("GET", "/v1/auth/google", async (req, res) => {
+  route("GET", "/v1/auth/google", async (req, res, body, rawBody, query) => {
     if (!config.googleClientId) return redirect(res, `${config.siteUrl}/redeem.html?login=no-google`);
     const params = new URLSearchParams({
       client_id: config.googleClientId,
       redirect_uri: `${config.apiBaseUrl}/v1/auth/google/callback`,
       response_type: "code",
       scope: "email profile",
-      state: makeOAuthState(),
+      state: makeOAuthState(query.get("ref")),
       access_type: "online",
       prompt: "select_account",
     });
@@ -359,7 +365,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (query.get("error") || !query.get("code")) {
       return redirect(res, `${config.siteUrl}/redeem.html?login=cancelled`);
     }
-    if (!verifyOAuthState(query.get("state"))) {
+    const oauthState = verifyOAuthState(query.get("state"));
+    if (!oauthState) {
       return redirect(res, `${config.siteUrl}/redeem.html?login=error`);
     }
     try {
@@ -382,7 +389,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       const gu = await uiRes.json();
       if (!gu.email) throw new Error("no email from Google");
       const { sessionToken } = await repo.upsertUserByOAuth(
-        { email: gu.email, googleId: gu.sub },
+        { email: gu.email, googleId: gu.sub, referralCode: oauthState.ref },
         config.webSessionTtlMs
       );
       redirect(res, `${config.siteUrl}/redeem.html#session=${sessionToken}`);
@@ -393,7 +400,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   });
 
   // ---------- Apple OAuth ----------
-  route("GET", "/v1/auth/apple", async (req, res) => {
+  route("GET", "/v1/auth/apple", async (req, res, body, rawBody, query) => {
     if (!config.appleClientId) return redirect(res, `${config.siteUrl}/redeem.html?login=no-apple`);
     const params = new URLSearchParams({
       client_id: config.appleClientId,
@@ -401,7 +408,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       response_type: "code",
       scope: "email",
       response_mode: "query",
-      state: makeOAuthState(),
+      state: makeOAuthState(query.get("ref")),
     });
     redirect(res, `https://appleid.apple.com/auth/authorize?${params}`);
   });
@@ -410,7 +417,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (query.get("error") || !query.get("code")) {
       return redirect(res, `${config.siteUrl}/redeem.html?login=cancelled`);
     }
-    if (!verifyOAuthState(query.get("state"))) {
+    const oauthState = verifyOAuthState(query.get("state"));
+    if (!oauthState) {
       return redirect(res, `${config.siteUrl}/redeem.html?login=error`);
     }
     try {
@@ -432,7 +440,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       const claims = decodeJwtPayload(tokens.id_token);
       if (!claims?.sub) throw new Error("no sub in Apple id_token");
       const { sessionToken } = await repo.upsertUserByOAuth(
-        { email: claims.email || null, appleId: claims.sub },
+        { email: claims.email || null, appleId: claims.sub, referralCode: oauthState.ref },
         config.webSessionTtlMs
       );
       redirect(res, `${config.siteUrl}/redeem.html#session=${sessionToken}`);
@@ -454,7 +462,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!body?.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) {
       return json(res, 400, { error: "valid email required" });
     }
-    const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs);
+    const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs, body.referralCode);
     await mailer.sendWebLoginEmail(body.email, `${config.apiBaseUrl}/v1/web/session?token=${token}`);
     json(res, 200, { ok: true, sent: true });
   });
@@ -470,6 +478,26 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!user) return json(res, 401, { error: "not signed in" });
     const bal = await repo.balanceForUser(user.id);
     json(res, 200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000 });
+  });
+
+  // The user's referral dashboard: their shareable link/code, the reward terms,
+  // and progress toward the cap. Refer a friend; when they redeem their first
+  // gift card, you earn the bonus.
+  route("GET", "/v1/web/referrals", async (req, res, body, rawBody, query) => {
+    const user = await repo.userForSession(sessionFrom(req, body, query));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const code = await repo.getOrCreateReferralCode(user.id);
+    const stats = await repo.referralStats(user.id);
+    json(res, 200, {
+      code,
+      link: `${config.siteUrl}/redeem.html?ref=${code}`,
+      rewardUsd: config.referralRewardCents / 100,
+      cap: config.referralCap,
+      rewardedCount: stats.rewardedCount,
+      pendingCount: stats.pendingCount,
+      creditsEarnedUsd: stats.creditsEarnedMillicents / 100000,
+      referrals: stats.referrals,
+    });
   });
 
   route("POST", "/v1/web/redemptions", async (req, res, body) => {
@@ -503,6 +531,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
     const recorded = await repo.recordGiftRedemptionForUser({
       id: redemptionId, userId: user.id, plan: plan.id, months, amountCents, recipientEmail,
+      referralRewardMillicents: config.referralRewardCents * 1000,
+      referralCap: config.referralCap,
     });
     if (!recorded) return json(res, 409, { error: "insufficient credits" });
 

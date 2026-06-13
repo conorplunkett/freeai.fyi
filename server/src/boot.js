@@ -22,6 +22,8 @@ function loadConfig(env = process.env) {
     grossCpmCents: parseInt(env.GROSS_CPM_CENTS || "1200", 10),
     dailyImpressionCap: parseInt(env.DAILY_IMPRESSION_CAP || "5000", 10),
     payoutThresholdCents: parseInt(env.PAYOUT_THRESHOLD_CENTS || "1000", 10), // $10
+    referralRewardCents: parseInt(env.REFERRAL_REWARD_CENTS || "2000", 10), // $20 to the referrer
+    referralCap: parseInt(env.REFERRAL_CAP || "10", 10), // max rewarded referrals per user
     giftFulfillmentEmail: env.GIFT_FULFILLMENT_EMAIL || "conor.p43@gmail.com", // manual gift card fulfillment inbox
     emailTokenTtlMs: parseInt(env.EMAIL_TOKEN_TTL_MS || "1800000", 10), // 30 min
     webSessionTtlMs: parseInt(env.WEB_SESSION_TTL_MS || "2592000000", 10), // 30 days

@@ -57,6 +57,8 @@
     <div class="portal-right">
       <div class="auth-card" id="auth-card">
 
+        <p class="auth-referral-note" id="referral-note" hidden></p>
+
         <!-- Step 1: provider selection -->
         <div id="auth-step-providers">
           <a class="auth-btn-provider" id="google-btn" href="#">
@@ -100,6 +102,14 @@
             placeholder="you@example.com"
             autocomplete="email"
           />
+          <input
+            class="auth-input"
+            type="text"
+            id="referral-code"
+            placeholder="Referral code (optional)"
+            autocomplete="off"
+            maxlength="16"
+          />
           <button class="auth-btn-primary" id="login-btn" type="button">
             Email me a sign-in link
           </button>
@@ -137,6 +147,8 @@
         <span class="brand-name">FreeAI.fyi</span>
       </a>
       <nav class="nav-btns">
+        <button class="navbtn" id="nav-redeem" type="button">Redeem</button>
+        <button class="navbtn" id="nav-referrals" type="button">Referrals</button>
         <a href="index.html" class="navbtn">Home</a>
         <button class="navbtn" id="signout" type="button">Sign out</button>
       </nav>
@@ -169,6 +181,45 @@
           <button class="btn-green" id="redeem-btn" disabled>Redeem</button>
         </div>
         <p class="redeem-result" id="redeem-result" hidden></p>
+      </section>
+
+      <section class="redeem-card" id="referrals-view" hidden>
+        <div class="balance-row">
+          <div>
+            <span class="eyebrow">Refer friends, earn credits</span>
+            <div class="balance" id="ref-earned">$0.00</div>
+            <div class="balance-sub">earned from referrals</div>
+          </div>
+        </div>
+
+        <h2>Give friends FreeAI, get <span id="ref-reward">$20</span></h2>
+        <p class="redeem-lead">
+          Share your link. When a friend signs up with it and redeems their first
+          Claude gift card, we drop <strong id="ref-reward-2">$20</strong> in
+          credits into your balance — for up to <span id="ref-cap">10</span> friends.
+        </p>
+
+        <div class="ref-link-row">
+          <input type="text" id="ref-link" readonly aria-label="Your referral link" />
+          <button class="btn-green" id="ref-copy" type="button">Copy link</button>
+        </div>
+
+        <div class="ref-stats">
+          <div class="ref-stat">
+            <span class="rs-num" id="ref-count">0/10</span>
+            <span class="rs-label">friends referred</span>
+          </div>
+          <div class="ref-stat">
+            <span class="rs-num" id="ref-pending">0</span>
+            <span class="rs-label">pending</span>
+          </div>
+          <div class="ref-stat">
+            <span class="rs-num" id="ref-earned-2">$0.00</span>
+            <span class="rs-label">credits earned</span>
+          </div>
+        </div>
+
+        <div class="ref-list" id="ref-list"></div>
       </section>
     </main>
 
