@@ -248,16 +248,16 @@ function createRepo(pool) {
     // One batch = { batchKey, events: [{ campaignId, impressions, clicks }] }.
     // A click bills the campaign at 50x an impression. The user's share
     // (revenueShare, 0.5 by default) credits the device; the rest is the platform fee.
-    async ingestBatch({ deviceId, batchKey, events, revenueShare, dailyCap }) {
+    async ingestBatch({ deviceId, batchKey, events, revenueShare, dailyCap, ipHash, ipDailyCap }) {
       return tx(async (c) => {
         const claimedImpressions = events.reduce((n, e) => n + (e.impressions || 0), 0);
         const claimedClicks = events.reduce((n, e) => n + (e.clicks || 0), 0);
 
         // idempotency: replays of the same batch are acknowledged, not re-paid
         const ins = await c.query(
-          `insert into event_batches (device_id, batch_key, impressions, clicks)
-           values ($1,$2,$3,$4) on conflict (batch_key) do nothing returning id`,
-          [deviceId, batchKey, claimedImpressions, claimedClicks]
+          `insert into event_batches (device_id, batch_key, impressions, clicks, ip_hash)
+           values ($1,$2,$3,$4,$5) on conflict (batch_key) do nothing returning id`,
+          [deviceId, batchKey, claimedImpressions, claimedClicks, ipHash || null]
         );
         if (!ins.rows[0]) return { duplicate: true, creditedMillicents: 0 };
 
@@ -271,6 +271,24 @@ function createRepo(pool) {
           const err = new Error("daily impression cap exceeded");
           err.code = "CAP_EXCEEDED";
           throw err;
+        }
+
+        // fraud cap: impressions per source IP per UTC day. Devices are free and
+        // anonymous, so the per-device cap alone doesn't stop one host minting
+        // many devices — this bounds the whole IP. Hashed, fail-open (skipped
+        // when no IP is known), and disabled when ipDailyCap is not positive so
+        // operators with large shared-NAT/CGNAT audiences can opt out.
+        if (ipHash && Number.isFinite(ipDailyCap) && ipDailyCap > 0) {
+          const ipCap = await c.query(
+            `select coalesce(sum(impressions), 0)::bigint as n from event_batches
+              where ip_hash = $1 and created_at >= date_trunc('day', now())`,
+            [ipHash]
+          );
+          if (Number(ipCap.rows[0].n) > ipDailyCap) {
+            const err = new Error("daily ip impression cap exceeded");
+            err.code = "CAP_EXCEEDED";
+            throw err;
+          }
         }
 
         let credited = 0n;

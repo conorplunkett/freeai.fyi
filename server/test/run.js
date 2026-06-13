@@ -60,7 +60,7 @@ const fakeMailer = {
   await poolNs.query(fs.readFileSync(path.join(__dirname, "..", "db", "schema.sql"), "utf8"));
 
   const config = {
-    revenueShare: 0.9, dailyImpressionCap: 5000, dailyClickCap: 5, payoutThresholdCents: 1000,
+    revenueShare: 0.9, dailyImpressionCap: 5000, ipDailyImpressionCap: 0, dailyClickCap: 5, payoutThresholdCents: 1000,
     referralRewardCents: 2000, referralCap: 10,
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
@@ -267,6 +267,32 @@ const fakeMailer = {
     assert.strictEqual(after.redeemedUsd, 20, "only one $20 gift was charged");
     assert.strictEqual(after.balanceUsd, 4.75);
     assert.ok(after.balanceUsd >= 0, "balance never goes negative");
+  });
+
+  await check("per-IP daily impression cap bounds farming across many anonymous devices", async () => {
+    const camp = await api("POST", "/v1/checkout", {
+      email: "adv@ipcap.co", adLine: "ip cap regression campaign", url: "https://ipcap.example/",
+      brand: "IPCap", pricePerBlock: 5, blocks: 50,
+    });
+    await payWebhook(camp.body.campaignId);
+    await approve(camp.body.campaignId);
+
+    // second app instance with a low per-IP cap; all test traffic shares 127.0.0.1
+    const cfgIp = { ...config, ipDailyImpressionCap: 1500 };
+    const { server: s3 } = createApp({ repo, stripe, mailer: fakeMailer, rateLimiter: bigLimiter, config: cfgIp });
+    await new Promise((r) => s3.listen(0, r));
+    const b3 = `http://127.0.0.1:${s3.address().port}`;
+    const post = (p, b) => fetch(b3 + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async (r) => ({ status: r.status, body: await r.json() }));
+
+    const d1 = (await post("/v1/devices/register", {})).body;
+    const d2 = (await post("/v1/devices/register", {})).body;
+    // d1 is under both caps and credits normally
+    const r1 = await post("/v1/events", { ...d1, batchKey: "ip-a", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    assert.strictEqual(r1.status, 200);
+    // d2 is well under ITS OWN device cap (5000) but tips the shared IP past 1500 → 429
+    const r2 = await post("/v1/events", { ...d2, batchKey: "ip-b", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    assert.strictEqual(r2.status, 429);
+    s3.close();
   });
 
   // ---------- email-gated payouts ----------

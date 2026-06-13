@@ -57,6 +57,15 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const key = req.headers["x-admin-key"] || body?.adminKey || query?.get("adminKey");
     return config.adminKey && key === config.adminKey;
   }
+  // Client IP from the proxy header (Fly/CDN) or the socket. Used for rate
+  // limiting and — hashed, never stored raw — for the per-IP fraud cap.
+  function clientIp(req) {
+    return (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+  }
+  function hashIp(req) {
+    const ip = clientIp(req);
+    return ip ? crypto.createHmac("sha256", config.adminKey || "ip-salt").update(ip).digest("hex") : null;
+  }
 
   // ---------- health & catalog ----------
   route("GET", "/healthz", async (req, res) => json(res, 200, { ok: true }));
@@ -93,6 +102,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       const result = await repo.ingestBatch({
         deviceId: device.id, batchKey: body.batchKey, events: body.events,
         revenueShare: config.revenueShare, dailyCap: config.dailyImpressionCap,
+        ipHash: hashIp(req), ipDailyCap: config.ipDailyImpressionCap,
       });
       json(res, 200, { ok: true, ...result });
     } catch (err) {
@@ -628,7 +638,7 @@ async function act(kind,id){
 
     // rate limit by client IP
     if (rateLimiter) {
-      const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "?";
+      const ip = clientIp(req) || "?";
       if (!rateLimiter.take(ip)) return json(res, 429, { error: "rate limited" });
     }
 

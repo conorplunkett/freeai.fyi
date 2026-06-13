@@ -91,6 +91,11 @@ built in:
   `batchKey`; replays are acknowledged, never re-paid.
 - **Daily device cap** — default 5,000 impressions/day (~7h of serving);
   excess batches get `429`.
+- **Daily per-IP cap** — default 50,000 impressions/day per source IP (~10
+  devices), so minting many free anonymous devices behind one host doesn't
+  multiply the fraud ceiling. The IP is stored **hashed** (HMAC, never raw);
+  the cap is fail-open and `IP_DAILY_IMPRESSION_CAP=0` disables it for operators
+  with large shared-NAT / mobile-CGNAT audiences.
 - **Clicks are token-only** — `POST /v1/events` bills impressions *only*. A
   click bills 50x, so self-reported click counts (which would also dodge the
   impression cap) are never credited; genuine clicks earn solely through the
@@ -105,7 +110,7 @@ built in:
   into an overdraft.
 - **Held payouts** — the $10 threshold + weekly sweep gives a review window.
 - Next (not built): only count impressions while a real agent process is
-  attached, per-IP device limits.
+  attached; device attestation / proof-of-work to price up bulk device minting.
 
 ## Run it
 

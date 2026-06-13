@@ -21,6 +21,7 @@ function loadConfig(env = process.env) {
     revenueShare: parseFloat(env.REVENUE_SHARE || "0.5"), // user's cut, paid out as Claude credits
     grossCpmCents: parseInt(env.GROSS_CPM_CENTS || "1200", 10),
     dailyImpressionCap: parseInt(env.DAILY_IMPRESSION_CAP || "5000", 10),
+    ipDailyImpressionCap: parseInt(env.IP_DAILY_IMPRESSION_CAP || "50000", 10), // per source IP per UTC day; 0 disables (for shared-NAT/CGNAT audiences)
     dailyClickCap: parseInt(env.DAILY_CLICK_CAP || "100", 10), // verified clicks per device per UTC day
     payoutThresholdCents: parseInt(env.PAYOUT_THRESHOLD_CENTS || "1000", 10), // $10
     referralRewardCents: parseInt(env.REFERRAL_REWARD_CENTS || "2000", 10), // $20 to the referrer

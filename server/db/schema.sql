@@ -78,6 +78,14 @@ create table if not exists event_batches (
 create index if not exists event_batches_device_day_idx
   on event_batches (device_id, created_at);
 
+-- Hashed source IP (an HMAC, never the raw address) recorded per batch. It backs
+-- a per-IP daily impression cap that bounds farming across many anonymous
+-- devices behind one host, and serves as a forensic key during the held-payout
+-- review window. Added post-launch, so add-if-missing for existing databases.
+alter table event_batches add column if not exists ip_hash text;
+create index if not exists event_batches_ip_day_idx
+  on event_batches (ip_hash, created_at);
+
 -- Append-only money ledger. Amounts are in MILLICENTS (1/1000 cent) so a single
 -- impression's 90% share is exact: $5 block -> 0.5c gross -> 450 millicents net.
 create table if not exists ledger (
