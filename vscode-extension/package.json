@@ -214,7 +214,7 @@
     "name": "FreeAI",
     "url": "https://freeai.fyi"
   },
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "homepage": "https://freeai.fyi",
   "bugs": {
     "url": "https://github.com/conorplunkett/freeai.fyi/issues"

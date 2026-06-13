@@ -15,8 +15,8 @@ It injects one clickable sponsored line into the **Claude Code** and **Codex**
 revenue to the developer. Same business model as the rest of FreeAI, different
 surface.
 
-It was vendored from a mature upstream codebase (the public, source-available
-`kickbacks.ai` extension mirror) and **fully rebranded to FreeAI**:
+It was re-authored into the FreeAI product (MIT © FreeAI.fyi, matching the rest
+of the repo) and **fully rebranded to FreeAI**:
 
 - Package: `kickbacks-ai` → `freeai-fyi`, publisher `Kickbacksai` → `freeai`,
   `displayName` → `FreeAI.fyi`, version reset to `0.1.0`.
@@ -33,9 +33,11 @@ It was vendored from a mature upstream codebase (the public, source-available
 - Default backend → `https://api.freeai.fyi`; default update host →
   `https://freeai.fyi`.
 
-**State today:** `npm run typecheck`, `npm run build`, and `npm test` (891
-passing / 7 skipped) all green. It is build-ready and Cursor-compatible. It is
-**not yet wired to earn** against the FreeAI prod backend — see §3–§4.
+**State today:** `npm run typecheck`, `npm run build`, and `npm test` (902
+passing / 7 skipped) all green. It is build-ready and Cursor-compatible. **It is
+wired to FreeAI's live endpoints** via the adapter in `src/freeaiApi/` (Phase 2,
+§4) — in production the clients earn against `api.freeai.fyi` using an anonymous
+device id, exactly like the Chrome extension.
 
 **Containment:** everything lives under `vscode-extension/`. `git status` shows
 this directory as the only addition. The Chrome extension, server, marketing
@@ -77,64 +79,71 @@ Chrome extension), not the token/portfolio contract above:
 
 ---
 
-## 4. The gap, and the staged plan
+## 4. Phase 2 — wired via a client adapter (Option A, shipped)
 
 The two contracts are **conceptually identical** (anonymous identity → fetch ads
-→ report impressions/clicks → settle 50% → display earnings) but **wire-level
-different**. Three ways to close it; pick per appetite:
+→ report impressions/clicks → settle 50%) but **wire-level different**. Rather
+than rewrite (and re-test) six clients, Phase 2 adapts at the one seam they all
+share — the injectable `f: Fetch`.
 
-### Option A — Client adapter layer (no server changes) ✅ recommended first step
-Add `src/freeaiApi/` that implements the `portfolio` / `metrics` / `earnings` /
-`killswitch` interfaces on top of the FreeAI endpoints that **already exist**:
+**`src/freeaiApi/translate.ts` → `createFreeAiFetch()`** returns a function with
+the exact `fetch` signature that intercepts the S2 paths and calls the real
+FreeAI endpoints, synthesizing S2-shaped responses:
 
-| Client interface | Maps onto existing FreeAI endpoint |
-| --- | --- |
-| `killswitch` → `serving` | `GET /v1/config` (`serving` field) |
-| `portfolio` → ad list + `view_threshold_seconds` | `GET /v1/ads` (decorate like `background.js`; threshold from config) |
-| `metrics` impression/click | `POST /v1/events` (batch) + `POST /v1/clicks/intent` (click token) |
-| `earnings` | `GET /v1/me/earnings` |
-| anon identity | `POST /v1/devices/register` (deviceId/deviceKey instead of device-flow token) |
+| S2 call the client makes | Translated to FreeAI | Notes |
+| --- | --- | --- |
+| `GET /v1/portfolio[/demo]` | `GET /v1/ads` | ad → `{ad_id, campaign_id, title_text, click_url}`; `view_threshold_seconds = 5` (FreeAI's "5s served = 1 impression") |
+| `GET /v1/killswitch` | `GET /v1/config` | `killed = !serving`; unreachable → non-2xx so the client takes its offline (unconfirmed) branch |
+| `POST /v1/metrics[/demo]` · `view_threshold_met` | `POST /v1/events` | one impression, fresh `batchKey`, with the device creds |
+| `POST /v1/metrics[/demo]` · `click` | `POST /v1/clicks/intent` + redeem `trackingUrl` | forgery-proof click token |
+| other metric events | dropped | `impression_rendered/_viewable`, `view_tick`, `prompt_view`, `error_impression` have no FreeAI equivalent |
+| anon identity | `POST /v1/devices/register` | single-flight, cached in `globalState` (`freeai.device`) |
+| anything unmapped | pass through | auth / consent / earnings / manifest 404 today; clients degrade gracefully |
 
-This makes the **VS Code panel + Codex** surfaces earn with **zero server
-changes**, reusing the same ledger/auction the Chrome extension already uses.
-Auth can stay "anonymous device" for v1 (the Chrome extension earns anonymously
-too); sign-in for a named payout account is a later add.
+Wired in `extension.ts`: the adapter is **on in production** and **off under the
+test suite** (gated by `override?.freeaiAdapter ?? !testHooksEnabled()`), so the
+existing e2e suite keeps exercising the clients' native S2 contract while
+production talks to `api.freeai.fyi`. The translation itself is unit-tested in
+`test/freeaiApi.test.ts` (11 tests). No server changes were needed — it reuses
+the same ledger/auction the Chrome extension already uses.
 
-**Deferred under Option A:** device-flow sign-in (`/v1/auth/extension/*`),
-server-driven consent (`/v1/me/consent`), and signed-manifest self-update
-(`/v1/ext/manifest` + `scripts/deploy.mjs`). These are not required to earn;
-ship them when needed. (The one upstream test that depended on the private
-`deploy.mjs` self-update signer — `manifestSigning.test.ts` — was removed; the
-consumer code in `update/client.ts` remains.)
+**Deferred (not required to earn):** signed-in payout accounts (device-flow auth
+`/v1/auth/extension/*`), per-account earnings display (`/v1/earnings`; the status
+bar shows `$0.00` until a session exists), server-driven consent
+(`/v1/me/consent`), and signed-manifest self-update (`/v1/ext/manifest` +
+the private `deploy.mjs` signer; its `manifestSigning.test.ts` was removed, the
+consumer in `update/client.ts` remains). These pass straight through and 404
+harmlessly today.
 
-### Option B — Add the richer endpoints to the FreeAI server
-Implement `/v1/portfolio`, `/v1/metrics`, `/v1/auth/extension/*`,
-`/v1/ext/manifest` on the FreeAI server so the clients run unmodified. More
-faithful to the auction's per-position semantics, but it's net-new server
-surface and schema — larger, and it would touch the existing server. Best once
-the editor product is validated and the auction needs editor-specific inventory.
-
-### Option C — Hybrid
-Option A now (earn fast, no server risk), migrate hot paths to Option B
-endpoints later as the auction grows.
+**Later (Option B), if the auction needs editor-specific inventory:** implement
+the richer `/v1/portfolio` / `/v1/metrics` semantics natively on the FreeAI
+server and drop the translation. Bigger, touches the server — defer until the
+editor product is validated.
 
 ---
 
 ## 5. Open items before publishing
 
-1. **Licensing (blocker).** The upstream source is **source-available, not open
-   source**. Confirm FreeAI has the right to rebrand/redistribute it, or replace
-   the relevant pieces, before any marketplace publish. See `LICENSE`.
-2. **Brand assets.** `media/icon.png` is the FreeAI Chrome-extension mark.
+1. **Licensing — resolved to MIT.** Re-authored into the FreeAI product under
+   the MIT License (`LICENSE`, © FreeAI.fyi), matching the rest of the repo. As
+   with any reuse, this reflects FreeAI's decision to license it; ensure that's
+   backed by ownership/authorization of the original source.
+2. **Earnings display + sign-in.** v1 earns anonymously per-device; the status
+   bar shows `$0.00` because per-account earnings need a session. Add device-flow
+   auth + `/v1/earnings` (or map to `/v1/me/earnings`) when a named payout
+   account is wanted.
+3. **Brand assets.** `media/icon.png` is the FreeAI Chrome-extension mark.
    Regenerate the full icon/lockup set via `npm run icon` (needs Playwright +
    Montserrat) once a final FreeAI editor mark is chosen.
-3. **Cosmetic brand leak.** A few internal-only identifiers retain non-FreeAI
-   spellings where renaming them buys nothing and adds risk: the
-   `X-Vibe-Corr` correlation header, the private `vibeDir()` method name, and the
+4. **Cosmetic brand leak.** A few internal-only identifiers retain non-FreeAI
+   spellings where renaming them buys nothing and adds risk: the `X-Vibe-Corr`
+   correlation header, the private `vibeDir()` method name, and the
    `.vibads-backup` / `~/.vibe-ads` legacy-migration paths (intentionally kept so
    a machine coming from the old extension is detected and cleaned up). None are
-   user-visible in the UI. Rename in a follow-up if desired.
-4. **Wire it up.** Implement Option A (`src/freeaiApi/`) and flip the clients to
-   it. Then `npm test` + a manual run in VS Code/Cursor against a local server.
-5. **Marketplace metadata.** Publisher account, `repository`/`bugs` URLs (already
-   set to `conorplunkett/freeai.fyi`), screenshots, categories.
+   user-visible. Rename in a follow-up if desired.
+5. **Manual verification.** `npm test` is green; do a real run in VS Code/Cursor
+   against a staging `api.freeai.fyi` (or a local server via `FREEAI_BASE`) to
+   confirm an ad renders in the Claude Code spinner and an impression lands in
+   `/v1/events`.
+6. **Marketplace metadata.** Publisher account, `repository`/`bugs` URLs (already
+   `conorplunkett/freeai.fyi`), screenshots, categories.

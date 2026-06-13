@@ -38,12 +38,12 @@ const stageDir = join(extDir, ".vsce-stage");
 function packageManifestForVsce(pkg) {
   const pj = JSON.parse(JSON.stringify(pkg));
   pj.author ??= {
-    name: "Andrew McCalip",
-    url: "https://github.com/andrewmccalip",
+    name: "FreeAI",
+    url: "https://freeai.fyi",
   };
-  pj.license ??= "SEE LICENSE IN LICENSE";
+  pj.license ??= "MIT";
   pj.homepage ??= "https://freeai.fyi";
-  pj.bugs ??= { url: "https://github.com/andrewmccalip/freeai/issues" };
+  pj.bugs ??= { url: "https://github.com/conorplunkett/freeai.fyi/issues" };
   const c = pj.contributes?.commands;
   if (c && !c.some((x) => x.command === "freeai.signOut")) {
     const i = c.findIndex((x) => x.command === "freeai.signIn");

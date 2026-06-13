@@ -35,6 +35,7 @@ import { setupWebviewInjection, type WebviewInjectionResult }
 import { setupCliSync } from "./activation/cliSync";
 import { setupCliTick } from "./activation/cliTick";
 import { createActivationContext, type ActivationContext } from "./activation/context";
+import { createFreeAiFetch, globalStateDeviceStore } from "./freeaiApi";
 import { resetServingGate, wireServingGateEnabled, setKillPosture,
   killPosture, canPatch, servingSuspended, servingVerdict }
   from "./servingGate";
@@ -55,8 +56,7 @@ import { errMsg } from "./util/errMsg";
 const CFG = readConfig();
 
 const BASE = (() => {
-  const v = resolveBackendBase(CFG,
-    process.env.FREEAI_BASE || process.env.FREEAI_BASE);
+  const v = resolveBackendBase(CFG, process.env.FREEAI_BASE);
   if (v.startsWith("http://")) {
     const looplike = isLoopbackBase(v);
     if (!looplike) {
@@ -95,6 +95,12 @@ interface Wiring {
   killed?: boolean;
   /** Test-only: shrink the serving bring-up retry base delay (audit #5). */
   servingRetryBaseMs?: number;
+  /** Whether to route the HTTP clients through the FreeAI backend adapter
+   *  (freeaiApi/, S2→FreeAI translation). Defaults ON in production and OFF
+   *  under test hooks, so the e2e suite keeps exercising the clients' native
+   *  S2 contract directly while production talks to api.freeai.fyi. A test can
+   *  set it true to drive the FreeAI mapping through the full pipeline. */
+  freeaiAdapter?: boolean;
 }
 let override: Partial<Wiring> | null = null;
 export function __wireForTest(w: Partial<Wiring>): void { override = w; }
@@ -391,12 +397,22 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
     // /v1/killswitch + /v1/earnings pollers below can stand down while the
     // piggybacked data is fresh (fleet-chattiness fix, 2026-06-12).
     const fleetSignals = new FleetSignals();
+    // FreeAI backend adapter ("Option A", see freeaiApi/ + INTEGRATION.md): a
+    // translating fetch that maps the clients' S2 contract (/v1/portfolio,
+    // /v1/metrics, /v1/killswitch) onto FreeAI's live endpoints (/v1/ads,
+    // /v1/events, /v1/clicks/intent, /v1/config) using an anonymous device id.
+    // `undefined` ⇒ each client falls back to its own default transport (the
+    // native S2 contract), which is exactly what the e2e suite exercises.
+    const useFreeAiAdapter = override?.freeaiAdapter ?? !testHooksEnabled();
+    const freeaiFetch = useFreeAiAdapter
+      ? createFreeAiFetch({ base: BASE, device: globalStateDeviceStore(ctx.globalState) })
+      : undefined;
     const portfolio = new PortfolioClient(BASE, () => auth.accessToken(),
-      undefined, fleetSignals);
+      freeaiFetch, fleetSignals);
     const metrics = new MetricsClient(BASE, () => auth.accessToken(),
-      () => auth.clientId(), buildVersion(), undefined, clientEnv(),
+      () => auth.clientId(), buildVersion(), freeaiFetch, clientEnv(),
       fleetSignals);
-    const kill = new KillSwitchClient(BASE);
+    const kill = new KillSwitchClient(BASE, freeaiFetch);
     const { updater } = setupSelfUpdate(
       ctx, UPDATE_BASE, buildVersion(), localVsixPath, lastLocalVsixMtime,
       watchFileImpl(), actx.timers, CFG.updatePollIntervalMs);

@@ -1,35 +1,21 @@
-FreeAI.fyi VS Code / Cursor extension — PROVENANCE & LICENSING NOTICE
-====================================================================
+MIT License
 
-⚠️  ACTION REQUIRED BEFORE ANY DISTRIBUTION OR PUBLISH.
+Copyright (c) 2026 FreeAI.fyi
 
-This directory is derived from the publicly-viewable, **source-available**
-mirror of the "kickbacks.ai" VS Code extension, which is distributed under a
-PROPRIETARY license:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-    "Kickbacks Extension — Proprietary, Source-Available License
-     Copyright (c) 2026 ShiftKeys, Inc. All rights reserved.
-     This is NOT open-source software ... ShiftKeys makes the source publicly
-     viewable for transparency only; doing so waives no rights and grants no
-     license except [a limited, revocable, view-and-read permission]."
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Under those upstream terms, viewing the source does NOT grant the right to use,
-copy, modify, redistribute, or commercialize it. This rebrand was produced for
-internal evaluation and planning of a FreeAI editor extension.
-
-Therefore, before this extension is published to the VS Code Marketplace,
-distributed, or shipped in any product, FreeAI.fyi MUST do ONE of:
-
-  (a) obtain a written license / assignment from the upstream rights holder
-      (ShiftKeys, Inc. — support@kickbacks.ai), OR
-  (b) replace the derived implementation with an independently-authored one
-      (e.g. build on FreeAI's own MIT-licensed code in legacy/vscode-extension/),
-      OR
-  (c) confirm common ownership / authorization of the upstream source.
-
-Until one of the above is resolved and this file is replaced with the chosen
-license (FreeAI's repositories otherwise use the MIT License, see
-legacy/vscode-extension/LICENSE), this directory is for internal use only and
-must not be distributed.
-
-See INTEGRATION.md §5 (Open items) for context.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

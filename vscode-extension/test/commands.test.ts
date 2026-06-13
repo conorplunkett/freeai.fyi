@@ -94,7 +94,7 @@ async function boot(opts: { codex?: boolean } = {}) {
   const adapter = mkAdapter();
   const codex = opts.codex ? mkCodex() : null;
   const statusBar = { set: vi.fn(), dispose: vi.fn() };
-  __wireForTest({ adapter, codexAdapter: codex, statusBar });
+  __wireForTest({ freeaiAdapter: false, adapter, codexAdapter: codex, statusBar });
   const fetched = stubFetch();
   const ctx = makeContext();
   await activate(ctx as never);

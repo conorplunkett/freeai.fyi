@@ -12,11 +12,10 @@
 > **Status: incubating (not shipped).** This is the editor-side sibling of the
 > FreeAI Chrome extension, vendored from a mature upstream codebase and rebranded
 > to FreeAI. It **builds, type-checks, and passes its full test suite today**, and
-> its backend URL already points at `https://api.freeai.fyi`. Before it can earn
-> against production it needs a small amount of server work — see
-> [`INTEGRATION.md`](INTEGRATION.md) for the exact endpoint gaps and the staged
-> plan. **No existing FreeAI functionality (Chrome extension, server, site, macOS
-> app) is touched by this directory.**
+> its backend URL points at `https://api.freeai.fyi` and it talks to the existing
+> FreeAI server endpoints via the adapter in `src/freeaiApi/` (see
+> [`INTEGRATION.md`](INTEGRATION.md)). **No existing FreeAI functionality (Chrome
+> extension, server, site, macOS app) is touched by this directory.**
 
 ## What it is
 
@@ -49,7 +48,7 @@ cd vscode-extension
 npm install
 npm run build        # esbuild → dist/extension.js + injection assets
 npm run typecheck    # tsc --noEmit
-npm test             # vitest — the editor-safety net (891 tests)
+npm test             # vitest — the editor-safety net (902 tests)
 npm run package      # produce the .vsix (requires @vscode/vsce)
 ```
 
@@ -74,6 +73,7 @@ src/
   metrics/         impression / view-threshold / click telemetry (idempotent)
   viewTracking/    "was it actually on screen long enough?" timer
   killswitch/      server-controlled global off-switch
+  freeaiApi/       adapter mapping the clients' S2 contract → FreeAI endpoints
 media/icon.png     marketplace icon (FreeAI mark)
 test/              the vitest suite that guards editor safety
 INTEGRATION.md     endpoint-gap analysis + plan to wire to api.freeai.fyi
@@ -81,5 +81,5 @@ INTEGRATION.md     endpoint-gap analysis + plan to wire to api.freeai.fyi
 
 ## License
 
-Inherited from the upstream source-available codebase — see [`LICENSE`](LICENSE).
-Rebranded for FreeAI.fyi.
+MIT © 2026 FreeAI.fyi — see [`LICENSE`](LICENSE). Same license as the rest of
+the FreeAI repositories.

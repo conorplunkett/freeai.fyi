@@ -77,7 +77,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: false })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb });
     await expect(activate(makeContext() as never)).resolves.toBeUndefined();
     expect(adapter.applyPatch).not.toHaveBeenCalled();
     expect(sb.set).toHaveBeenCalledWith(expect.objectContaining({ kind: "incompatible" }));
@@ -98,7 +98,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: false })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb });
     cliRestore.mockClear();
     await activate(makeContext() as never);
     // Pre-fix the early return ran before ANY claude-cli adapter existed, so
@@ -128,7 +128,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: false })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb });
     await activate(makeContext() as never);
     expect(adapter.applyPatch).not.toHaveBeenCalled();
     expect(_warned.some((t) =>
@@ -147,7 +147,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
     };
     const sb = { set: vi.fn(), dispose() {} };
     const watched: string[] = [];
-    __wireForTest({ adapter, statusBar: sb,
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb,
       watchFileFn: ((p: unknown) => { watched.push(String(p)); }) as never });
     await activate(makeContext() as never);
     expect(watched.some((p) => p.endsWith("reload"))).toBe(true);
@@ -163,7 +163,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: true })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, statusBar: sb, killed: true });
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb, killed: true });
     await activate(makeContext() as never);
     await new Promise((r) => setTimeout(r, 10));
     expect(adapter.restore).toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: true })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, codexAdapter, statusBar: sb, killed: true });
+    __wireForTest({ freeaiAdapter: false, adapter, codexAdapter, statusBar: sb, killed: true });
     await activate(makeContext() as never);
     await new Promise((r) => setTimeout(r, 10));
     expect(codexAdapter.restore).toHaveBeenCalled();
@@ -209,7 +209,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: true })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb });
     const ctx = makeContext();
     // Seed K_ON=true so debugCtl.on() returns true at deactivate time.
     // Canonical current key is "freeai.debug.on"; the "freeai-legacy.debug.on"
@@ -239,7 +239,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: vi.fn(() => ({ ok: true, restored: true })),
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, statusBar: sb });
     const ctx = makeContext();
     await activate(ctx as never);
     // Simulate the user disabling via the menu BEFORE shutdown.
@@ -283,7 +283,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       return { ok: true, status: 200, json: async () => ({}) } as Response;
     }));
     commands._handlers.clear();
-    __wireForTest({ adapter, codexAdapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, codexAdapter, statusBar: sb });
     const ctx = makeContext();
     try {
       await expect(activate(ctx as never)).resolves.toBeUndefined();
@@ -327,7 +327,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
     const sb = { set: vi.fn(), dispose() {} };
     commands._handlers.clear();
     cliRestore.mockClear();
-    __wireForTest({ adapter, codexAdapter, statusBar: sb });
+    __wireForTest({ freeaiAdapter: false, adapter, codexAdapter, statusBar: sb });
     try {
       await expect(activate(makeContext() as never)).resolves.toBeUndefined();
       expect(sb.set).toHaveBeenCalledWith(
@@ -359,7 +359,7 @@ describe("extension orchestration", { timeout: 15_000 }, () => {
       restore: boom as never,
     };
     const sb = { set: vi.fn(), dispose() {} };
-    __wireForTest({ adapter, codexAdapter, statusBar: sb, killed: true });
+    __wireForTest({ freeaiAdapter: false, adapter, codexAdapter, statusBar: sb, killed: true });
     await expect(activate(makeContext() as never)).resolves.toBeUndefined();
     expect(adapter.restore).toHaveBeenCalled();          // CC unaffected by Codex throw
     await expect(deactivate()).resolves.toBeUndefined(); // teardown survives too
