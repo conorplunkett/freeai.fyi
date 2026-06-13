@@ -1,0 +1,229 @@
+{
+  "name": "freeai-fyi",
+  "displayName": "FreeAI.fyi",
+  "publisher": "freeai",
+  "version": "0.1.0",
+  "description": "Get paid while you code. Subtle, clickable ads in the Claude Code and Codex spinners — 50% of ad revenue comes back to you as Claude credits.",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conorplunkett/freeai.fyi.git"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "freeai.signIn",
+        "title": "FreeAI: Sign in"
+      },
+      {
+        "command": "freeai.signOut",
+        "title": "FreeAI: Sign out"
+      },
+      {
+        "command": "freeai.restore",
+        "title": "FreeAI: Restore Claude Code"
+      },
+      {
+        "command": "freeai.status",
+        "title": "FreeAI: Show status"
+      },
+      {
+        "command": "freeai.debugMenu",
+        "title": "FreeAI: Menu"
+      },
+      {
+        "command": "freeai.editConfig",
+        "title": "FreeAI: Edit Config"
+      },
+      {
+        "command": "freeai.diagnose",
+        "title": "FreeAI: Diagnose"
+      },
+      {
+        "command": "freeai-legacy.diagnose",
+        "title": "FreeAI: Diagnose (legacy alias)"
+      },
+      {
+        "command": "freeai-legacy.signIn",
+        "title": "FreeAI: Sign in (legacy alias)"
+      },
+      {
+        "command": "freeai-legacy.signOut",
+        "title": "FreeAI: Sign out (legacy alias)"
+      },
+      {
+        "command": "freeai-legacy.restore",
+        "title": "FreeAI: Restore Claude Code (legacy alias)"
+      },
+      {
+        "command": "freeai-legacy.status",
+        "title": "FreeAI: Show status (legacy alias)"
+      },
+      {
+        "command": "freeai-legacy.debugMenu",
+        "title": "FreeAI: Menu (legacy alias)"
+      },
+      {
+        "command": "freeai.test.fireImpressionRendered",
+        "title": "FreeAI (Test): Fire impression_rendered"
+      },
+      {
+        "command": "freeai.test.fireImpressionViewable",
+        "title": "FreeAI (Test): Fire impression_viewable"
+      },
+      {
+        "command": "freeai.test.fireViewTick",
+        "title": "FreeAI (Test): Fire view_tick"
+      },
+      {
+        "command": "freeai.test.fireViewThresholdMet",
+        "title": "FreeAI (Test): Fire view_threshold_met (credits)"
+      },
+      {
+        "command": "freeai.test.fireErrorImpression",
+        "title": "FreeAI (Test): Fire error_impression (5s stuck-session safety net)"
+      },
+      {
+        "command": "freeai.test.fireClick",
+        "title": "FreeAI (Test): Fire click"
+      },
+      {
+        "command": "freeai.test.refreshPortfolio",
+        "title": "FreeAI (Test): Refresh portfolio"
+      },
+      {
+        "command": "freeai.test.refreshEarnings",
+        "title": "FreeAI (Test): Refresh earnings"
+      },
+      {
+        "command": "freeai.test.getState",
+        "title": "FreeAI (Test): Get state snapshot"
+      },
+      {
+        "command": "freeai.test.clearEventLog",
+        "title": "FreeAI (Test): Clear event log"
+      },
+      {
+        "command": "freeai.test.disableInjection",
+        "title": "FreeAI (Test): Disable injection"
+      },
+      {
+        "command": "freeai.test.enableInjection",
+        "title": "FreeAI (Test): Enable injection"
+      },
+      {
+        "command": "freeai.test.refreshStatusBar",
+        "title": "FreeAI (Test): Refresh status bar"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "freeai.test.fireImpressionRendered",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.fireImpressionViewable",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.fireViewTick",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.fireViewThresholdMet",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.fireErrorImpression",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.fireClick",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.refreshPortfolio",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.refreshEarnings",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.getState",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.clearEventLog",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.disableInjection",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.enableInjection",
+          "when": "freeai.test.enabled"
+        },
+        {
+          "command": "freeai.test.refreshStatusBar",
+          "when": "freeai.test.enabled"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "FreeAI",
+      "properties": {
+        "freeai.viewThresholdSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 600,
+          "description": "Seconds of cumulative visible time an ad must accumulate before it counts as 'shown' and is credited."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "icon": "node scripts/gen-icon.mjs",
+    "package": "node scripts/package.mjs",
+    "marketplace:publish": "vsce publish --no-dependencies --packagePath freeai.vsix"
+  },
+  "devDependencies": {
+    "@types/jsdom": "21.1.7",
+    "@types/node": "20.14.0",
+    "@types/vscode": "1.80.0",
+    "@vscode/vsce": "2.31.0",
+    "esbuild": "^0.23.0",
+    "jsdom": "24.1.0",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  },
+  "author": {
+    "name": "FreeAI",
+    "url": "https://freeai.fyi"
+  },
+  "license": "MIT",
+  "homepage": "https://freeai.fyi",
+  "bugs": {
+    "url": "https://github.com/conorplunkett/freeai.fyi/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "ads",
+    "spinner",
+    "earnings",
+    "freeai"
+  ]
+}

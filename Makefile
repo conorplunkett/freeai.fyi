@@ -79,6 +79,26 @@ lint-ext:
 	cd chrome-extension && npm run lint
 
 # ---------------------------------------------------------------------------
+# VS Code / Cursor extension (incubating — see vscode-extension/INTEGRATION.md)
+# ---------------------------------------------------------------------------
+
+## vscode-install: Install the VS Code extension's dev dependencies.
+vscode-install:
+	cd vscode-extension && npm install
+
+## build-vscode: Bundle the VS Code extension (esbuild → dist/).
+build-vscode:
+	cd vscode-extension && npm run build
+
+## test-vscode: Run the VS Code extension's vitest editor-safety suite.
+test-vscode:
+	cd vscode-extension && npm test
+
+## package-vscode: Produce the .vsix (requires @vscode/vsce).
+package-vscode:
+	cd vscode-extension && npm run package
+
+# ---------------------------------------------------------------------------
 # macOS app (SponsorOverlay) + Rust core
 # ---------------------------------------------------------------------------
 
@@ -118,5 +138,6 @@ mac-open:
 test: test-server test-ext test-mac
 
 .PHONY: help site db-up db-down migrate seed server server-up server-install \
-	test-server test-ext lint-ext test-mac mac-build mac-run mac-demo \
+	test-server test-ext lint-ext vscode-install build-vscode test-vscode \
+	package-vscode test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test
