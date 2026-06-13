@@ -1,7 +1,7 @@
 {
   "name": "freeai-server",
   "version": "0.1.0",
-  "description": "FreeAI.fyi backend — ad auction, impression ledger, Stripe money in/out. Developers keep 90%.",
+  "description": "FreeAI.fyi backend — ad auction, impression ledger, Stripe money in/out. Users keep 50%, redeemable as Claude credits.",
   "private": true,
   "main": "src/index.js",
   "scripts": {
