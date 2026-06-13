@@ -44,13 +44,26 @@ function loadConfig(env = process.env) {
   };
 }
 
+// Postgres pool options. Managed providers (Supabase, Neon, …) require TLS;
+// turn it on for them automatically while leaving local/plaintext dev untouched.
+// Set DATABASE_SSL=1 to force TLS for any other managed host (RDS, etc.).
+function pgPoolConfig(env = process.env) {
+  const connectionString = env.DATABASE_URL || "";
+  const needsSsl =
+    env.DATABASE_SSL === "1" ||
+    /[?&]sslmode=(require|verify-ca|verify-full)/.test(connectionString) ||
+    /\.supabase\.(co|com)\b/.test(connectionString) ||
+    /\.neon\.tech\b/.test(connectionString);
+  return { connectionString, ssl: needsSsl ? { rejectUnauthorized: false } : undefined };
+}
+
 async function boot(env = process.env) {
   const config = loadConfig(env);
   if (!config.databaseUrl) throw new Error("DATABASE_URL is required");
   if (!config.stripeSecretKey) throw new Error("STRIPE_SECRET_KEY is required");
 
   const { Pool } = require("pg");
-  const pool = new Pool({ connectionString: config.databaseUrl });
+  const pool = new Pool(pgPoolConfig(env));
   const repo = createRepo(pool);
   const stripe = createStripe(config.stripeSecretKey);
   const mailer = createMailer(config);
@@ -61,4 +74,4 @@ async function boot(env = process.env) {
   return { deps: { repo, stripe, mailer, rateLimiter, config }, pool };
 }
 
-module.exports = { boot, loadConfig };
+module.exports = { boot, loadConfig, pgPoolConfig };

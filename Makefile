@@ -43,9 +43,13 @@ db-up:
 db-down:
 	docker compose stop db
 
-## migrate: Apply db/schema.sql to the local database.
+## migrate: Apply db/schema.sql to the database (uses $DATABASE_URL).
 migrate:
 	cd server && npm run migrate
+
+## seed: Insert one example active campaign (a single live entry).
+seed:
+	cd server && npm run seed
 
 ## server: Start the API on http://localhost:8787.
 server:
@@ -113,6 +117,6 @@ mac-open:
 ## test: Run every test suite (server, extension, mac core).
 test: test-server test-ext test-mac
 
-.PHONY: help site db-up db-down migrate server server-up server-install \
+.PHONY: help site db-up db-down migrate seed server server-up server-install \
 	test-server test-ext lint-ext test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test

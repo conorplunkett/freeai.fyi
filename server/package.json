@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/index.js",
     "migrate": "node --env-file-if-exists=.env src/migrate.js",
+    "seed": "node --env-file-if-exists=.env src/seed.js",
     "test": "node test/run.js",
     "payouts": "node -e \"require('./src/boot').boot().then(({deps}) => require('./src/payouts').runPayouts(deps)).then(r => {console.log(r); process.exit(0)})\""
   },
