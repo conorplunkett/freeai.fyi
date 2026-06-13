@@ -1,5 +1,5 @@
 // Postgres repository. All money mutations happen inside transactions, and all
-// amounts in the ledger are MILLICENTS (1/1000 cent) so the 90% split is exact.
+// amounts in the ledger are MILLICENTS (1/1000 cent) so the revenue split is exact.
 
 const crypto = require("node:crypto");
 
@@ -173,8 +173,8 @@ function createRepo(pool) {
 
     // ---------- event ingestion (the core money loop) ----------
     // One batch = { batchKey, events: [{ campaignId, impressions, clicks }] }.
-    // A click bills the campaign at 50x an impression. The developer's share
-    // (revenueShare, 0.9) credits the device; the rest is the platform fee.
+    // A click bills the campaign at 50x an impression. The user's share
+    // (revenueShare, 0.5 by default) credits the device; the rest is the platform fee.
     async ingestBatch({ deviceId, batchKey, events, revenueShare, dailyCap }) {
       return tx(async (c) => {
         const claimedImpressions = events.reduce((n, e) => n + (e.impressions || 0), 0);
