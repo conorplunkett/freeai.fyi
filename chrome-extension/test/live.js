@@ -157,6 +157,12 @@ async function main() {
       // the wrapper's last child, below the star row, and STAY there.
       await page.evaluate(() => {
         document.querySelector('[data-message-author-role="assistant"]').remove();
+        // Claude keeps an empty streaming bubble ABOVE the star — it must not
+        // steal the anchor (that's what put the bar above the star)
+        const bubble = document.createElement("div");
+        bubble.setAttribute("data-is-streaming", "true");
+        bubble.id = "claude-bubble";
+        document.getElementById("messages").appendChild(bubble);
         const wrap = document.createElement("div");
         wrap.className = "epitaxy-transcript-width";
         wrap.id = "claude-wrap";
@@ -189,6 +195,7 @@ async function main() {
       );
       // restore the ChatGPT-style reply for the rest of the checks
       await page.evaluate(() => {
+        document.getElementById("claude-bubble").remove();
         document.getElementById("claude-wrap").remove();
         window.setGenerating(true);
       });
@@ -196,25 +203,44 @@ async function main() {
     });
 
     await check("Gemini thinking-dots stage ⇒ detected and bar sits below the dots", async () => {
-      // dots alone, no stop button, no reply yet
+      // dots alone, no stop button, no reply yet — Gemini puts the dots (and
+      // later the streamed thinking text) inside one row
       await page.evaluate(() => {
         window.setGenerating(false);
         document.querySelector('[data-message-author-role="assistant"]').remove();
-        // Gemini's real markup: a <thinking-dots-animation> custom element
-        // wrapping a .thinking-dots-animation lottie div
+        const row = document.createElement("div");
+        row.id = "gem-row";
         const dots = document.createElement("thinking-dots-animation");
         dots.id = "gem-dots";
         dots.innerHTML = '<div class="thinking-dots-animation"></div>';
-        document.getElementById("messages").appendChild(dots);
+        row.appendChild(dots);
+        document.getElementById("messages").appendChild(row);
       });
       await page.waitForFunction(() => {
         const b = document.querySelector(".bb-bar.bb-show");
         const dots = document.getElementById("gem-dots");
         return b && dots && !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
       }, { timeout: 5000 });
+      // the streamed "Assessing the Input" text lands in the SAME row as the
+      // dots — the bar must stay below the whole row, never wedged inside it
+      await page.evaluate(() => {
+        const label = document.createElement("div");
+        label.id = "gem-label";
+        label.textContent = "Assessing the Input";
+        document.getElementById("gem-row").appendChild(label);
+      });
+      await page.waitForFunction(() => {
+        const b = document.querySelector(".bb-bar.bb-show");
+        const row = document.getElementById("gem-row");
+        const label = document.getElementById("gem-label");
+        return (
+          b && !row.contains(b) &&
+          !!(label.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+        );
+      }, { timeout: 3000 });
       // clean up, restore the standard generating state
       await page.evaluate(() => {
-        document.getElementById("gem-dots").remove();
+        document.getElementById("gem-row").remove();
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });

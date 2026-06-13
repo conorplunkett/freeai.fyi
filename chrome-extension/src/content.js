@@ -56,9 +56,10 @@
     // Gemini: the dots stage MUST outrank model-response — an empty
     // model-response shell exists while the dots are showing, and anchoring
     // inside it puts the bar above the dots.
-    { sel: "thinking-dots-animation", mode: "after" },                 // Gemini — dots stage
-    { sel: ".thinking-dots-animation", mode: "after" },
-    { sel: '[class*="thinking-dots"]', mode: "after" },
+    // Gemini dots stage: anchor ONLY on the outer custom element — its inner
+    // .thinking-dots-animation div would win the document-order pick and make
+    // the "row" the custom element itself, wedging the bar inside the row.
+    { sel: "thinking-dots-animation", mode: "after" },
     { sel: "model-response", mode: "inside" },                         // Gemini — reply
   ];
 
@@ -118,13 +119,32 @@
   // the anchor often appears a beat after the Stop button.
   let anchorEl = null;
   function findAnchor() {
+    // Collect one candidate per selector, then pick the candidate LATEST in
+    // document order (a descendant beats its ancestor). Priority lists fail
+    // here: e.g. Claude keeps an empty streaming bubble ABOVE the thinking
+    // star, and anchoring there put the bar above the star.
+    const candidates = [];
     for (const { sel, mode } of ANCHORS) {
       try {
         const els = document.querySelectorAll(sel);
-        if (els.length) return { el: els[els.length - 1], mode };
+        if (els.length) candidates.push({ el: els[els.length - 1], mode });
       } catch (_) {}
     }
-    return null;
+    if (!candidates.length) return null;
+    let best = candidates[0];
+    for (let i = 1; i < candidates.length; i++) {
+      const c = candidates[i];
+      try {
+        if (
+          best.el !== c.el &&
+          typeof best.el.compareDocumentPosition === "function" &&
+          best.el.compareDocumentPosition(c.el) & Node.DOCUMENT_POSITION_FOLLOWING
+        ) {
+          best = c;
+        }
+      } catch (_) {}
+    }
+    return best;
   }
   // Returns true when the bar has somewhere legitimate to live.
   // Re-checked every tick: these apps keep inserting elements (the star, the
@@ -135,15 +155,16 @@
       const { el, mode } = found;
       try {
         if (mode === "after") {
-          // Sit the bar IMMEDIATELY after the indicator (Claude star / Gemini
-          // dots) — as its next sibling, not appended to the bottom of the
-          // whole container (which dropped it far below the dots on Gemini).
-          const parent = el.parentElement;
-          if (parent) {
-            if (!(bar.parentElement === parent && bar.previousElementSibling === el)) {
-              parent.insertBefore(bar, el.nextSibling);
+          // Sit the bar just after the ROW holding the indicator (Gemini puts
+          // the dots and the streamed "Assessing…" text in the same row — the
+          // bar must land below BOTH, never wedged between them).
+          const row = el.parentElement || el;
+          const host = row.parentElement;
+          if (host) {
+            if (!(bar.parentElement === host && bar.previousElementSibling === row)) {
+              host.insertBefore(bar, row.nextSibling);
             }
-            anchorEl = parent;
+            anchorEl = host;
             bar.classList.add("bb-inline");
             return true;
           }
