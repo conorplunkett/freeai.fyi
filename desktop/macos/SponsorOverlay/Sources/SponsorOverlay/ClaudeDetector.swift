@@ -16,6 +16,9 @@ struct ClaudeState {
     /// Frame of Claude's prompt composer (AXTextArea), used to anchor the
     /// sponsor card just above it. Geometry only — content is never read.
     var composerBounds: CGRect?
+    /// Frame of the animated thinking star (the spark shown while Claude
+    /// generates). When present the card anchors to it; composer is fallback.
+    var starBounds: CGRect?
 }
 
 final class ClaudeDetector {
@@ -28,6 +31,12 @@ final class ClaudeDetector {
     /// contents (and the Stop button) are invisible to us.
     private var enabledForPid: pid_t?
 
+    /// AX elements cached by the last full scan so the fast-follow loop can
+    /// re-read just their frames (two cheap AX calls) instead of re-walking
+    /// the whole Electron tree at 10Hz.
+    private var cachedWindow: AXUIElement?
+    private var cachedStar: AXUIElement?
+
     private func enableElectronAccessibility(_ axApp: AXUIElement, pid: pid_t) {
         guard enabledForPid != pid else { return }
         AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
@@ -36,6 +45,8 @@ final class ClaudeDetector {
 
     func currentState() -> ClaudeState {
         var state = ClaudeState()
+        cachedWindow = nil
+        cachedStar = nil
         guard let app = NSRunningApplication
             .runningApplications(withBundleIdentifier: Self.bundleID).first else {
             return state
@@ -49,9 +60,28 @@ final class ClaudeDetector {
         guard let window = focusedWindow(of: axApp) else { return state }
         state.minimized = isMinimized(window)
         state.windowBounds = frame(of: window)
-        state.composerBounds = composerFrame(in: window)
-        state.generating = looksGenerating(window: window)
+
+        var scan = TreeScan()
+        scanTree(window, depth: 0, into: &scan)
+        state.composerBounds = scan.composer.flatMap(frame(of:))
+        state.starBounds = scan.star.flatMap(frame(of:))
+        state.generating = scan.hasStopButton || scan.star != nil
+        cachedWindow = window
+        cachedStar = scan.star
         return state
+    }
+
+    /// Cheap between-scan refresh for the fast-follow loop: re-reads only the
+    /// frames of the cached window and star. Returns nil once either element
+    /// is gone (the star node is removed when generation ends) — the next
+    /// full scan re-resolves everything.
+    func fastStarUpdate() -> (window: CGRect, star: CGRect)? {
+        guard let window = cachedWindow, let star = cachedStar,
+              let windowFrame = frame(of: window), let starFrame = frame(of: star) else {
+            cachedStar = nil
+            return nil
+        }
+        return (windowFrame, starFrame)
     }
 
     private func focusedWindow(of axApp: AXUIElement) -> AXUIElement? {
@@ -83,69 +113,76 @@ final class ClaudeDetector {
         return CGRect(origin: pos, size: size)
     }
 
-    /// Locates the prompt composer — the AXTextArea whose placeholder
-    /// description mentions "prompt" (probe-verified: "Write your prompt to
-    /// Claude"). Same privacy rule as the Stop scan: structural attributes
-    /// only, never the field's value.
-    private func composerFrame(in window: AXUIElement) -> CGRect? {
-        guard let composer = findComposer(window, depth: 0) else { return nil }
-        return frame(of: composer)
+    static let maxScanDepth = 30
+
+    /// One walk of the focused window's AX tree collects everything we anchor
+    /// or gate on: the composer, the Stop button (generating heuristic), and
+    /// the thinking star. Same privacy rule throughout — structural attributes
+    /// only (role/title/description/DOM class names), never message text.
+    /// Web content nests deep inside the AXWebArea, hence the generous depth.
+    private struct TreeScan {
+        var composer: AXUIElement?
+        var hasStopButton = false
+        var star: AXUIElement?
+        var isComplete: Bool { composer != nil && hasStopButton && star != nil }
     }
 
-    private func findComposer(_ element: AXUIElement, depth: Int) -> AXUIElement? {
-        guard depth < Self.maxScanDepth else { return nil }
+    private func scanTree(_ element: AXUIElement, depth: Int, into scan: inout TreeScan) {
+        guard depth < Self.maxScanDepth, !scan.isComplete else { return }
+
         var roleRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
-        if (roleRef as? String) == kAXTextAreaRole as String {
+        let role = roleRef as? String
+
+        // Composer: the AXTextArea whose placeholder description mentions
+        // "prompt" (probe-verified: "Write your prompt to Claude").
+        if scan.composer == nil, role == kAXTextAreaRole as String {
             var v: CFTypeRef?
             AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &v)
             if let s = (v as? String)?.lowercased(), s.contains("prompt") {
-                return element
+                scan.composer = element
             }
         }
-        var childrenRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement] else {
-            return nil
-        }
-        for child in children {
-            if let found = findComposer(child, depth: depth + 1) { return found }
-        }
-        return nil
-    }
 
-    /// Generation heuristic, local-only and intentionally conservative: the
-    /// presence of a "Stop …" button while streaming. We only read structural
-    /// attributes (role/title/description) of buttons — never message text.
-    /// Web content nests deep inside the AXWebArea, hence the generous depth.
-    private func looksGenerating(window: AXUIElement) -> Bool {
-        return containsStopButton(window, depth: 0)
-    }
-
-    static let maxScanDepth = 30
-
-    private func containsStopButton(_ element: AXUIElement, depth: Int) -> Bool {
-        guard depth < Self.maxScanDepth else { return false }
-        var roleRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
-        if (roleRef as? String) == kAXButtonRole as String {
+        // Stop button: match loosely ("Stop response", "Stop generating",
+        // localized variants keep the verb) but require it on a button so
+        // plain message text can never trip it.
+        if !scan.hasStopButton, role == kAXButtonRole as String {
             for attr in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute] {
                 var v: CFTypeRef?
                 AXUIElementCopyAttributeValue(element, attr as CFString, &v)
-                // Match loosely ("Stop response", "Stop generating", localized
-                // variants keep the verb) but require it on a button so plain
-                // message text can never trip it.
                 if let s = (v as? String)?.lowercased(), s.contains("stop") {
-                    return true
+                    scan.hasStopButton = true
+                    break
                 }
             }
         }
+
+        if scan.star == nil, isThinkingStar(element) {
+            scan.star = element
+        }
+
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
               let children = childrenRef as? [AXUIElement] else {
-            return false
+            return
         }
-        return children.contains { containsStopButton($0, depth: depth + 1) }
+        for child in children {
+            scanTree(child, depth: depth + 1, into: &scan)
+            if scan.isComplete { return }
+        }
+    }
+
+    /// The thinking star is matched by its DOM class: Chromium (and therefore
+    /// Electron) mirrors an element's class attribute into the AXDOMClassList
+    /// accessibility attribute. `.epitaxy-spark-working` is the same selector
+    /// the Chrome extension keys on (chrome-extension/src/content.js); the
+    /// prefix match keeps minor suffix renames working.
+    private func isThinkingStar(_ element: AXUIElement) -> Bool {
+        var v: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &v) == .success,
+              let classes = v as? [String] else { return false }
+        return classes.contains { $0.hasPrefix("epitaxy-spark") || $0.contains("spark-working") }
     }
 
     // MARK: probe mode (FREEAI_PROBE=1)
@@ -166,21 +203,30 @@ final class ClaudeDetector {
         }
         print("probe: --- focused Claude window, labeled elements ---")
         dump(window, depth: 0)
-        print("probe: generating=\(looksGenerating(window: window))")
+        var scan = TreeScan()
+        scanTree(window, depth: 0, into: &scan)
+        let starFrame = scan.star.flatMap(frame(of:)).map { "\($0)" } ?? "not found"
+        print("probe: generating=\(scan.hasStopButton || scan.star != nil) star=\(starFrame)")
     }
 
     private func dump(_ element: AXUIElement, depth: Int) {
         guard depth < Self.maxScanDepth else { return }
-        var roleRef: CFTypeRef?, titleRef: CFTypeRef?, descRef: CFTypeRef?
+        var roleRef: CFTypeRef?, titleRef: CFTypeRef?, descRef: CFTypeRef?, classRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
         AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descRef)
+        AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &classRef)
         let role = roleRef as? String ?? "?"
         let title = titleRef as? String ?? ""
         let desc = descRef as? String ?? ""
-        // Only print signal: buttons, and anything with a label.
-        if role == kAXButtonRole as String || !title.isEmpty || !desc.isEmpty {
-            print("probe: \(String(repeating: " ", count: min(depth, 12)))\(role) title=\"\(title)\" desc=\"\(desc)\"")
+        // DOM classes are how the star is matched — print them so a probe run
+        // against a new Claude build shows what to update in isThinkingStar.
+        // Every div has classes, so they only force a line when star-like.
+        let classes = (classRef as? [String])?.joined(separator: ".") ?? ""
+        let starLike = classes.contains("spark") || classes.contains("thinking")
+        if role == kAXButtonRole as String || !title.isEmpty || !desc.isEmpty || starLike {
+            let suffix = classes.isEmpty ? "" : " class=\"\(classes)\""
+            print("probe: \(String(repeating: " ", count: min(depth, 12)))\(role) title=\"\(title)\" desc=\"\(desc)\"\(suffix)")
         }
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,

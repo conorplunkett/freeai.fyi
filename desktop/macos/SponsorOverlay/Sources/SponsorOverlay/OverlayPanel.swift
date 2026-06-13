@@ -1,6 +1,7 @@
-// The sponsor card: a small, non-activating floating panel anchored just above
-// Claude's composer, left-aligned with it — the native twin of the Chrome
-// extension's inline `.bb-bar` (same palette, same pill, same chip/line/tag).
+// The sponsor card: a small, non-activating floating panel that sits exactly
+// on Claude's thinking-star row while it generates (composer, then window
+// bottom, as fallbacks) — the native twin of the Chrome extension's inline
+// `.bb-bar` (same palette, same pill, same chip/line).
 // It never takes key focus, so typing in Claude is unaffected.
 
 import AppKit
@@ -29,8 +30,6 @@ final class OverlayPanelController {
         static let chipBackground = NSColor(red: 1, green: 213/255, blue: 74/255, alpha: 1) // #ffd54a
         static let chipText = NSColor(red: 27/255, green: 30/255, blue: 37/255, alpha: 1)   // #1b1e25
         static let line = NSColor(red: 241/255, green: 243/255, blue: 247/255, alpha: 1)    // #f1f3f7
-        static let tagBackground = NSColor(red: 217/255, green: 119/255, blue: 87/255, alpha: 0.16)
-        static let tagText = NSColor(red: 232/255, green: 164/255, blue: 134/255, alpha: 1) // #e8a486
     }
 
     // Layout metrics mirroring the extension bar (padding 14, gap 9, 18px chip).
@@ -38,7 +37,6 @@ final class OverlayPanelController {
     private static let gap: CGFloat = 9
     private static let chipSize: CGFloat = 18
     private static let dismissSize: CGFloat = 18
-    private static let tagString = "sponsored · 50% back as Claude credits"
 
     private var panel: NSPanel?
     private(set) var card: SponsorCard?
@@ -60,9 +58,12 @@ final class OverlayPanelController {
         if let panel { configureContent(of: panel) }
     }
 
-    /// Positions the pill left-aligned with the composer, `anchorGap` above it;
-    /// without composer geometry it falls back to bottom-center of the window.
-    func show(over claudeBounds: CGRect, composer: CGRect? = nil) {
+    /// Positions the pill on the thinking star when its frame is known:
+    /// left edge on the star, vertically centered with it, so the card sits
+    /// exactly on the star row and tracks it. Without a star it anchors
+    /// left-aligned with the composer, `anchorGap` above it; without composer
+    /// geometry it falls back to bottom-center of the window.
+    func show(over claudeBounds: CGRect, composer: CGRect? = nil, star: CGRect? = nil) {
         guard card != nil else { return }
         let panel = self.panel ?? makePanel()
         self.panel = panel
@@ -70,7 +71,10 @@ final class OverlayPanelController {
         let width = panelWidth
         var x: CGFloat
         let axTop: CGFloat // card's top edge in AX (top-left-origin) coordinates
-        if let composer, composer.minY > claudeBounds.minY {
+        if let star, claudeBounds.intersects(star) {
+            x = star.minX
+            axTop = star.midY - Self.height / 2
+        } else if let composer, composer.minY > claudeBounds.minY {
             x = composer.minX
             axTop = composer.minY - Self.anchorGap - Self.height
         } else {
@@ -114,15 +118,13 @@ final class OverlayPanelController {
         guard let card else { return }
         let h = Self.height
         let lineFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        let tagFont = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
 
         let lineText = "\(card.sponsorName) · \(card.message)"
         var lineW = ceil(lineText.size(withAttributes: [.font: lineFont]).width)
-        let tagW = ceil(Self.tagString.size(withAttributes: [.font: tagFont]).width) + 16 // 8px pad each side
 
         // Everything except the (ellipsizable) line is fixed width.
-        let fixed = Self.padX + Self.chipSize + Self.gap + Self.gap + tagW
-                  + Self.gap + Self.dismissSize + Self.padX
+        let fixed = Self.padX + Self.chipSize + Self.gap + Self.gap
+                  + Self.dismissSize + Self.padX
         lineW = min(lineW, Self.maxWidth - fixed)
         let width = fixed + lineW
         panelWidth = width
@@ -153,16 +155,6 @@ final class OverlayPanelController {
         line.frame = NSRect(x: x, y: (h - 17) / 2, width: lineW, height: 17)
         x += lineW + Self.gap
 
-        let tag = NSTextField(labelWithString: Self.tagString)
-        tag.font = tagFont
-        tag.textColor = Palette.tagText
-        tag.alignment = .center
-        tag.wantsLayer = true
-        tag.layer?.backgroundColor = Palette.tagBackground.cgColor
-        tag.layer?.cornerRadius = 8
-        tag.frame = NSRect(x: x, y: (h - 16) / 2, width: tagW, height: 16)
-        x += tagW + Self.gap
-
         let dismiss = NSButton(title: "×", target: self, action: #selector(dismissTapped))
         dismiss.isBordered = false
         dismiss.contentTintColor = Palette.dots
@@ -170,14 +162,13 @@ final class OverlayPanelController {
                                width: Self.dismissSize, height: Self.dismissSize)
 
         // Whole bar is the click target (like the extension); × stays separate.
-        for view in [chip, line, tag] {
+        for view in [chip, line] {
             view.addGestureRecognizer(
                 NSClickGestureRecognizer(target: self, action: #selector(cardTapped)))
         }
 
         root.addSubview(chip)
         root.addSubview(line)
-        root.addSubview(tag)
         root.addSubview(dismiss)
         panel.contentView = root
     }

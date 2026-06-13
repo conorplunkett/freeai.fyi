@@ -44,6 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Composer frame at last positioning — the card re-anchors when the
     /// composer moves within an unchanged window (e.g. sidebar resize).
     private var lastComposerBounds: CGRect?
+    /// Thinking-star frame at last positioning — the card sticks to the star,
+    /// so it must re-anchor whenever the star moves (streaming pushes it down,
+    /// scrolling moves it anywhere).
+    private var lastStarBounds: CGRect?
+    private var tickCount = 0
 
     private var credentials: DeviceCredentials?
     private var ads: [Ad] = []
@@ -69,9 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 300) { self?.adsPaused = false }
         }
 
-        // 500ms signal poll; AX notifications can replace most of this later.
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.tick()
+        // 100ms loop. Every 5th tick is the full signal poll (500ms, as
+        // before): AX tree scan, show/hide decision, impression engine. The
+        // ticks in between only re-read the cached star frame (two AX calls)
+        // so the card visibly sticks to the star through streaming and
+        // scrolling. AX notifications can replace most of this later.
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.tickCount += 1
+            if self.tickCount % 5 == 1 {
+                self.tick()
+            } else {
+                self.fastFollow()
+            }
         }
     }
 
@@ -175,20 +190,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldShow = state.focused && state.generating && !state.minimized
             && usableBounds && !adsPaused && currentAd != nil
         if shouldShow, let bounds = state.windowBounds {
-            // Only re-position on a real move/resize (of the window or the
-            // composer); otherwise we'd setFrame every tick. Always (re)show
-            // when the panel is currently hidden.
+            // Only re-position on a real move/resize (of the window, the
+            // composer, or the star); otherwise we'd setFrame every tick.
+            // Always (re)show when the panel is currently hidden.
             if !overlay.isShown || !Self.boundsEqual(lastShownBounds, bounds)
-                || lastComposerBounds != state.composerBounds {
-                overlay.show(over: bounds, composer: state.composerBounds)
+                || lastComposerBounds != state.composerBounds
+                || lastStarBounds != state.starBounds {
+                overlay.show(over: bounds, composer: state.composerBounds, star: state.starBounds)
                 lastShownBounds = bounds
                 lastComposerBounds = state.composerBounds
+                lastStarBounds = state.starBounds
             }
         } else {
             if overlay.isShown { rotateAd() } // hidden -> next show re-arms with a fresh ad
             overlay.hide()
             lastShownBounds = nil
             lastComposerBounds = nil
+            lastStarBounds = nil
         }
 
         engine.tick(signals: signals) { [weak self] visibilityMs in
@@ -196,6 +214,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let credentials { store.flush(client: client, credentials: credentials) }
+    }
+
+    /// Between full polls: re-anchor onto the star using only the cached AX
+    /// elements (two frame reads — no tree walk). Show/hide decisions stay
+    /// with `tick()`; if the star vanished mid-interval the card simply holds
+    /// its last position for <500ms until the full poll hides or re-anchors it.
+    private func fastFollow() {
+        guard !demoMode, overlay.isShown else { return }
+        guard let (windowBounds, starBounds) = detector.fastStarUpdate(),
+              Self.isUsableBounds(windowBounds) else { return }
+        if !Self.boundsEqual(lastShownBounds, windowBounds) || lastStarBounds != starBounds {
+            overlay.show(over: windowBounds, composer: lastComposerBounds, star: starBounds)
+            lastShownBounds = windowBounds
+            lastStarBounds = starBounds
+        }
     }
 
     // MARK: spec window-trackability gates

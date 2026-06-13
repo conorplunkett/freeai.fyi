@@ -15,18 +15,28 @@ Claude's files, and never reads prompts/responses.
 ## Architecture
 
 The Swift shell is intentionally dumb: every 500ms it reads platform signals
-(Claude focused? window bounds? "Stop" button present → generating? screen
-locked? overlay occluded?) and feeds them to the core, which decides whether
-an impression qualifies and what events to queue. The core is pure Rust with
-no platform deps, so all the money-adjacent rules are unit-tested on any OS.
+(Claude focused? window bounds? thinking star or "Stop" button present →
+generating? screen locked? overlay occluded?) and feeds them to the core, which
+decides whether an impression qualifies and what events to queue. The core is
+pure Rust with no platform deps, so all the money-adjacent rules are
+unit-tested on any OS.
+
+Between full polls, a 100ms fast-follow pass re-reads just the cached AX
+frames of the window and the thinking star (two AX calls, no tree walk) and
+re-anchors the card, so it visibly sticks to the star while the reply streams
+or the transcript scrolls.
 
 Planned wiring: build `overlay-core` as a staticlib (`crate-type` already set),
 generate a C header with cbindgen, link from SwiftPM. Until then,
 `ImpressionEngine.swift` is a faithful interim port of the tracker.
 
-### Generation detection (the risky bit)
-1. **Primary:** AX tree scan of the focused Claude window for a
-   "Stop response" button (structural attribute only — no message text read).
+### Generation detection + star anchoring (the risky bit)
+1. **Primary:** one AX tree scan of the focused Claude window finds the
+   animated thinking star (matched by Chromium's `AXDOMClassList` attribute
+   against the same `.epitaxy-spark-working` class the Chrome extension keys
+   on) and a "Stop response" button. Either one → generating; the star's
+   frame is also what the card anchors to (composer, then window bottom, as
+   fallbacks). Structural attributes only — no message text read.
 2. **Fallback (PRD):** Claude focused + recent user action, with conservative
    frequency caps.
 3. **Last resort:** local-only visual heuristics behind Screen Recording
@@ -85,10 +95,14 @@ FREEAI_PROBE=1 swift run SponsorOverlay
 ```
 Claude Desktop is Electron, so its web contents are invisible to the AX API
 until a client sets `AXManualAccessibility` — probe mode (and the real
-detector) set it, then dump every labeled element/button in Claude's focused
-window every 2s plus a `generating=true/false` verdict. Focus Claude, start a
-generation, and watch the terminal: a "Stop …" button appearing while
-streaming means detection works.
+detector) set it, then dump every labeled element/button (plus any element
+whose DOM classes look star-like) in Claude's focused window every 2s, with a
+`generating=true/false star=<frame|not found>` verdict. Focus Claude, start a
+generation, and watch the terminal: a "Stop …" button or a
+`class="…epitaxy-spark-working…"` element appearing while streaming means
+detection works, and the star frame is what the card anchors to. If Claude
+ships a redesign that renames the class, the probe dump shows the new
+star-like classes to put in `isThinkingStar`.
 
 **Window-tracking gates — manual checks (demo mode or real Claude):**
 ```sh
@@ -174,7 +188,8 @@ them, but verify with `codesign --verify --deep --strict` before notarizing.
 ## Still to do
 
 1. Validate Claude's real bundle id + whether its Electron AX tree exposes
-   the Stop button (the riskiest assumption — see ClaudeDetector.swift).
+   the Stop button and the thinking star's `AXDOMClassList` (the riskiest
+   assumptions — run probe mode, see ClaudeDetector.swift).
 2. Keychain for device credentials (UserDefaults in the rough-out).
 3. cbindgen FFI so the shell links `overlay-core` instead of the Swift port.
 4. Real sign-in (email verify exists server-side) and local frequency caps in
