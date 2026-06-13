@@ -61,13 +61,16 @@ if (claudeGuy) {
 }
 
 // --- Sponsored ad rotation (the "with freeai" line) ---
+// Sponsored lines for the "With FreeAI" card. Each chip carries the sponsor's
+// own brand color; copy follows one house style — "Brand · Sentence-case line"
+// with a middot separator — to stay consistent with TICKER_ADS above.
 const ADS = [
-  { chip: "R", color: "#ffd54a", ink: "#1b1e25", text: "Ramp · save time and money" },
-  { chip: "L", color: "#5b5bd6", ink: "#fff", text: "Linear — issue tracking built for speed" },
-  { chip: "△", color: "#000", ink: "#fff", text: "Vercel · ship your agent to prod" },
+  { chip: "R", color: "#ffd54a", ink: "#1b1e25", text: "Ramp · Save time and money" },
+  { chip: "L", color: "#5b5bd6", ink: "#fff", text: "Linear · Issue tracking built for speed" },
+  { chip: "△", color: "#000", ink: "#fff", text: "Vercel · Ship your agent to prod" },
   { chip: "N", color: "#00e599", ink: "#04130a", text: "Neon · Postgres your agent can branch" },
-  { chip: "R", color: "#111", ink: "#fff", text: "Resend — email for developers" },
-  { chip: "F", color: "#1d6cff", ink: "#fff", text: "Fluidstack — building 10GW of compute" },
+  { chip: "R", color: "#111", ink: "#fff", text: "Resend · Email built for developers" },
+  { chip: "F", color: "#1d6cff", ink: "#fff", text: "Fluidstack · Building 10GW of compute" },
 ];
 let ai = 0;
 const rotator = document.getElementById("ad-rotator");
