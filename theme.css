@@ -1,31 +1,65 @@
-/* FreeAI.fyi — universal theme tokens.
- * Single source of truth for color across the landing page and the Chrome
- * extension. The extension ships its own synced copy at
- * chrome-extension/popup/theme.css — keep the two identical.
+/* FreeAI.fyi — universal design tokens. THE SINGLE SOURCE OF TRUTH for color
+ * and fonts across every surface: landing page + portal, the Chrome extension
+ * (popup and injected bar), and the macOS app.
  *
- * Palette follows Anthropic / Claude: warm Claude coral on a cream canvas
- * with near-black ink and warm neutral grays. */
+ * Palette follows Anthropic / Claude: warm Claude coral on a cream canvas with
+ * near-black ink and warm neutral grays. A second, darker "overlay / sponsor"
+ * palette (--ov-*) styles the subtle sponsored pill shown while an assistant is
+ * thinking.
+ *
+ * This file is consumed directly by the website and the extension popup. Three
+ * places cannot reach it at runtime and therefore MIRROR these values — keep
+ * them in sync in the same commit when you change a token (see AGENTS.md ▸
+ * Design System):
+ *   1. chrome-extension/popup/theme.css        — byte-identical copy of this file
+ *   2. chrome-extension/src/inject.css          — re-declares the --ov-* + font
+ *                                                 tokens on .bb-bar (injected into
+ *                                                 third-party pages, no theme.css)
+ *   3. desktop/macos/.../OverlayPanel.swift     — `Palette` enum mirrors --ov-*
+ */
 :root {
-  /* Brand accent — Claude coral */
+  /* ── Brand / accent — Claude coral ── */
   --accent: #d97757;
   --accent-d: #c15f3c;
   --accent-grad-a: #e08a6a;
   --accent-grad-b: #cf6b4a;
 
-  /* Surfaces */
+  /* ── Surfaces ── */
   --bg-cream: #faf9f5;
   --bg-tint: #f0eee6;
   --card-dark: #2b2a28;
   --card-dark-2: #1c1b18;
 
-  /* Ink & neutrals (warm) */
+  /* ── Ink & neutrals (warm) ── */
   --ink: #1f1e1d;
   --ink-2: #3d3b37;
   --gray: #6b6963;
   --gray-2: #9b988f;
   --line: #e6e2d8;
 
-  /* Legacy aliases — existing rules recolor to the Claude palette via these.
+  /* ── Fonts ── */
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* ── Overlay / sponsor palette — the dark pill shown while the assistant is
+   * thinking. Mirrored verbatim in inject.css (.bb-bar) and OverlayPanel.swift
+   * (Palette), and used by the landing page's before/after demo. */
+  --ov-bar-bg: rgba(20, 23, 28, 0.92);
+  --ov-bar-bg-hover: rgba(24, 28, 34, 0.96);
+  --ov-bar-border: rgba(255, 255, 255, 0.05);
+  --ov-text: #e9ecf2;          /* bar default text */
+  --ov-line: #f1f3f7;          /* primary sponsor line */
+  --ov-dots: #8b94a4;          /* dismiss / dots tint (macOS overlay) */
+  --ov-chip-bg: #ffd54a;       /* sponsor-initial chip background */
+  --ov-chip-ink: #1b1e25;      /* sponsor-initial chip text */
+  --ov-tag-bg: rgba(217, 119, 87, 0.16);
+  --ov-tag-text: #e8a486;
+  --ov-tag-bg-test: rgba(217, 119, 87, 0.24);
+  --ov-tag-text-test: #f0b59e;
+  --ov-test-border: rgba(217, 119, 87, 0.3);
+  --ov-demo-line: #e7eaf0;     /* landing-page before/after demo line color */
+
+  /* ── Legacy aliases — existing rules recolor to the Claude palette via these.
    * Prefer the semantic names above for new styles. */
   --green: var(--accent);
   --green-d: var(--accent-d);

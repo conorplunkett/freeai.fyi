@@ -1,7 +1,5 @@
-:root {
-  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --sans: "Inter", system-ui, -apple-system, sans-serif;
-}
+/* Design tokens (color + fonts) live in theme.css — linked before this file in
+ * popup.html. Reference them via var(--…). */
 * { box-sizing: border-box; }
 body {
   width: 340px;

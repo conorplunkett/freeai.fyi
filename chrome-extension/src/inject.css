@@ -1,5 +1,24 @@
 /* FreeAI.fyi — injected sponsored bar. Deliberately understated. */
 .bb-bar {
+  /* Overlay / font tokens — mirror of theme.css (--ov-* and fonts). theme.css is
+     not loaded on third-party pages, so the bar re-declares the tokens it uses
+     here, scoped to itself (they inherit to .bb-chip / .bb-line / .bb-tag).
+     Keep these in sync with theme.css — see AGENTS.md ▸ Design System. */
+  --ov-bar-bg: rgba(20, 23, 28, 0.92);
+  --ov-bar-bg-hover: rgba(24, 28, 34, 0.96);
+  --ov-bar-border: rgba(255, 255, 255, 0.05);
+  --ov-text: #e9ecf2;
+  --ov-line: #f1f3f7;
+  --ov-chip-bg: #ffd54a;
+  --ov-chip-ink: #1b1e25;
+  --ov-tag-bg: rgba(217, 119, 87, 0.16);
+  --ov-tag-text: #e8a486;
+  --ov-tag-bg-test: rgba(217, 119, 87, 0.24);
+  --ov-tag-text-test: #f0b59e;
+  --ov-test-border: rgba(217, 119, 87, 0.3);
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+
   position: fixed;
   left: 50%;
   bottom: 96px;
@@ -11,13 +30,13 @@
   max-width: min(560px, 92vw);
   padding: 9px 14px;
   border-radius: 999px;
-  background: rgba(20, 23, 28, 0.92);
-  color: #e9ecf2;
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--ov-bar-bg);
+  color: var(--ov-text);
+  font-family: var(--mono);
   font-size: 13px;
   line-height: 1;
   box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ov-bar-border);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   cursor: pointer;
@@ -50,7 +69,7 @@
   transform: none;
 }
 .bb-bar:hover {
-  background: rgba(24, 28, 34, 0.96);
+  background: var(--ov-bar-bg-hover);
 }
 .bb-chip {
   display: inline-grid;
@@ -58,15 +77,15 @@
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--sans);
   font-weight: 800;
   font-size: 11px;
-  background: #ffd54a;
-  color: #1b1e25;
+  background: var(--ov-chip-bg);
+  color: var(--ov-chip-ink);
   flex: 0 0 auto;
 }
 .bb-line {
-  color: #f1f3f7;
+  color: var(--ov-line);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -81,19 +100,19 @@
   margin-left: 6px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(217, 119, 87, 0.16);
-  color: #e8a486;
+  background: var(--ov-tag-bg);
+  color: var(--ov-tag-text);
   font-size: 10px;
   letter-spacing: 0.02em;
   flex: 0 0 auto;
 }
 /* Test Mode — identifiable via the badge, border kept subtle. */
 .bb-bar.bb-test {
-  border-color: rgba(217, 119, 87, 0.3);
+  border-color: var(--ov-test-border);
 }
 .bb-bar.bb-test .bb-tag {
-  background: rgba(217, 119, 87, 0.24);
-  color: #f0b59e;
+  background: var(--ov-tag-bg-test);
+  color: var(--ov-tag-text-test);
   font-weight: 700;
 }
 

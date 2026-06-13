@@ -22,14 +22,18 @@ final class OverlayPanelController {
     /// bottom of the Claude window (the extension's fixed pill uses 96px too).
     static let bottomInset: CGFloat = 96
 
-    // Palette lifted from chrome-extension/src/inject.css (.bb-bar et al).
+    // Overlay palette — mirror of the --ov-* design tokens in the repo-root
+    // theme.css (the single source of truth for color). Native Swift can't read
+    // theme.css, so these are mirrored by hand: when an --ov-* token changes,
+    // update the matching member here in the same commit (AGENTS.md ▸ Design
+    // System). Each line is tagged with its canonical token name.
     private enum Palette {
-        static let barBackground = NSColor(red: 20/255, green: 23/255, blue: 28/255, alpha: 0.92)
-        static let barBorder = NSColor(white: 1, alpha: 0.05)
-        static let dots = NSColor(red: 139/255, green: 148/255, blue: 164/255, alpha: 1) // #8b94a4
-        static let chipBackground = NSColor(red: 1, green: 213/255, blue: 74/255, alpha: 1) // #ffd54a
-        static let chipText = NSColor(red: 27/255, green: 30/255, blue: 37/255, alpha: 1)   // #1b1e25
-        static let line = NSColor(red: 241/255, green: 243/255, blue: 247/255, alpha: 1)    // #f1f3f7
+        static let barBackground = NSColor(red: 20/255, green: 23/255, blue: 28/255, alpha: 0.92) // --ov-bar-bg
+        static let barBorder = NSColor(white: 1, alpha: 0.05)                                     // --ov-bar-border
+        static let dots = NSColor(red: 139/255, green: 148/255, blue: 164/255, alpha: 1)          // --ov-dots     #8b94a4
+        static let chipBackground = NSColor(red: 1, green: 213/255, blue: 74/255, alpha: 1)       // --ov-chip-bg  #ffd54a
+        static let chipText = NSColor(red: 27/255, green: 30/255, blue: 37/255, alpha: 1)         // --ov-chip-ink #1b1e25
+        static let line = NSColor(red: 241/255, green: 243/255, blue: 247/255, alpha: 1)          // --ov-line     #f1f3f7
     }
 
     // Layout metrics mirroring the extension bar (padding 14, gap 9, 18px chip).

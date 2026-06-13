@@ -80,12 +80,46 @@ redemption.
   | Claude Max 5x Gift | $100/mo | $100 | $300 | $600 | $1,200 |
   | Claude Max 20x Gift | $200/mo | $200 | $600 | $1,200 | $2,400 |
 
-## Theming
+## Design system
 
-`theme.css` at the repo root is the single source of truth for color (Claude
-coral on a cream canvas). The Chrome extension ships a **byte-identical** copy at
-`chrome-extension/popup/theme.css` — keep the two in sync. Prefer the semantic
-tokens (`--accent`, `--ink`, `--line`, …) for new styles.
+**`theme.css` at the repo root is the single source of truth for every color and
+font in the project** — landing page, portal, Chrome extension (popup + injected
+bar), and the macOS app. Always use it.
+
+1. **Hard rule — never hardcode a color or font.** Do not write a raw hex/rgba
+   value or a `font-family` stack anywhere (HTML/CSS/JS/Swift). Add or reuse a
+   token in `theme.css`, then reference it: `var(--accent)`, `var(--ov-line)`,
+   `var(--mono)` in CSS; the annotated `Palette` in Swift. The **only** exception
+   is per-sponsor brand colors carried as ad inventory in
+   `chrome-extension/src/ads.js` / `script.js` (a sponsor's own chip color) —
+   that's content, not a design token.
+
+2. **Two tokenized palettes.** The cream/coral **site palette** (`--accent`,
+   `--ink`, `--line`, `--bg-cream`, …) and the dark **overlay/sponsor palette**
+   (`--ov-*`) used by the subtle pill shown while an assistant is thinking. Fonts
+   are tokens too: `--mono`, `--sans`.
+
+3. **Three mirrors must move together.** The website and the extension popup read
+   `theme.css` directly. Three places can't reach it at runtime and mirror its
+   values — when you change a token, update all of them **in the same commit**:
+
+   | Surface | How it consumes tokens |
+   | --- | --- |
+   | Landing page + portal | links `theme.css` directly → `var(--…)` |
+   | Extension popup | `chrome-extension/popup/theme.css` — **byte-identical copy** of root `theme.css` (`cp theme.css chrome-extension/popup/theme.css`) |
+   | Injected sponsor bar | `chrome-extension/src/inject.css` — re-declares the `--ov-*` + font tokens on `.bb-bar` (theme.css is **not** loaded on third-party pages like claude.ai), then uses `var(--…)` |
+   | macOS overlay | `OverlayPanel.swift` `Palette` enum — each member tagged with its `--ov-*` token name |
+
+   There is no build step or sync script (by design) — keeping the mirrors honest
+   is a manual discipline, enforced by this doc.
+
+4. **Sanctioned divergence.** The macOS overlay uses native
+   `NSFont.monospacedSystemFont` rather than bundling JetBrains Mono — colors are
+   unified, the font is intentionally native. Don't "fix" it.
+
+5. **Next token group.** Radius/shadow values are still inline and not yet
+   tokenized — when you first need to share one, add a `--radius-*` / `--shadow-*`
+   group to `theme.css` rather than hardcoding it.
 
 ## The landing page is live
 
