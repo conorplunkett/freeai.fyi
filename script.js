@@ -22,17 +22,29 @@ const TICKER_ADS = [
   track.innerHTML = run + run;
 })();
 
-// --- Spinner word rotation (stock Claude Code vibes) ---
-const STOCK_WORDS = [
-  "Baking", "Discombobulating", "Percolating", "Simmering", "Marinating",
-  "Computing", "Vibing", "Noodling", "Ruminating", "Conjuring",
-];
-let sw = 0;
-const wordStock = document.getElementById("word-stock");
-setInterval(() => {
-  sw = (sw + 1) % STOCK_WORDS.length;
-  if (wordStock) wordStock.textContent = STOCK_WORDS[sw];
-}, 1600);
+// --- Little Claude Code guy hanging out behind the ad bar ---
+// He idles (bobbing + blinking via CSS) and every few seconds either shuffles
+// along the right end of the bar, ducks down behind it, or does a tiny hop.
+const claudeGuy = document.getElementById("claude-guy");
+if (claudeGuy) {
+  const wander = () => {
+    const roll = Math.random();
+    if (roll < 0.4) {
+      // shuffle to a new spot, staying near the far right end
+      claudeGuy.style.right = Math.round(16 + Math.random() * 95) + "px";
+    } else if (roll < 0.6) {
+      // shy — duck behind the bar for a moment
+      claudeGuy.classList.add("cg-duck");
+      setTimeout(() => claudeGuy.classList.remove("cg-duck"), 1700);
+    } else {
+      // lil hop
+      claudeGuy.classList.add("cg-hop");
+      setTimeout(() => claudeGuy.classList.remove("cg-hop"), 600);
+    }
+    setTimeout(wander, 2800 + Math.random() * 3200);
+  };
+  setTimeout(wander, 2200);
+}
 
 // --- Sponsored ad rotation (the "with freeai" line) ---
 const ADS = [
