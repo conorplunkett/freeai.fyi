@@ -28,7 +28,8 @@ JWTs.
 | Secret | Needed for |
 | --- | --- |
 | `STRIPE_SECRET_KEY` | advertiser checkout, refunds, payouts |
-| `STRIPE_WEBHOOK_SECRET` | verifying `/v1/webhooks/stripe` |
+| `STRIPE_WEBHOOK_SECRET` | verifying `/v1/webhooks/stripe` (your-account events, e.g. `checkout.session.completed`) |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | optional; verifies the separate Connect / connected-accounts event destination (e.g. `account.updated`) |
 | `ADMIN_KEY` | `/admin`, moderation, killswitch, payouts, OAuth-state HMAC |
 | `RESEND_API_KEY` + `MAIL_PROVIDER=resend` + `MAIL_FROM` | sending login / verify / fulfillment email |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in |
@@ -43,7 +44,11 @@ The API host moved off `api.freeai.fyi`, so update these to the new base
 
 - **Google / Apple OAuth** redirect URIs →
   `…/v1/auth/google/callback` and `…/v1/auth/apple/callback`.
-- **Stripe** webhook endpoint → `…/v1/webhooks/stripe`.
+- **Stripe** webhook endpoint → `…/v1/webhooks/stripe`. Connect-based payouts
+  need a second event destination scoped to **connected accounts** (for
+  `account.updated`) pointing at the same URL; put its signing secret in
+  `STRIPE_CONNECT_WEBHOOK_SECRET` (the your-account destination's secret stays
+  in `STRIPE_WEBHOOK_SECRET`).
 
 ## Two differences from the Node server
 
