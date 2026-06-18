@@ -458,7 +458,10 @@ a { color: inherit; text-decoration: none; }
   .demo { grid-template-columns: 1fr; gap: 8px; }
   .demo-chevs { transform: rotate(90deg); justify-self: center; }
   .demo-card { padding: 18px 16px; }
-  .demo-line { font-size: 14.5px; flex-wrap: wrap; }
+  /* Keep the sponsored line on ONE line whatever ad rotates in, so the
+     black card never changes height. Long ads shrink-to-fit, then ellipsis. */
+  .demo-line { font-size: 13px; flex-wrap: nowrap; white-space: nowrap; }
+  .demo-line .ad-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .claude-guy { right: 16px; }
 
   /* install card */
