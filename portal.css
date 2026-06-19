@@ -13,6 +13,12 @@
   min-height: 100vh;
   min-height: 100dvh; /* stable height under iOS Safari's collapsing URL bar */
 }
+/* `.portal-split { display: grid }` outranks the UA `[hidden]` rule, so the
+   login page must opt back into display:none when redeem.js sets hidden — else
+   it stays visible on top of the signed-in dashboard. */
+#login-page[hidden] {
+  display: none;
+}
 
 /* ── Left column — hero ── */
 .portal-left {
