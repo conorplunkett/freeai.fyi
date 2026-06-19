@@ -1,21 +1,25 @@
 // --- Live ticker (top banner) ---
 // Seeded with mock winning bids. When the API is wired, the leaderboard feed
 // can populate this the same way loadLeaderboard() fills the board below.
+// Each entry carries a little brand logo chip (initial + brand color) shown
+// before the name in the moving banner.
 const TICKER_ADS = [
-  { brand: "Ramp", text: "Save time and money on every dollar you spend" },
-  { brand: "Linear", text: "Issue tracking built for high-performance teams" },
-  { brand: "Vercel", text: "Ship your agent to production in seconds" },
-  { brand: "Neon", text: "Serverless Postgres your agent can branch" },
-  { brand: "Resend", text: "The email API built for developers" },
-  { brand: "Fluidstack", text: "Building 10GW of compute. Join us." },
-  { brand: "Tuple", text: "Remote pair programming, done right" },
-  { brand: "Stripe", text: "Financial infrastructure for the internet" },
+  { brand: "Ramp", logo: "R", color: "#ffd54a", ink: "#1b1e25", text: "Save time and money on every dollar you spend" },
+  { brand: "Linear", logo: "L", color: "#5b5bd6", ink: "#fff", text: "Issue tracking built for high-performance teams" },
+  { brand: "Vercel", logo: "△", color: "#000", ink: "#fff", text: "Ship your agent to production in seconds" },
+  { brand: "Neon", logo: "N", color: "#00e599", ink: "#04130a", text: "Serverless Postgres your agent can branch" },
+  { brand: "Resend", logo: "R", color: "#111", ink: "#fff", text: "The email API built for developers" },
+  { brand: "Fluidstack", logo: "F", color: "#1d6cff", ink: "#fff", text: "Building 10GW of compute. Join us." },
+  { brand: "Tuple", logo: "T", color: "#5d5fef", ink: "#fff", text: "Remote pair programming, done right" },
+  { brand: "Stripe", logo: "S", color: "#635bff", ink: "#fff", text: "Financial infrastructure for the internet" },
 ];
 (function buildTicker() {
   const track = document.getElementById("ticker-track");
   if (!track) return;
   const cell = (ad) =>
-    `<span class="tick"><span class="tick-brand">${ad.brand}</span>` +
+    `<span class="tick">` +
+    `<span class="tick-logo" style="background:${ad.color};color:${ad.ink}">${ad.logo}</span>` +
+    `<span class="tick-brand">${ad.brand}</span>` +
     `<span class="tick-text">${ad.text}</span></span>`;
   // Duplicate the run so the -50% scroll loops seamlessly.
   const run = TICKER_ADS.map(cell).join("");
@@ -73,7 +77,7 @@ const ADS = [
   { chip: "F", color: "#1d6cff", ink: "#fff", text: "Fluidstack · Building 10GW of compute" },
 ];
 let ai = 0;
-const rotator = document.getElementById("ad-rotator");
+const rotator = document.getElementById("brand-line");
 const chip = document.querySelector(".brandchip");
 // Paint the first ad immediately so the "With FreeAI" line is never empty,
 // even before the first rotation tick.

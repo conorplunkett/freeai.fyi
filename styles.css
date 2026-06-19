@@ -31,6 +31,11 @@ a { color: inherit; text-decoration: none; }
   padding: 0 26px; font-family: var(--mono); font-size: 12.5px;
   border-right: 1px solid #181d26;
 }
+.tick-logo {
+  display: inline-grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 4px; font-family: var(--sans); font-weight: 800; font-size: 11px;
+  line-height: 1; flex: none;
+}
 .tick-brand { color: var(--green); font-weight: 700; letter-spacing: .03em; }
 .tick-text { color: #aab1bd; }
 
@@ -125,7 +130,9 @@ a { color: inherit; text-decoration: none; }
   background: var(--ov-chip-bg); color: var(--ov-chip-ink); font-weight: 800; font-size: 13px; border-radius: 5px;
   font-family: var(--sans); flex: none;
 }
-.ad-text { color: var(--ov-demo-line); }
+/* Named "brand-line" (not "ad-text") so ad blockers don't hide the sponsored
+   line in our own before/after demo. */
+.brand-line { color: var(--ov-demo-line); }
 
 /* INSTALL CARD */
 .install-card {
