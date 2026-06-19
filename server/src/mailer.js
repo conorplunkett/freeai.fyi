@@ -49,6 +49,51 @@ function createMailer(config) {
     );
   }
 
+  // Receipt for an advertiser whose Stripe Checkout payment just completed.
+  // Confirms the charge and sets the expectation that the ad doesn't serve
+  // until it clears review. Stripe sends its own itemized payment receipt
+  // separately (via receipt_email on the checkout session).
+  async function sendAdvertiserReceiptEmail(to, { campaignId, brand, adLine, pricePerBlockCents, blocks }) {
+    const perBlockUsd = pricePerBlockCents / 100;
+    const totalUsd = (pricePerBlockCents * blocks) / 100;
+    const impressions = blocks * 1000;
+    await send(
+      to,
+      "Your FreeAI campaign receipt",
+      `<p>Thanks for advertising on FreeAI — your payment is confirmed.</p>
+       <ul>
+         <li><strong>Ad line:</strong> "${adLine}"</li>
+         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
+         <li><strong>Blocks:</strong> ${blocks} (${impressions.toLocaleString("en-US")} impressions)</li>
+         <li><strong>Price per block:</strong> US$${perBlockUsd.toFixed(2)}</li>
+         <li><strong>Total paid:</strong> US$${totalUsd.toFixed(2)}</li>
+         <li><strong>Campaign id:</strong> ${campaignId}</li>
+       </ul>
+       <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
+       <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`
+    );
+  }
+
+  // Sent when a paid campaign is rejected in moderation and refunded. Tells the
+  // advertiser the charge was reversed (Stripe also emails its own refund
+  // notification) and includes the reviewer's note when there is one.
+  async function sendCampaignRejectedEmail(to, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }) {
+    const totalUsd = (pricePerBlockCents * blocks) / 100;
+    await send(
+      to,
+      "Your FreeAI campaign was refunded",
+      `<p>Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>
+       <ul>
+         <li><strong>Ad line:</strong> "${adLine}"</li>
+         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
+         <li><strong>Refunded:</strong> US$${totalUsd.toFixed(2)}</li>
+         <li><strong>Campaign id:</strong> ${campaignId}</li>
+       </ul>
+       ${note ? `<p><strong>Reviewer note:</strong> ${note}</p>` : ""}
+       <p>The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.</p>`
+    );
+  }
+
   // Fulfillment notification for a Claude gift card redemption. Goes to the
   // fulfillment inbox (not the user); the gift card itself is sent manually
   // within 48 hours.
@@ -68,7 +113,24 @@ function createMailer(config) {
     );
   }
 
-  return { sendVerifyEmail, sendWebLoginEmail, sendGiftRedemptionEmail };
+  // Invite a friend to FreeAI. Sent to the invitee from the dashboard's
+  // "refer a friend" form. The link carries the referrer's code (?ref=…) so the
+  // friend is attributed when they sign up.
+  async function sendReferralInviteEmail(to, { inviterEmail, link, rewardUsd }) {
+    const reward = `$${Math.round(rewardUsd)}`;
+    await send(
+      to,
+      `${inviterEmail} invited you to FreeAI — free Claude credits`,
+      `<p>${inviterEmail} is using FreeAI to earn free Claude credits and wants you in.</p>
+       <p>FreeAI shows one subtle sponsored line while you use ChatGPT, Claude, or
+          Gemini, and pays you back 50% of the revenue as Claude credits.</p>
+       <p><a href="${link}">Accept the invite and claim your credits</a></p>
+       <p>When you sign up with this link and redeem your first Claude gift card,
+          ${inviterEmail} earns a one-time ${reward} bonus — at no cost to you.</p>`
+    );
+  }
+
+  return { sendVerifyEmail, sendWebLoginEmail, sendAdvertiserReceiptEmail, sendCampaignRejectedEmail, sendGiftRedemptionEmail, sendReferralInviteEmail };
 }
 
 module.exports = { createMailer };

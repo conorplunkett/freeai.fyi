@@ -9,7 +9,7 @@ values ('00000000-0000-0000-0000-0000000000a1', 'ads@freeai.fyi')
 on conflict (id) do nothing;
 
 insert into campaigns (
-  id, advertiser_id, brand, ad_line, url, category,
+  id, advertiser_id, brand, ad_line, url, category, color,
   price_per_block_cents, blocks, impressions_total, impressions_remaining,
   show_on_leaderboard, status, paid_at, activated_at
 ) values (
@@ -19,6 +19,7 @@ insert into campaigns (
   'FreeAI — get Claude for free with ads.',
   'https://freeai.fyi',
   'other',
+  '#34a853',
   500, 10, 10000, 10000,
   true, 'active', now(), now()
 ) on conflict (id) do nothing;

@@ -44,6 +44,9 @@ create table if not exists campaigns (
   ad_line text not null check (char_length(ad_line) between 3 and 60),
   url text not null check (url like 'https://%'),
   category text not null default 'other',
+  -- Advertiser-chosen accent color for the ad line, "#rrggbb"; null falls back
+  -- to a per-brand color in the client.
+  color text check (color is null or color ~* '^#[0-9a-f]{6}$'),
   price_per_block_cents integer not null check (price_per_block_cents >= 100),  -- min $1.00
   blocks integer not null check (blocks > 0),
   impressions_total integer not null,      -- blocks * 1000
@@ -60,6 +63,9 @@ create table if not exists campaigns (
   paid_at timestamptz,
   activated_at timestamptz
 );
+
+-- Backfill the color column on databases created before it existed.
+alter table campaigns add column if not exists color text;
 
 create index if not exists campaigns_auction_idx
   on campaigns (status, price_per_block_cents desc)
@@ -198,6 +204,29 @@ create table if not exists referrals (
   created_at timestamptz not null default now()
 );
 create index if not exists referrals_referrer_idx on referrals (referrer_user_id);
+
+-- Email invites a user sends from the dashboard. The status tells the story of
+-- one invitation: 'sent' (the email went out — the "sent" indicator), 'joined'
+-- (the friend signed up with the code — the "code used" indicator), 'rewarded'
+-- (they redeemed and the referrer was paid). One invite per (referrer, email);
+-- re-inviting the same address just refreshes sent_at. The referrals table above
+-- stays the source of truth for money; this table only tracks outreach + the two
+-- indicators, joined to a referral by the friend's email.
+create table if not exists referral_invites (
+  id uuid primary key default gen_random_uuid(),
+  referrer_user_id uuid not null references users(id),
+  email text not null,
+  code text not null,
+  status text not null default 'sent'
+    check (status in ('sent', 'joined', 'rewarded')),
+  sent_at timestamptz not null default now(),
+  joined_at timestamptz,
+  rewarded_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (referrer_user_id, email)
+);
+create index if not exists referral_invites_referrer_idx on referral_invites (referrer_user_id);
+create index if not exists referral_invites_email_idx on referral_invites (lower(email));
 
 -- Allow the referral bonus entry type in the ledger. Drop + re-add so re-running
 -- the migration is idempotent and existing databases pick up the new value.

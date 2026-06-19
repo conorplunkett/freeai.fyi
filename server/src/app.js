@@ -7,7 +7,7 @@ const crypto = require("node:crypto");
 const { verifyWebhookSignature } = require("./stripe");
 const { GIFT_PLANS, GIFT_MONTHS, giftPriceCents } = require("./giftcards");
 const { runPayouts } = require("./payouts");
-const { escapeHtml, isCleanAdLine } = require("./util");
+const { escapeHtml, isCleanAdLine, normalizeHexColor } = require("./util");
 
 function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   // Killswitch: when off, /v1/config tells extensions to stop serving and
@@ -78,7 +78,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const ads = serving ? await repo.activeAds() : [];
     json(res, 200, {
       revenueShare: config.revenueShare,
-      ads: ads.map((a) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category })),
+      ads: ads.map((a) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category, color: a.color || undefined })),
     });
   });
 
@@ -130,7 +130,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
 
   // ---------- money in: advertiser checkout ----------
   route("POST", "/v1/checkout", async (req, res, body) => {
-    const { email, adLine, url, brand, category, pricePerBlock, blocks, showOnLeaderboard } = body || {};
+    const { email, adLine, url, brand, category, color, pricePerBlock, blocks, showOnLeaderboard } = body || {};
     const priceCents = Math.round(Number(pricePerBlock) * 100);
     const nBlocks = parseInt(blocks, 10);
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { error: "valid email required" });
@@ -140,10 +140,11 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!(nBlocks >= 1)) return json(res, 400, { error: "at least 1 block" });
 
     const campaignId = await repo.createPendingCampaign({
-      email, brand, adLine, url, category, pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard,
+      email, brand, adLine, url, category, color: normalizeHexColor(color),
+      pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard,
     });
     const session = await stripe.createCheckoutSession({
-      mode: "payment", customer_email: email,
+      mode: "payment", customer_email: email, receipt_email: email,
       line_items: [{
         quantity: nBlocks,
         price_data: {
@@ -172,7 +173,25 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     switch (event.type) {
       case "checkout.session.completed": {
         const obj = event.data?.object || {};
-        if (obj.metadata?.campaign_id) await repo.markCampaignPaid(obj.metadata.campaign_id, obj.payment_intent);
+        if (obj.metadata?.campaign_id) {
+          const paid = await repo.markCampaignPaid(obj.metadata.campaign_id, obj.payment_intent);
+          // Only on the transitioning call (paid is the campaign details, not
+          // false). Wrapped so a mail outage never rolls back the funded state —
+          // the webhook event is already claimed and won't be retried.
+          if (paid) {
+            try {
+              await mailer.sendAdvertiserReceiptEmail(paid.email, {
+                campaignId: obj.metadata.campaign_id,
+                brand: paid.brand,
+                adLine: paid.adLine,
+                pricePerBlockCents: paid.pricePerBlockCents,
+                blocks: paid.blocks,
+              });
+            } catch (err) {
+              console.error("[freeai] advertiser receipt email failed", err);
+            }
+          }
+        }
         break;
       }
       case "account.updated": {
@@ -517,8 +536,38 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       cap: config.referralCap,
       rewardedCount: stats.rewardedCount,
       pendingCount: stats.pendingCount,
+      invitedCount: stats.invitedCount,
       creditsEarnedUsd: stats.creditsEarnedMillicents / 100000,
       referrals: stats.referrals,
+    });
+  });
+
+  // Invite a friend by email. Records the invite (the "sent" indicator) and
+  // emails them the user's referral link. You can't refer your own address —
+  // the code only ever attributes a brand-new account, so self-referral is both
+  // pointless and rejected here for a clear error.
+  route("POST", "/v1/web/referrals/invite", async (req, res, body) => {
+    const user = await repo.userForSession(sessionFrom(req, body));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const email = String(body?.email || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return json(res, 400, { error: "valid email required" });
+    }
+    if (email.toLowerCase() === String(user.email || "").toLowerCase()) {
+      return json(res, 400, { error: "you can't refer your own email" });
+    }
+    const code = await repo.getOrCreateReferralCode(user.id);
+    const link = `${config.siteUrl}/redeem.html?ref=${code}`;
+    const invite = await repo.createReferralInvite(user.id, email, code);
+    await mailer.sendReferralInviteEmail(email, {
+      inviterEmail: user.email,
+      link,
+      rewardUsd: config.referralRewardCents / 100,
+    });
+    json(res, 200, {
+      ok: true,
+      sent: true,
+      invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at },
     });
   });
 
@@ -586,6 +635,20 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (result.paymentIntentId) {
       try { await stripe.createRefund({ payment_intent: result.paymentIntentId }); }
       catch (err) { console.error("[freeai] refund failed:", err.message); }
+    }
+    // Tell the advertiser their campaign was rejected + refunded. Wrapped so a
+    // mail failure never fails the moderation action (already committed above).
+    try {
+      await mailer.sendCampaignRejectedEmail(result.email, {
+        campaignId: body.campaignId,
+        brand: result.brand,
+        adLine: result.adLine,
+        pricePerBlockCents: result.pricePerBlockCents,
+        blocks: result.blocks,
+        note: result.note,
+      });
+    } catch (err) {
+      console.error("[freeai] rejection email failed:", err.message);
     }
     json(res, 200, { ok: true, refunded: !!result.paymentIntentId });
   });

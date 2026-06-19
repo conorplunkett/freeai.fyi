@@ -118,6 +118,14 @@ function isUuid(s: any) {
   return typeof s === "string" && UUID_RE.test(s);
 }
 
+// Advertiser accent color, "#rrggbb" or bare "rrggbb" → canonical "#rrggbb",
+// else null (client falls back to a per-brand color).
+function normalizeHexColor(value: any) {
+  if (value == null || value === "") return null;
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(value).trim());
+  return match ? `#${match[1].toLowerCase()}` : null;
+}
+
 // ─────────────────────────── giftcards.js ──────────────────────────────────
 const GIFT_PLANS: any = {
   pro: { id: "pro", name: "Claude Pro", tagline: "For the curious", monthlyCents: 2000 },
@@ -210,7 +218,7 @@ function createMailer(cfg: any) {
         headers: { Authorization: `Bearer ${cfg.resendApiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ from: cfg.mailFrom || "FreeAI <hello@freeai.fyi>", to, subject, html: htmlBody }),
       });
-      if (!res.ok) throw new Error("resend send failed: " + res.status);
+      if (!res.ok) throw new Error("resend send failed: " + res.status + " " + (await res.text().catch(() => "")).slice(0, 300));
       return;
     }
     console.log(`[freeai][mail] to=${to} subject="${subject}"`);
@@ -224,6 +232,30 @@ function createMailer(cfg: any) {
       `<p>Click to sign in and redeem your FreeAI credits for Claude.</p>
        <p><a href="${link}">Sign in to FreeAI</a></p>
        <p>This link expires in 30 minutes. If you didn't request it, ignore this email.</p>`),
+    sendAdvertiserReceiptEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks }: any) =>
+      send(to, "Your FreeAI campaign receipt",
+      `<p>Thanks for advertising on FreeAI — your payment is confirmed.</p>
+       <ul>
+         <li><strong>Ad line:</strong> "${adLine}"</li>
+         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
+         <li><strong>Blocks:</strong> ${blocks} (${(blocks * 1000).toLocaleString("en-US")} impressions)</li>
+         <li><strong>Price per block:</strong> US$${(pricePerBlockCents / 100).toFixed(2)}</li>
+         <li><strong>Total paid:</strong> US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}</li>
+         <li><strong>Campaign id:</strong> ${campaignId}</li>
+       </ul>
+       <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
+       <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`),
+    sendCampaignRejectedEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }: any) =>
+      send(to, "Your FreeAI campaign was refunded",
+      `<p>Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>
+       <ul>
+         <li><strong>Ad line:</strong> "${adLine}"</li>
+         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
+         <li><strong>Refunded:</strong> US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}</li>
+         <li><strong>Campaign id:</strong> ${campaignId}</li>
+       </ul>
+       ${note ? `<p><strong>Reviewer note:</strong> ${note}</p>` : ""}
+       <p>The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.</p>`),
     sendGiftRedemptionEmail: (to: string, { redemptionId, planName, months, amountUsd, recipientEmail }: any) =>
       send(to, `Gift card redemption: ${months} month${months > 1 ? "s" : ""} of ${planName}`,
       `<p>A FreeAI user redeemed their credits for a Claude gift card.</p>
@@ -235,6 +267,14 @@ function createMailer(cfg: any) {
          <li><strong>Redemption id:</strong> ${redemptionId}</li>
        </ul>
        <p>Please fulfill within 48 hours.</p>`),
+    sendReferralInviteEmail: (to: string, { inviterEmail, link, rewardUsd }: any) =>
+      send(to, `${inviterEmail} invited you to FreeAI — free Claude credits`,
+      `<p>${inviterEmail} is using FreeAI to earn free Claude credits and wants you in.</p>
+       <p>FreeAI shows one subtle sponsored line while you use ChatGPT, Claude, or
+          Gemini, and pays you back 50% of the revenue as Claude credits.</p>
+       <p><a href="${link}">Accept the invite and claim your credits</a></p>
+       <p>When you sign up with this link and redeem your first Claude gift card,
+          ${inviterEmail} earns a one-time $${Math.round(rewardUsd)} bonus — at no cost to you.</p>`),
   };
 }
 const mailer = createMailer(config);
@@ -247,6 +287,16 @@ function generateReferralCode(len = 8) {
   let out = "";
   for (let i = 0; i < len; i++) out += REFERRAL_ALPHABET[bytes[i] % REFERRAL_ALPHABET.length];
   return out;
+}
+// Mask a referred friend's email for the dashboard (jane@acme.com -> j•••@acme.com)
+// so the page never leaks the full address of someone who signed up via a link.
+function maskEmail(email: string) {
+  const s = String(email || "");
+  const at = s.indexOf("@");
+  if (at < 1) return "•••";
+  const local = s.slice(0, at);
+  const head = local.length > 1 ? local[0] : "";
+  return `${head}•••@${s.slice(at + 1)}`;
 }
 const LOCK_REDEEM = 0x52454431; // "RED1"
 
@@ -268,6 +318,14 @@ function createRepo(pool: any) {
        values ($1, $2, 'pending') on conflict (referred_user_id) do nothing`,
       [referrer.id, newUserId]
     );
+    const ne = await client.query("select email from users where id = $1", [newUserId]);
+    if (ne.rows[0]?.email) {
+      await client.query(
+        `update referral_invites set status = 'joined', joined_at = now()
+          where referrer_user_id = $1 and lower(email) = lower($2) and status = 'sent'`,
+        [referrer.id, ne.rows[0].email]
+      );
+    }
   }
 
   async function maybeRewardReferral(client: any, referredUserId: string, rewardMillicents: any, cap: number) {
@@ -294,6 +352,14 @@ function createRepo(pool: any) {
       `update referrals set status = 'rewarded', rewarded_at = now(), reward_millicents = $2 where id = $1`,
       [id, String(rewardMillicents)]
     );
+    const re = await client.query("select email from users where id = $1", [referredUserId]);
+    if (re.rows[0]?.email) {
+      await client.query(
+        `update referral_invites set status = 'rewarded', rewarded_at = now()
+          where referrer_user_id = $1 and lower(email) = lower($2) and status <> 'rewarded'`,
+        [referrer_user_id, re.rows[0].email]
+      );
+    }
   }
 
   return {
@@ -312,7 +378,7 @@ function createRepo(pool: any) {
     },
     async activeAds(limit = 20) {
       const { rows } = await pool.query(
-        `select id, brand, ad_line, url, category, price_per_block_cents, show_on_leaderboard
+        `select id, brand, ad_line, url, category, color, price_per_block_cents, show_on_leaderboard
            from campaigns where status = 'active' and impressions_remaining > 0
           order by price_per_block_cents desc, activated_at asc limit $1`,
         [limit]
@@ -328,15 +394,15 @@ function createRepo(pool: any) {
       );
       return rows;
     },
-    async createPendingCampaign({ email, brand, adLine, url, category, pricePerBlockCents, blocks, showOnLeaderboard }: any) {
+    async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, showOnLeaderboard }: any) {
       return tx(async (c: any) => {
         const adv = await c.query("insert into advertisers (email) values ($1) returning id", [email]);
         const { rows } = await c.query(
           `insert into campaigns
-             (advertiser_id, brand, ad_line, url, category, price_per_block_cents,
+             (advertiser_id, brand, ad_line, url, category, color, price_per_block_cents,
               blocks, impressions_total, impressions_remaining, show_on_leaderboard)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9) returning id`,
-          [adv.rows[0].id, brand || null, adLine, url, category || "other",
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10) returning id`,
+          [adv.rows[0].id, brand || null, adLine, url, category || "other", color || null,
            pricePerBlockCents, blocks, blocks * 1000, showOnLeaderboard !== false]
         );
         return rows[0].id;
@@ -348,9 +414,12 @@ function createRepo(pool: any) {
     async markCampaignPaid(campaignId: string, paymentIntentId: string) {
       return tx(async (c: any) => {
         const { rows } = await c.query(
-          `update campaigns set status = 'pending_review', paid_at = now(),
-                  stripe_payment_intent_id = coalesce($2, stripe_payment_intent_id)
-            where id = $1 and status = 'pending_payment' returning price_per_block_cents, blocks`,
+          `update campaigns cmp set status = 'pending_review', paid_at = now(),
+                  stripe_payment_intent_id = coalesce($2, cmp.stripe_payment_intent_id)
+             from advertisers adv
+            where cmp.id = $1 and cmp.status = 'pending_payment'
+              and adv.id = cmp.advertiser_id
+            returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks`,
           [campaignId, paymentIntentId || null]
         );
         if (!rows[0]) return false;
@@ -360,7 +429,13 @@ function createRepo(pool: any) {
            values ('campaign_credit', $1, $2, $3)`,
           [funded.toString(), campaignId, JSON.stringify({ blocks: rows[0].blocks })]
         );
-        return true;
+        return {
+          email: rows[0].email,
+          brand: rows[0].brand,
+          adLine: rows[0].ad_line,
+          pricePerBlockCents: rows[0].price_per_block_cents,
+          blocks: rows[0].blocks,
+        };
       });
     },
     async pendingReviewCampaigns(limit = 50) {
@@ -382,9 +457,12 @@ function createRepo(pool: any) {
     async rejectCampaign(campaignId: string, note: string) {
       return tx(async (c: any) => {
         const { rows } = await c.query(
-          `update campaigns set status = 'rejected', review_note = $2
-            where id = $1 and status = 'pending_review'
-            returning price_per_block_cents, blocks, stripe_payment_intent_id`,
+          `update campaigns cmp set status = 'rejected', review_note = $2
+             from advertisers adv
+            where cmp.id = $1 and cmp.status = 'pending_review'
+              and adv.id = cmp.advertiser_id
+            returning adv.email, cmp.brand, cmp.ad_line,
+                      cmp.price_per_block_cents, cmp.blocks, cmp.stripe_payment_intent_id`,
           [campaignId, note || null]
         );
         if (!rows[0]) return null;
@@ -394,7 +472,15 @@ function createRepo(pool: any) {
            values ('campaign_refund', $1, $2, $3)`,
           [(-refund).toString(), campaignId, JSON.stringify({ note: note || null })]
         );
-        return { paymentIntentId: rows[0].stripe_payment_intent_id };
+        return {
+          paymentIntentId: rows[0].stripe_payment_intent_id,
+          email: rows[0].email,
+          brand: rows[0].brand,
+          adLine: rows[0].ad_line,
+          pricePerBlockCents: rows[0].price_per_block_cents,
+          blocks: rows[0].blocks,
+          note: note || null,
+        };
       });
     },
     async claimWebhookEvent(eventId: string, type: string) {
@@ -805,6 +891,17 @@ function createRepo(pool: any) {
       }
       throw new Error("could not allocate referral code");
     },
+    async createReferralInvite(referrerUserId: string, email: string, code: string) {
+      const r = await pool.query(
+        `insert into referral_invites (referrer_user_id, email, code)
+           values ($1, lower($2), $3)
+         on conflict (referrer_user_id, email)
+           do update set sent_at = now(), code = excluded.code
+         returning email, status, sent_at`,
+        [referrerUserId, email, code]
+      );
+      return r.rows[0];
+    },
     async referralStats(userId: string) {
       const stats = await pool.query(
         `select
@@ -815,15 +912,27 @@ function createRepo(pool: any) {
          from referrals where referrer_user_id = $1`,
         [userId]
       );
-      const list = await pool.query(
-        `select status, created_at from referrals where referrer_user_id = $1 order by created_at desc limit 50`,
+      const joined = await pool.query(
+        `select u.email, r.status, r.created_at
+           from referrals r join users u on u.id = r.referred_user_id
+          where r.referrer_user_id = $1 order by r.created_at desc limit 100`,
+        [userId]
+      );
+      const invited = await pool.query(
+        `select email, sent_at as created_at from referral_invites
+          where referrer_user_id = $1 and status = 'sent' order by sent_at desc limit 100`,
         [userId]
       );
       const s = stats.rows[0];
+      const referrals = [
+        ...invited.rows.map((r: any) => ({ email: maskEmail(r.email), status: "invited", createdAt: r.created_at })),
+        ...joined.rows.map((r: any) => ({ email: maskEmail(r.email), status: r.status, createdAt: r.created_at })),
+      ].sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt));
       return {
         rewardedCount: s.rewarded, pendingCount: s.pending, cappedCount: s.capped,
+        invitedCount: invited.rows.length,
         creditsEarnedMillicents: Number(s.earned_millicents),
-        referrals: list.rows.map((r: any) => ({ status: r.status, createdAt: r.created_at })),
+        referrals,
       };
     },
     async recordPayout(userId: string, amountCents: number, transferId: string) {
@@ -972,7 +1081,7 @@ route("GET", "/v1/_diag", async (ctx: any) => {
 route("GET", "/v1/config", async () => json(200, { serving, revenueShare: config.revenueShare }));
 route("GET", "/v1/ads", async () => {
   const ads = serving ? await repo.activeAds() : [];
-  return json(200, { revenueShare: config.revenueShare, ads: ads.map((a: any) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category })) });
+  return json(200, { revenueShare: config.revenueShare, ads: ads.map((a: any) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category, color: a.color || undefined })) });
 });
 route("GET", "/v1/leaderboard", async () => {
   const rows = await repo.leaderboard();
@@ -1015,7 +1124,7 @@ route("GET", "/v1/go/:token", async (ctx: any) => {
 
 // ── advertiser checkout ──
 route("POST", "/v1/checkout", async (ctx: any) => {
-  const { email, adLine, url, brand, category, pricePerBlock, blocks, showOnLeaderboard } = ctx.body || {};
+  const { email, adLine, url, brand, category, color, pricePerBlock, blocks, showOnLeaderboard } = ctx.body || {};
   const priceCents = Math.round(Number(pricePerBlock) * 100);
   const nBlocks = parseInt(blocks, 10);
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
@@ -1023,9 +1132,9 @@ route("POST", "/v1/checkout", async (ctx: any) => {
   if (!/^https:\/\/[^\s]+$/.test(url || "")) return json(400, { error: "https url required" });
   if (!(priceCents >= 100)) return json(400, { error: "min bid is $1.00 per block" });
   if (!(nBlocks >= 1)) return json(400, { error: "at least 1 block" });
-  const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
+  const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, color: normalizeHexColor(color), pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
   const session = await stripe.createCheckoutSession({
-    mode: "payment", customer_email: email,
+    mode: "payment", customer_email: email, receipt_email: email,
     line_items: [{ quantity: nBlocks, price_data: { currency: "usd", unit_amount: priceCents, product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `"${adLine}"` } } }],
     metadata: { campaign_id: campaignId },
     success_url: `${config.siteUrl}/?checkout=success`,
@@ -1049,7 +1158,24 @@ route("POST", "/v1/webhooks/stripe", async (ctx: any) => {
   switch (event.type) {
     case "checkout.session.completed": {
       const obj = event.data?.object || {};
-      if (obj.metadata?.campaign_id) await repo.markCampaignPaid(obj.metadata.campaign_id, obj.payment_intent);
+      if (obj.metadata?.campaign_id) {
+        const paid = await repo.markCampaignPaid(obj.metadata.campaign_id, obj.payment_intent);
+        // Only on the transitioning call. Wrapped so a mail outage never rolls
+        // back the funded state — the webhook event is already claimed.
+        if (paid) {
+          try {
+            await mailer.sendAdvertiserReceiptEmail((paid as any).email, {
+              campaignId: obj.metadata.campaign_id,
+              brand: (paid as any).brand,
+              adLine: (paid as any).adLine,
+              pricePerBlockCents: (paid as any).pricePerBlockCents,
+              blocks: (paid as any).blocks,
+            });
+          } catch (err) {
+            console.error("[freeai] advertiser receipt email failed", err);
+          }
+        }
+      }
       break;
     }
     case "account.updated": {
@@ -1295,8 +1421,23 @@ route("GET", "/v1/web/referrals", async (ctx: any) => {
     code, link: `${config.siteUrl}/redeem.html?ref=${code}`,
     rewardUsd: config.referralRewardCents / 100, cap: config.referralCap,
     rewardedCount: stats.rewardedCount, pendingCount: stats.pendingCount,
+    invitedCount: stats.invitedCount,
     creditsEarnedUsd: stats.creditsEarnedMillicents / 100000, referrals: stats.referrals,
   });
+});
+route("POST", "/v1/web/referrals/invite", async (ctx: any) => {
+  const user = await repo.userForSession(sessionFrom(ctx));
+  if (!user) return json(401, { error: "not signed in" });
+  const email = String(ctx.body?.email || "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
+  if (email.toLowerCase() === String(user.email || "").toLowerCase()) {
+    return json(400, { error: "you can't refer your own email" });
+  }
+  const code = await repo.getOrCreateReferralCode(user.id);
+  const link = `${config.siteUrl}/redeem.html?ref=${code}`;
+  const invite = await repo.createReferralInvite(user.id, email, code);
+  await mailer.sendReferralInviteEmail(email, { inviterEmail: user.email, link, rewardUsd: config.referralRewardCents / 100 });
+  return json(200, { ok: true, sent: true, invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at } });
 });
 route("POST", "/v1/web/redemptions", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));
@@ -1338,6 +1479,20 @@ route("POST", "/v1/admin/campaigns/reject", async (ctx: any) => {
   if (result.paymentIntentId) {
     try { await stripe.createRefund({ payment_intent: result.paymentIntentId }); }
     catch (err: any) { console.error("[freeai] refund failed:", err.message); }
+  }
+  // Tell the advertiser their campaign was rejected + refunded. Wrapped so a
+  // mail failure never fails the moderation action (already committed above).
+  try {
+    await mailer.sendCampaignRejectedEmail((result as any).email, {
+      campaignId: ctx.body?.campaignId,
+      brand: (result as any).brand,
+      adLine: (result as any).adLine,
+      pricePerBlockCents: (result as any).pricePerBlockCents,
+      blocks: (result as any).blocks,
+      note: (result as any).note,
+    });
+  } catch (err: any) {
+    console.error("[freeai] rejection email failed:", err.message);
   }
   return json(200, { ok: true, refunded: !!result.paymentIntentId });
 });

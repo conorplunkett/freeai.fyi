@@ -252,7 +252,26 @@
           <button class="btn-green" id="ref-copy" type="button">Copy link</button>
         </div>
 
+        <h3 class="ref-invite-h">Invite a friend by email</h3>
+        <form class="ref-invite-row" id="ref-invite-form">
+          <input
+            type="email"
+            id="ref-invite-email"
+            class="auth-input"
+            placeholder="friend@example.com"
+            autocomplete="off"
+            required
+            aria-label="Friend's email"
+          />
+          <button class="btn-green" id="ref-invite-btn" type="submit">Send invite</button>
+        </form>
+        <p class="ref-invite-msg" id="ref-invite-msg" hidden></p>
+
         <div class="ref-stats">
+          <div class="ref-stat">
+            <span class="rs-num" id="ref-invited">0</span>
+            <span class="rs-label">invited</span>
+          </div>
           <div class="ref-stat">
             <span class="rs-num" id="ref-count">0/10</span>
             <span class="rs-label">friends referred</span>

@@ -53,3 +53,15 @@ export function delay(ms) {
 export function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+// "Brand — slogan" like the Chrome extension, but only when the brand is not
+// already how the line starts (live inventory sometimes bakes the brand into
+// the line). Control chars are stripped so the text is safe to style.
+export function composeAdText(brand, line) {
+  const cleanLine = stripControlChars(line).trim();
+  const cleanBrand = stripControlChars(brand).trim();
+  if (!cleanLine) return cleanBrand;
+  if (!cleanBrand) return cleanLine;
+  if (cleanLine.toLowerCase().startsWith(cleanBrand.toLowerCase())) return cleanLine;
+  return `${cleanBrand} — ${cleanLine}`;
+}

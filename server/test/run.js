@@ -42,7 +42,10 @@ const mailbox = [];
 const fakeMailer = {
   sendVerifyEmail: async (to, link) => { mailbox.push({ to, link }); },
   sendWebLoginEmail: async (to, link) => { mailbox.push({ to, link }); },
+  sendAdvertiserReceiptEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  sendCampaignRejectedEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  sendReferralInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
 };
 
 (async () => {
@@ -138,6 +141,12 @@ const fakeMailer = {
     assert.strictEqual(ads.body.ads.length, 0);
     const wh = await payWebhook(campA);
     assert.strictEqual(wh.status, 200);
+    // the transitioning webhook emails the advertiser a receipt exactly once
+    const receipt = mailbox.find((m) => m.campaignId === campA);
+    assert.ok(receipt, "no advertiser receipt sent on payment");
+    assert.strictEqual(receipt.to, "ads@linear.app");
+    assert.strictEqual(receipt.blocks, 2);
+    assert.strictEqual(receipt.pricePerBlockCents, 500);
     ads = await api("GET", "/v1/ads");
     assert.strictEqual(ads.body.ads.length, 0, "served before moderation");
     const queue = await api("GET", "/v1/admin/campaigns", undefined, { "X-Admin-Key": "test-admin" });
@@ -518,6 +527,59 @@ const fakeMailer = {
     assert.strictEqual(capRefBal.balanceMillicents, 0);
   });
 
+  await check("email invites: send, self-refer guard, sent → joined → rewarded indicators", async () => {
+    const inviterSess = await loginVia("inviter@example.com");
+
+    // can't refer your own email
+    const self = await api("POST", "/v1/web/referrals/invite", { email: "inviter@example.com" },
+      { Authorization: `Bearer ${inviterSess}` });
+    assert.strictEqual(self.status, 400);
+
+    // a malformed address is rejected too
+    assert.strictEqual(
+      (await api("POST", "/v1/web/referrals/invite", { email: "nope" }, { Authorization: `Bearer ${inviterSess}` })).status,
+      400);
+
+    // invite a friend → email goes out and the invite is recorded as 'sent'
+    const inv = await api("POST", "/v1/web/referrals/invite", { email: "invitee@example.com" },
+      { Authorization: `Bearer ${inviterSess}` });
+    assert.strictEqual(inv.status, 200);
+    assert.strictEqual(inv.body.invite.status, "sent");
+    const invMail = mailbox.at(-1);
+    assert.strictEqual(invMail.to, "invitee@example.com");
+    const inviterCode = (await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` })).body.code;
+    assert.ok(invMail.link.includes(`ref=${inviterCode}`), "invite link carries the referrer's code");
+
+    // dashboard now shows the invite under the 'invited' stage, with the email
+    // masked so the page never leaks the full address
+    let dash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` });
+    assert.strictEqual(dash.body.invitedCount, 1);
+    const invitedItem = dash.body.referrals.find((r) => r.email === "i•••@example.com");
+    assert.ok(invitedItem && invitedItem.status === "invited", "invitee listed as invited (masked)");
+    assert.ok(!JSON.stringify(dash.body.referrals).includes("invitee@example.com"), "full email never leaves the server");
+
+    // friend signs up WITH the code → the invite's "code used" indicator flips to 'joined'
+    await loginVia("invitee@example.com", inviterCode);
+    assert.strictEqual(
+      (await poolNs.query("select status from referral_invites where lower(email) = 'invitee@example.com'")).rows[0].status,
+      "joined");
+    dash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` });
+    assert.strictEqual(dash.body.invitedCount, 0, "joined invite no longer counts as merely invited");
+    const joinedItem = dash.body.referrals.find((r) => r.email === "i•••@example.com");
+    assert.ok(joinedItem && joinedItem.status === "pending", "now shows as a pending referral with their (masked) email");
+
+    // friend redeems → invite reaches its terminal 'rewarded' stage
+    const inviteeId = await userId("invitee@example.com");
+    await poolNs.query("insert into ledger (entry_type, amount_millicents, user_id) values ('impression_credit', 2000000, $1)", [inviteeId]);
+    const inviteeSess = await loginVia("invitee@example.com");
+    assert.strictEqual(
+      (await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1, recipientEmail: "invitee@example.com" },
+        { Authorization: `Bearer ${inviteeSess}` })).status, 200);
+    assert.strictEqual(
+      (await poolNs.query("select status from referral_invites where lower(email) = 'invitee@example.com'")).rows[0].status,
+      "rewarded");
+  });
+
   // ---------- earnings dashboard + activity ledger ----------
   await check("web earnings endpoint reports today / month / lifetime and a chart series", async () => {
     const sess = await loginVia("earn@example.com");
@@ -584,6 +646,10 @@ const fakeMailer = {
     assert.strictEqual(st, "rejected");
     const refundEntry = await poolNs.query("select count(*)::int n from ledger where campaign_id = $1 and entry_type = 'campaign_refund'", [r.body.campaignId]);
     assert.strictEqual(refundEntry.rows[0].n, 1);
+    // the advertiser is emailed about the rejection + refund, with the note
+    const rejMail = mailbox.find((m) => m.campaignId === r.body.campaignId && m.note === "off-policy");
+    assert.ok(rejMail, "no rejection email sent");
+    assert.strictEqual(rejMail.to, "spam@x.io");
   });
 
   // ---------- XSS escaping on the admin page ----------

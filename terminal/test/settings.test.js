@@ -66,7 +66,7 @@ test("writeSessionSettings preserves user keys and overwrites statusLine", () =>
 test("buildFreeAiStatusLine sets a refresh interval so the ad re-renders while thinking", () => {
   const def = buildFreeAiStatusLine({ cliPath: "/freeai", statePath: "/state.json" });
   assert.equal(def.type, "command");
-  assert.equal(def.refreshInterval, 2);
+  assert.equal(def.refreshInterval, 1);
   const custom = buildFreeAiStatusLine({ cliPath: "/freeai", statePath: "/state.json", refreshInterval: 5 });
   assert.equal(custom.refreshInterval, 5);
 });

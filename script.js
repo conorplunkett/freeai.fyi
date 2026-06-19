@@ -238,6 +238,7 @@ if (adForm) {
       adLine: document.getElementById("adline")?.value?.trim() || "",
       url: get('input[type="url"]'),
       brand: adForm.querySelector('input[placeholder="Linear"]')?.value?.trim() || "",
+      color: document.getElementById("adcolor")?.value?.trim() || "",
       pricePerBlock: parseFloat(document.getElementById("price")?.value || "0"),
       blocks: parseInt(document.getElementById("blocks")?.value || "0", 10),
       showOnLeaderboard: adForm.querySelector('input[type="checkbox"]')?.checked !== false,

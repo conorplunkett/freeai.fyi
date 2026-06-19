@@ -103,7 +103,8 @@ export function buildFreeAiStatusLine(params) {
   // Re-run the status line command on a timer in addition to Claude Code's
   // event-driven updates. Without this, the ad line is not re-rendered during a
   // long "thinking" phase that emits no transcript events, so it never appears.
-  const refreshInterval = params.refreshInterval ?? 2;
+  // 1s (Claude's minimum) also keeps the shimmer sweep moving smoothly.
+  const refreshInterval = params.refreshInterval ?? 1;
   if (refreshInterval) statusLine.refreshInterval = refreshInterval;
   return statusLine;
 }

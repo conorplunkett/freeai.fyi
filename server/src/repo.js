@@ -15,6 +15,20 @@ function generateReferralCode(len = 8) {
   return out;
 }
 
+// Mask a referred friend's email for the dashboard: keep the first local-part
+// character and the domain, hide the rest (jane@acme.com -> j•••@acme.com). The
+// referrer can recognise who they referred without the page leaking the full
+// address of someone who signed up through their link.
+function maskEmail(email) {
+  const s = String(email || "");
+  const at = s.indexOf("@");
+  if (at < 1) return "•••";
+  const local = s.slice(0, at);
+  const domain = s.slice(at + 1);
+  const head = local.length > 1 ? local[0] : "";
+  return `${head}•••@${domain}`;
+}
+
 // Advisory-lock namespace (classid) for redemption serialization. Concurrent
 // redeems that draw on the same balance take pg_advisory_xact_lock under this
 // class so the in-transaction balance check can't be raced into an overdraft.
@@ -59,6 +73,17 @@ function createRepo(pool) {
        on conflict (referred_user_id) do nothing`,
       [referrer.id, newUserId]
     );
+    // Flip the "code used" indicator on a matching email invite, if the referrer
+    // had invited this exact address. Matched by email so it survives the OAuth /
+    // magic-link round-trip; harmless when the friend signed up some other way.
+    const ne = await client.query("select email from users where id = $1", [newUserId]);
+    if (ne.rows[0]?.email) {
+      await client.query(
+        `update referral_invites set status = 'joined', joined_at = now()
+          where referrer_user_id = $1 and lower(email) = lower($2) and status = 'sent'`,
+        [referrer.id, ne.rows[0].email]
+      );
+    }
   }
 
   // Pay the referrer their one-time bonus once the referred user redeems. The
@@ -92,6 +117,15 @@ function createRepo(pool) {
         where id = $1`,
       [id, String(rewardMillicents)]
     );
+    // Advance a matching email invite to its final 'rewarded' stage too.
+    const re = await client.query("select email from users where id = $1", [referredUserId]);
+    if (re.rows[0]?.email) {
+      await client.query(
+        `update referral_invites set status = 'rewarded', rewarded_at = now()
+          where referrer_user_id = $1 and lower(email) = lower($2) and status <> 'rewarded'`,
+        [referrer_user_id, re.rows[0].email]
+      );
+    }
   }
 
   return {
@@ -117,7 +151,7 @@ function createRepo(pool) {
     // ---------- auction ----------
     async activeAds(limit = 20) {
       const { rows } = await pool.query(
-        `select id, brand, ad_line, url, category, price_per_block_cents, show_on_leaderboard
+        `select id, brand, ad_line, url, category, color, price_per_block_cents, show_on_leaderboard
            from campaigns
           where status = 'active' and impressions_remaining > 0
           order by price_per_block_cents desc, activated_at asc
@@ -140,7 +174,7 @@ function createRepo(pool) {
     },
 
     // ---------- advertiser checkout ----------
-    async createPendingCampaign({ email, brand, adLine, url, category, pricePerBlockCents, blocks, showOnLeaderboard }) {
+    async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, showOnLeaderboard }) {
       return tx(async (c) => {
         const adv = await c.query(
           "insert into advertisers (email) values ($1) returning id",
@@ -148,11 +182,11 @@ function createRepo(pool) {
         );
         const { rows } = await c.query(
           `insert into campaigns
-             (advertiser_id, brand, ad_line, url, category, price_per_block_cents,
+             (advertiser_id, brand, ad_line, url, category, color, price_per_block_cents,
               blocks, impressions_total, impressions_remaining, show_on_leaderboard)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10)
            returning id`,
-          [adv.rows[0].id, brand || null, adLine, url, category || "other",
+          [adv.rows[0].id, brand || null, adLine, url, category || "other", color || null,
            pricePerBlockCents, blocks, blocks * 1000, showOnLeaderboard !== false]
         );
         return rows[0].id;
@@ -171,13 +205,19 @@ function createRepo(pool) {
     // pending_payment campaign transitions. Money is now received, so the
     // funding ledger entry rides this tx — but the ad doesn't serve until a
     // human approves it (status -> pending_review).
+    // Returns the campaign + advertiser details on the first (transitioning)
+    // call so the caller can email a receipt, or false on a no-op (already paid
+    // / unknown). The receipt thus rides the same exactly-once guarantee as the
+    // funding ledger entry.
     async markCampaignPaid(campaignId, paymentIntentId) {
       return tx(async (c) => {
         const { rows } = await c.query(
-          `update campaigns set status = 'pending_review', paid_at = now(),
-                  stripe_payment_intent_id = coalesce($2, stripe_payment_intent_id)
-            where id = $1 and status = 'pending_payment'
-            returning price_per_block_cents, blocks`,
+          `update campaigns cmp set status = 'pending_review', paid_at = now(),
+                  stripe_payment_intent_id = coalesce($2, cmp.stripe_payment_intent_id)
+             from advertisers adv
+            where cmp.id = $1 and cmp.status = 'pending_payment'
+              and adv.id = cmp.advertiser_id
+            returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks`,
           [campaignId, paymentIntentId || null]
         );
         if (!rows[0]) return false;
@@ -187,7 +227,13 @@ function createRepo(pool) {
            values ('campaign_credit', $1, $2, $3)`,
           [funded.toString(), campaignId, JSON.stringify({ blocks: rows[0].blocks })]
         );
-        return true;
+        return {
+          email: rows[0].email,
+          brand: rows[0].brand,
+          adLine: rows[0].ad_line,
+          pricePerBlockCents: rows[0].price_per_block_cents,
+          blocks: rows[0].blocks,
+        };
       });
     },
 
@@ -212,13 +258,18 @@ function createRepo(pool) {
     },
 
     // Reject -> mark rejected and post a refund ledger entry that zeroes out the
-    // funding. Returns the payment intent so the caller can issue a Stripe refund.
+    // funding. Returns the payment intent (so the caller can issue a Stripe
+    // refund) plus the advertiser + campaign details (so the caller can email
+    // the advertiser). Null on a no-op (unknown / not in review).
     async rejectCampaign(campaignId, note) {
       return tx(async (c) => {
         const { rows } = await c.query(
-          `update campaigns set status = 'rejected', review_note = $2
-            where id = $1 and status = 'pending_review'
-            returning price_per_block_cents, blocks, stripe_payment_intent_id`,
+          `update campaigns cmp set status = 'rejected', review_note = $2
+             from advertisers adv
+            where cmp.id = $1 and cmp.status = 'pending_review'
+              and adv.id = cmp.advertiser_id
+            returning adv.email, cmp.brand, cmp.ad_line,
+                      cmp.price_per_block_cents, cmp.blocks, cmp.stripe_payment_intent_id`,
           [campaignId, note || null]
         );
         if (!rows[0]) return null;
@@ -228,7 +279,15 @@ function createRepo(pool) {
            values ('campaign_refund', $1, $2, $3)`,
           [(-refund).toString(), campaignId, JSON.stringify({ note: note || null })]
         );
-        return { paymentIntentId: rows[0].stripe_payment_intent_id };
+        return {
+          paymentIntentId: rows[0].stripe_payment_intent_id,
+          email: rows[0].email,
+          brand: rows[0].brand,
+          adLine: rows[0].ad_line,
+          pricePerBlockCents: rows[0].price_per_block_cents,
+          blocks: rows[0].blocks,
+          note: note || null,
+        };
       });
     },
 
@@ -788,7 +847,27 @@ function createRepo(pool) {
       throw new Error("could not allocate referral code");
     },
 
-    // Counts + recent referrals for the dashboard.
+    // Record (or re-send) an email invite. Stored lower-cased so the email match
+    // that flips the 'joined'/'rewarded' indicators is case-insensitive. The
+    // self-referral guard ("can't refer your own email") lives in the route,
+    // which knows the caller's email. Returns the invite row.
+    async createReferralInvite(referrerUserId, email, code) {
+      const r = await pool.query(
+        `insert into referral_invites (referrer_user_id, email, code)
+           values ($1, lower($2), $3)
+         on conflict (referrer_user_id, email)
+           do update set sent_at = now(), code = excluded.code
+         returning email, status, sent_at`,
+        [referrerUserId, email, code]
+      );
+      return r.rows[0];
+    },
+
+    // Counts + the dashboard list, one row per friend with their email and the
+    // stage they're at: 'invited' (email sent, not signed up yet) comes from
+    // referral_invites; 'pending'/'rewarded'/'capped'/'cancelled' come from the
+    // referrals table joined to the friend's account. Both lists merge into one
+    // newest-first timeline so the user can see exactly who they've referred.
     async referralStats(userId) {
       const stats = await pool.query(
         `select
@@ -799,18 +878,33 @@ function createRepo(pool) {
          from referrals where referrer_user_id = $1`,
         [userId]
       );
-      const list = await pool.query(
-        `select status, created_at from referrals
-          where referrer_user_id = $1 order by created_at desc limit 50`,
+      const joined = await pool.query(
+        `select u.email, r.status, r.created_at
+           from referrals r join users u on u.id = r.referred_user_id
+          where r.referrer_user_id = $1
+          order by r.created_at desc limit 100`,
+        [userId]
+      );
+      // Only invites still awaiting a signup; once joined, the friend shows up in
+      // `joined` above (matched by email), so this avoids double-listing them.
+      const invited = await pool.query(
+        `select email, sent_at as created_at from referral_invites
+          where referrer_user_id = $1 and status = 'sent'
+          order by sent_at desc limit 100`,
         [userId]
       );
       const s = stats.rows[0];
+      const referrals = [
+        ...invited.rows.map((r) => ({ email: maskEmail(r.email), status: "invited", createdAt: r.created_at })),
+        ...joined.rows.map((r) => ({ email: maskEmail(r.email), status: r.status, createdAt: r.created_at })),
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       return {
         rewardedCount: s.rewarded,
         pendingCount: s.pending,
         cappedCount: s.capped,
+        invitedCount: invited.rows.length,
         creditsEarnedMillicents: Number(s.earned_millicents),
-        referrals: list.rows.map((r) => ({ status: r.status, createdAt: r.created_at })),
+        referrals,
       };
     },
 
