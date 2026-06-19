@@ -31,6 +31,11 @@ a { color: inherit; text-decoration: none; }
   padding: 0 26px; font-family: var(--mono); font-size: 12.5px;
   border-right: 1px solid #181d26;
 }
+.tick-logo {
+  display: inline-grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 4px; font-family: var(--sans); font-weight: 800; font-size: 11px;
+  line-height: 1; flex: none;
+}
 .tick-brand { color: var(--green); font-weight: 700; letter-spacing: .03em; }
 .tick-text { color: #aab1bd; }
 
@@ -125,7 +130,9 @@ a { color: inherit; text-decoration: none; }
   background: var(--ov-chip-bg); color: var(--ov-chip-ink); font-weight: 800; font-size: 13px; border-radius: 5px;
   font-family: var(--sans); flex: none;
 }
-.ad-text { color: var(--ov-demo-line); }
+/* Named "brand-line" (not "ad-text") so ad blockers don't hide the sponsored
+   line in our own before/after demo. */
+.brand-line { color: var(--ov-demo-line); }
 
 /* INSTALL CARD */
 .install-card {
@@ -458,7 +465,10 @@ a { color: inherit; text-decoration: none; }
   .demo { grid-template-columns: 1fr; gap: 8px; }
   .demo-chevs { transform: rotate(90deg); justify-self: center; }
   .demo-card { padding: 18px 16px; }
-  .demo-line { font-size: 14.5px; flex-wrap: wrap; }
+  /* Keep the sponsored line on ONE line whatever ad rotates in, so the
+     black card never changes height. Long ads shrink-to-fit, then ellipsis. */
+  .demo-line { font-size: 13px; flex-wrap: nowrap; white-space: nowrap; }
+  .demo-line .ad-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .claude-guy { right: 16px; }
 
   /* install card */

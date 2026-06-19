@@ -33,6 +33,9 @@ function loadConfig() {
     databaseUrl: env("SUPABASE_DB_URL") || env("DATABASE_URL"),
     stripeSecretKey: env("STRIPE_SECRET_KEY"),
     stripeWebhookSecret: env("STRIPE_WEBHOOK_SECRET"),
+    // Connect (connected-account) events arrive on a separate event destination
+    // with its own signing secret, so we verify webhooks against either.
+    stripeConnectWebhookSecret: env("STRIPE_CONNECT_WEBHOOK_SECRET"),
     siteUrl,
     // Where Stripe/OAuth/magic-link callbacks point. Defaults to this function.
     apiBaseUrl: env("API_BASE_URL") || (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/api` : ""),
@@ -996,9 +999,12 @@ route("POST", "/v1/checkout", async (ctx: any) => {
 
 // ── Stripe webhooks ──
 route("POST", "/v1/webhooks/stripe", async (ctx: any) => {
-  if (!verifyWebhookSignature(ctx.rawBody, ctx.headers.get("stripe-signature"), config.stripeWebhookSecret)) {
-    return json(400, { error: "bad signature" });
-  }
+  const sig = ctx.headers.get("stripe-signature");
+  const signed =
+    verifyWebhookSignature(ctx.rawBody, sig, config.stripeWebhookSecret) ||
+    (!!config.stripeConnectWebhookSecret &&
+      verifyWebhookSignature(ctx.rawBody, sig, config.stripeConnectWebhookSecret));
+  if (!signed) return json(400, { error: "bad signature" });
   const event = ctx.body;
   const fresh = await repo.claimWebhookEvent(event.id, event.type);
   if (!fresh) return json(200, { received: true, duplicate: true });

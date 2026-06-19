@@ -79,6 +79,14 @@ lint-ext:
 	cd chrome-extension && npm run lint
 
 # ---------------------------------------------------------------------------
+# Terminal client (Claude Code CLI)
+# ---------------------------------------------------------------------------
+
+## test-terminal: Run the standalone Claude Code terminal client tests.
+test-terminal:
+	cd terminal && npm test
+
+# ---------------------------------------------------------------------------
 # VS Code / Cursor extension (incubating — see vscode-extension/INTEGRATION.md)
 # ---------------------------------------------------------------------------
 
@@ -134,10 +142,10 @@ mac-open:
 # Aggregates
 # ---------------------------------------------------------------------------
 
-## test: Run every test suite (server, extension, mac core).
-test: test-server test-ext test-mac
+## test: Run every test suite (server, extension, terminal, mac core).
+test: test-server test-ext test-terminal test-mac
 
 .PHONY: help site db-up db-down migrate seed server server-up server-install \
-	test-server test-ext lint-ext vscode-install build-vscode test-vscode \
+	test-server test-ext lint-ext test-terminal vscode-install build-vscode test-vscode \
 	package-vscode test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test

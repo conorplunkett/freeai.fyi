@@ -9,18 +9,19 @@ Conventions for agents and contributors working in this repo.
 A root `Makefile` wraps the common local tasks — run `make` (or `make help`) for
 the full self-documenting list. The day-to-day ones: `make server-up` (db +
 migrate + API), `make site`, `make test-server`, `make test-ext`, `make test-mac`
-(Rust core, any OS), `make mac-demo` / `make mac-run` / `make mac-bundle`, and
-`make test` for everything. The per-component READMEs stay the source of truth;
-when you change how something is built, run, or tested, update the matching
-target's `## name: description` comment so `make help` stays accurate.
+(Rust core, any OS), `make test-terminal`, `make mac-demo` / `make mac-run` /
+`make mac-bundle`, and `make test` for everything. The per-component READMEs
+stay the source of truth; when you change how something is built, run, or tested,
+update the matching target's `## name: description` comment so `make help` stays
+accurate.
 
 ## What FreeAI is
 
 FreeAI shows one subtle sponsored line while a web AI assistant (ChatGPT, Claude,
 Gemini) is thinking, and returns **50% of the revenue to the user as Claude
-credits**. The product surface is a **Chrome extension**; a Node + Postgres
-backend runs the ad auction, an append-only credit ledger, and gift-card
-redemption.
+credits**. The product surfaces are the **Chrome extension**, the **Claude Code
+terminal client**, and the macOS overlay; a Node + Postgres backend runs the ad
+auction, an append-only credit ledger, and gift-card redemption.
 
 ## Tech stack
 
@@ -32,7 +33,8 @@ redemption.
   server. It runs on the same platform as the database and deploys via the
   Supabase MCP/CLI. The function is served under the slug `api`
   (`https://<ref>.supabase.co/functions/v1/api`); the website/extension/macOS
-  clients point there via the `freeai-api` meta tag / `API_BASE`.
+  and terminal clients point there via the `freeai-api` meta tag / `API_BASE` /
+  `FREEAI_BASE` conventions.
   - `server/` is the **original Node implementation, kept as the tested
     reference + rollback** (its `npm test` suite still runs in CI). The Edge
     Function mirrors its routes and SQL verbatim. Fly.io deploy configs were
@@ -49,22 +51,38 @@ redemption.
   dev/CI, **Resend** in production.
 - **Chrome extension** (`chrome-extension/`): Manifest V3, vanilla JS service
   worker + content script. Ships its own synced copy of `theme.css`.
+- **Claude Code terminal client** (`terminal/`): dependency-free Node CLI. The
+  user keeps typing `claude ...`; first-time setup installs a reversible shell
+  alias/function that runs `freeai claude run`, then forwards to the real Claude
+  Code binary with a temporary `--settings` file.
 - **macOS app** (`desktop/macos/`): Swift.
 - **Tests**: Node's built-in runner conventions over `node:assert` — no test
   framework. Server tests run real routes against a real Postgres; extension
-  tests run against a mock DOM.
+  tests run against a mock DOM; terminal tests use fake Claude binaries and temp
+  homes.
 
 ## Where features live (read before adding UI)
 
-- **Earning** happens in the **Chrome extension** (and the macOS app): they show
-  ads and accrue credits.
+- **Earning** happens in the **Chrome extension**, the **Claude Code terminal
+  client**, and the macOS app: they show ads and accrue credits.
+- **Claude Code terminal integration** lives in `terminal/`. Keep it reversible
+  and session-scoped:
+  - `setup` may add only the marked FreeAI shell alias/function block.
+  - `run` must forward Claude args, cwd, env, stdio, exit code, and signals.
+  - Use Claude Code's documented `statusLine` and `--settings` surfaces.
+  - Do not mutate the real `claude` binary, npm shim, or persistent
+    `~/.claude/settings.json`.
+  - If FreeAI cannot safely prepare an ad session, run Claude unchanged.
+  - Do not use Claude Code hooks for v1 unless the product plan explicitly
+    changes; status line + transcript activity are the intended signal.
 - **Redeeming** credits for Claude gift cards happens **only on the website**
   (`freeai.fyi`), and **only after the user logs in**. The login is an email
   magic link; the redemption page reads the user's server-side balance and calls
   the backend, which emails the fulfillment inbox and deducts the balance.
 
   Do **not** add a redemption/gift-card menu to the Chrome extension popup or the
-  macOS app. Redemption is a website-only, logged-in flow. Keep it that way.
+  Claude Code terminal client or the macOS app. Redemption is a website-only,
+  logged-in flow. Keep it that way.
 
 ## Money / credit rules
 
@@ -139,5 +157,6 @@ copy.
 ## Tests
 
 - Extension: `cd chrome-extension && npm test` (headless mock DOM).
+- Terminal: `cd terminal && npm test` or `make test-terminal`.
 - Server: `cd server && npm test` — drives real routes against a real Postgres
   (`DATABASE_URL` required; `docker compose up -d db` for a local one).
