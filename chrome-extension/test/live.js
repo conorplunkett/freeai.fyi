@@ -235,45 +235,64 @@ async function main() {
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
     });
 
-    await check("Gemini thinking-dots stage ⇒ detected and bar sits below the dots", async () => {
-      // dots alone, no stop button, no reply yet — Gemini puts the dots (and
-      // later the streamed thinking text) inside one row
-      await page.evaluate(() => {
-        window.setGenerating(false);
-        document.querySelector('[data-message-author-role="assistant"]').remove();
-        const row = document.createElement("div");
-        row.id = "gem-row";
-        const dots = document.createElement("thinking-dots-animation");
-        dots.id = "gem-dots";
-        dots.innerHTML = '<div class="thinking-dots-animation"></div>';
-        row.appendChild(dots);
-        document.getElementById("messages").appendChild(row);
-      });
+    // Build Gemini's REAL dots-only structure: the dots are nested deep inside
+    // <model-response>, inside an absolutely-positioned <thinking-overlay>
+    // whose in-flow parent is collapsed (height 0) — which is exactly what
+    // dropped the bar to the page bottom when we anchored on the dots.
+    const buildGeminiDots = () => {
+      window.setGenerating(false);
+      document.querySelector('[data-message-author-role="assistant"]').remove();
+      const mr = document.createElement("model-response");
+      mr.id = "gem-mr";
+      const content = document.createElement("div"); // response-content (collapsed)
+      content.id = "gem-content";
+      const overlay = document.createElement("thinking-overlay");
+      overlay.style.position = "absolute"; // out of flow, like the real overlay
+      const dots = document.createElement("thinking-dots-animation");
+      dots.id = "gem-dots";
+      dots.innerHTML = '<div class="thinking-dots-animation"></div>';
+      overlay.appendChild(dots);
+      content.appendChild(overlay);
+      mr.appendChild(content);
+      document.getElementById("messages").appendChild(mr);
+    };
+
+    await check("Gemini dots-only ⇒ bar lands inside model-response, below the dots (not page bottom)", async () => {
+      await page.evaluate(buildGeminiDots);
       await page.waitForFunction(() => {
-        const b = document.querySelector(".bb-bar.bb-show");
+        const mr = document.getElementById("gem-mr");
+        const b = mr && mr.querySelector(".bb-bar.bb-show");
         const dots = document.getElementById("gem-dots");
-        return b && dots && !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        return (
+          b &&
+          dots &&
+          mr.contains(b) &&                  // NOT escaped to the page bottom
+          mr.lastElementChild === b &&       // sits at the end of the reply
+          !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) // below the dots
+        );
       }, { timeout: 5000 });
-      // the streamed "Assessing the Input" text lands in the SAME row as the
-      // dots — the bar must stay below the whole row, never wedged inside it
+    });
+
+    await check("Gemini dots+text ⇒ bar stays model-response's last child, below the text", async () => {
+      // the first thinking line streams into the same response, above the bar
       await page.evaluate(() => {
-        const label = document.createElement("div");
+        const label = document.createElement("span");
         label.id = "gem-label";
-        label.textContent = "Assessing the Input";
-        document.getElementById("gem-row").appendChild(label);
+        label.textContent = "Interpreting the input";
+        document.getElementById("gem-content").appendChild(label);
       });
       await page.waitForFunction(() => {
-        const b = document.querySelector(".bb-bar.bb-show");
-        const row = document.getElementById("gem-row");
+        const mr = document.getElementById("gem-mr");
+        const b = mr.querySelector(".bb-bar.bb-show");
         const label = document.getElementById("gem-label");
         return (
-          b && !row.contains(b) &&
+          b &&
+          mr.lastElementChild === b &&
           !!(label.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
         );
       }, { timeout: 3000 });
-      // clean up, restore the standard generating state
       await page.evaluate(() => {
-        document.getElementById("gem-row").remove();
+        document.getElementById("gem-mr").remove();
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
@@ -293,32 +312,6 @@ async function main() {
         const turn = document.querySelector('[data-message-author-role="assistant"]');
         return turn && turn.lastElementChild && turn.lastElementChild.classList.contains("bb-bar");
       }, { timeout: 3000 });
-    });
-
-    await check("Gemini: empty model-response shell + dots ⇒ bar still below the dots", async () => {
-      await page.evaluate(() => {
-        window.setGenerating(false);
-        document.querySelector('[data-message-author-role="assistant"]').remove();
-        const msgs = document.getElementById("messages");
-        const resp = document.createElement("model-response"); // empty shell, renders first
-        resp.id = "gem-resp";
-        msgs.appendChild(resp);
-        const dots = document.createElement("thinking-dots-animation");
-        dots.id = "gem-dots2";
-        dots.innerHTML = '<div class="thinking-dots-animation"></div>';
-        msgs.appendChild(dots);
-      });
-      await page.waitForFunction(() => {
-        const b = document.querySelector(".bb-bar.bb-show");
-        const dots = document.getElementById("gem-dots2");
-        return b && dots && !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-      }, { timeout: 5000 });
-      await page.evaluate(() => {
-        document.getElementById("gem-resp").remove();
-        document.getElementById("gem-dots2").remove();
-        window.setGenerating(true);
-      });
-      await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
     });
 
     await check("bar is actually rendered (visible, has ad copy)", async () => {
