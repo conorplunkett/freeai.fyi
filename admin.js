@@ -460,6 +460,18 @@ async function renderReferrals(view) {
     h("div", { class: "card-head" }, h("h2", {}, "Top referrers")),
     table([{ label: "Referrer" }, { label: "Referred", num: true }, { label: "Rewarded", num: true }, { label: "Earned", num: true }],
       d.top, (t) => [h("span", { class: "mono" }, t.email || short(t.userId)), num(t.referred), num(t.rewarded), usd(t.rewardUsd)])));
+  // Referral invites funnel (emails people invited, and how far each got).
+  const inv = await api("/v1/admin/invites");
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Invites sent"),
+      h("p", { class: "hint" }, "Emails referrers invited → joined → rewarded.")),
+    table([{ label: "Invited email" }, { label: "Status" }, { label: "Invited by" }, { label: "Sent" }, { label: "Joined" }, { label: "Rewarded" }],
+      inv.invites, (i) => [
+        h("span", { class: "mono" }, i.email),
+        td(badge(i.status)),
+        h("span", { class: "mono muted" }, i.referrerEmail || "—"),
+        dShort(i.sentAt || i.createdAt), dShort(i.joinedAt), dShort(i.rewardedAt),
+      ])));
 }
 
 async function renderDevices(view) {
@@ -533,6 +545,23 @@ async function renderSettings(view) {
         catch (e) { toast(e.message, true); }
       } }, d.serving ? "Pause ad serving" : "Resume ad serving")),
     h("p", { class: "hint" }, d.serving ? "Ads are live. Pausing stops /v1/ads from returning anything (propagates within ~15s)." : "Ad serving is paused. No ads are being delivered.")));
+  const cfg = await api("/v1/admin/config");
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Economics"),
+      h("p", { class: "hint" }, "Read-only — set via the function’s environment.")),
+    table([{ label: "Setting" }, { label: "Value", num: true }], [
+      { k: "Revenue share to developers", v: cfg.revenueSharePct + "%" },
+      { k: "Reference gross CPM", v: usd(cfg.grossCpmUsd) },
+      { k: "Daily impression cap / device", v: num(cfg.dailyImpressionCap) },
+      { k: "Daily impression cap / IP", v: num(cfg.ipDailyImpressionCap) },
+      { k: "Daily click cap / device", v: num(cfg.dailyClickCap) },
+      { k: "Payout threshold", v: usd(cfg.payoutThresholdUsd) },
+      { k: "Referral reward", v: usd(cfg.referralRewardUsd) },
+      { k: "Referral cap / user", v: num(cfg.referralCap) },
+      { k: "Gift fulfillment inbox", v: cfg.giftFulfillmentEmail },
+    ], (r) => [r.k, r.v]),
+    h("p", { class: "hint", style: "margin-top:14px" }, "Claude gift catalog"),
+    table([{ label: "Plan" }, { label: "Monthly", num: true }], cfg.giftPlans, (p) => [p.name, usd(p.monthlyUsd)])));
   view.append(h("div", { class: "card" },
     h("div", { class: "card-head" }, h("h2", {}, "Manual balance adjustment")),
     h("p", { class: "hint" }, "Credit or debit a user’s balance directly. Find the user under the Users tab and use “Adjust”, or use a device/user ID below."),

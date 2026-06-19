@@ -1277,6 +1277,22 @@ function createRepo(pool: any) {
       );
       return rows[0]?.id || null;
     },
+
+    // Referral invites funnel: emails a referrer invited, and how far each got
+    // (sent -> joined -> rewarded).
+    async adminInvites(limit = 200) {
+      const byStatus = (await pool.query(
+        "select status, count(*)::int as n from referral_invites group by status order by status"
+      )).rows;
+      const recent = (await pool.query(
+        `select i.email, i.status, i.code, i.created_at, i.sent_at, i.joined_at, i.rewarded_at,
+                u.email as referrer_email
+           from referral_invites i left join users u on u.id = i.referrer_user_id
+          order by i.created_at desc limit $1`,
+        [Math.max(1, Math.min(500, limit))]
+      )).rows;
+      return { byStatus, recent };
+    },
   };
 }
 const repo = createRepo(pool);
@@ -2046,6 +2062,36 @@ route("POST", "/v1/admin/ledger/adjust", async (ctx: any) => {
   });
   if (!id) return json(400, { ok: false, error: "need userId or deviceId, a non-zero amountCents, and direction credit|debit" });
   return json(200, { ok: true, ledgerId: id });
+});
+
+route("GET", "/v1/admin/invites", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const d = await repo.adminInvites();
+  return json(200, {
+    byStatus: d.byStatus.map((s: any) => ({ status: s.status, count: s.n })),
+    invites: d.recent.map((r: any) => ({
+      email: r.email, status: r.status, code: r.code, referrerEmail: r.referrer_email,
+      createdAt: r.created_at, sentAt: r.sent_at, joinedAt: r.joined_at, rewardedAt: r.rewarded_at,
+    })),
+  });
+});
+
+// Read-only view of the economic knobs that drive the marketplace + gift catalog.
+route("GET", "/v1/admin/config", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  return json(200, {
+    revenueSharePct: config.revenueShare * 100,
+    grossCpmUsd: config.grossCpmCents / 100,
+    dailyImpressionCap: config.dailyImpressionCap,
+    ipDailyImpressionCap: config.ipDailyImpressionCap,
+    dailyClickCap: config.dailyClickCap,
+    payoutThresholdUsd: config.payoutThresholdCents / 100,
+    referralRewardUsd: config.referralRewardCents / 100,
+    referralCap: config.referralCap,
+    giftFulfillmentEmail: config.giftFulfillmentEmail,
+    giftPlans: Object.values(GIFT_PLANS).map((p: any) => ({ id: p.id, name: p.name, monthlyUsd: p.monthlyCents / 100 })),
+    serving,
+  });
 });
 
 // ─────────────────────────────── dispatch ──────────────────────────────────
