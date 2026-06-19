@@ -68,13 +68,15 @@ if (claudeGuy) {
 // Sponsored lines for the "With FreeAI" card. Each chip carries the sponsor's
 // own brand color; copy follows one house style — "Brand · Sentence-case line"
 // with a middot separator — to stay consistent with TICKER_ADS above.
+// Keep each line short — it must fit ONE line in the demo card at both desktop
+// and mobile widths (verified per-ad; see styles.css .brand-line).
 const ADS = [
-  { chip: "R", color: "#ffd54a", ink: "#1b1e25", text: "Ramp · Save time and money" },
-  { chip: "L", color: "#5b5bd6", ink: "#fff", text: "Linear · Issue tracking built for speed" },
-  { chip: "△", color: "#000", ink: "#fff", text: "Vercel · Ship your agent to prod" },
-  { chip: "N", color: "#00e599", ink: "#04130a", text: "Neon · Postgres your agent can branch" },
-  { chip: "R", color: "#111", ink: "#fff", text: "Resend · Email built for developers" },
-  { chip: "F", color: "#1d6cff", ink: "#fff", text: "Fluidstack · Building 10GW of compute" },
+  { chip: "R", color: "#ffd54a", ink: "#1b1e25", text: "Ramp · Spend smarter" },
+  { chip: "L", color: "#5b5bd6", ink: "#fff", text: "Linear · Issue tracking" },
+  { chip: "△", color: "#000", ink: "#fff", text: "Vercel · Ship to prod" },
+  { chip: "N", color: "#00e599", ink: "#04130a", text: "Neon · Postgres, branched" },
+  { chip: "R", color: "#111", ink: "#fff", text: "Resend · Email for devs" },
+  { chip: "F", color: "#1d6cff", ink: "#fff", text: "Fluidstack · GPU compute" },
 ];
 let ai = 0;
 const rotator = document.getElementById("brand-line");
