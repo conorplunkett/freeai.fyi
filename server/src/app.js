@@ -143,7 +143,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       email, brand, adLine, url, category, pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard,
     });
     const session = await stripe.createCheckoutSession({
-      mode: "payment", customer_email: email,
+      mode: "payment", customer_email: email, receipt_email: email,
       line_items: [{
         quantity: nBlocks,
         price_data: {
@@ -172,7 +172,25 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     switch (event.type) {
       case "checkout.session.completed": {
         const obj = event.data?.object || {};
-        if (obj.metadata?.campaign_id) await repo.markCampaignPaid(obj.metadata.campaign_id, obj.payment_intent);
+        if (obj.metadata?.campaign_id) {
+          const paid = await repo.markCampaignPaid(obj.metadata.campaign_id, obj.payment_intent);
+          // Only on the transitioning call (paid is the campaign details, not
+          // false). Wrapped so a mail outage never rolls back the funded state —
+          // the webhook event is already claimed and won't be retried.
+          if (paid) {
+            try {
+              await mailer.sendAdvertiserReceiptEmail(paid.email, {
+                campaignId: obj.metadata.campaign_id,
+                brand: paid.brand,
+                adLine: paid.adLine,
+                pricePerBlockCents: paid.pricePerBlockCents,
+                blocks: paid.blocks,
+              });
+            } catch (err) {
+              console.error("[freeai] advertiser receipt email failed", err);
+            }
+          }
+        }
         break;
       }
       case "account.updated": {

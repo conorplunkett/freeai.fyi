@@ -42,6 +42,7 @@ const mailbox = [];
 const fakeMailer = {
   sendVerifyEmail: async (to, link) => { mailbox.push({ to, link }); },
   sendWebLoginEmail: async (to, link) => { mailbox.push({ to, link }); },
+  sendAdvertiserReceiptEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
 };
 
@@ -138,6 +139,12 @@ const fakeMailer = {
     assert.strictEqual(ads.body.ads.length, 0);
     const wh = await payWebhook(campA);
     assert.strictEqual(wh.status, 200);
+    // the transitioning webhook emails the advertiser a receipt exactly once
+    const receipt = mailbox.find((m) => m.campaignId === campA);
+    assert.ok(receipt, "no advertiser receipt sent on payment");
+    assert.strictEqual(receipt.to, "ads@linear.app");
+    assert.strictEqual(receipt.blocks, 2);
+    assert.strictEqual(receipt.pricePerBlockCents, 500);
     ads = await api("GET", "/v1/ads");
     assert.strictEqual(ads.body.ads.length, 0, "served before moderation");
     const queue = await api("GET", "/v1/admin/campaigns", undefined, { "X-Admin-Key": "test-admin" });

@@ -49,6 +49,31 @@ function createMailer(config) {
     );
   }
 
+  // Receipt for an advertiser whose Stripe Checkout payment just completed.
+  // Confirms the charge and sets the expectation that the ad doesn't serve
+  // until it clears review. Stripe sends its own itemized payment receipt
+  // separately (via receipt_email on the checkout session).
+  async function sendAdvertiserReceiptEmail(to, { campaignId, brand, adLine, pricePerBlockCents, blocks }) {
+    const perBlockUsd = pricePerBlockCents / 100;
+    const totalUsd = (pricePerBlockCents * blocks) / 100;
+    const impressions = blocks * 1000;
+    await send(
+      to,
+      "Your FreeAI campaign receipt",
+      `<p>Thanks for advertising on FreeAI — your payment is confirmed.</p>
+       <ul>
+         <li><strong>Ad line:</strong> "${adLine}"</li>
+         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
+         <li><strong>Blocks:</strong> ${blocks} (${impressions.toLocaleString("en-US")} impressions)</li>
+         <li><strong>Price per block:</strong> US$${perBlockUsd.toFixed(2)}</li>
+         <li><strong>Total paid:</strong> US$${totalUsd.toFixed(2)}</li>
+         <li><strong>Campaign id:</strong> ${campaignId}</li>
+       </ul>
+       <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
+       <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`
+    );
+  }
+
   // Fulfillment notification for a Claude gift card redemption. Goes to the
   // fulfillment inbox (not the user); the gift card itself is sent manually
   // within 48 hours.
@@ -68,7 +93,7 @@ function createMailer(config) {
     );
   }
 
-  return { sendVerifyEmail, sendWebLoginEmail, sendGiftRedemptionEmail };
+  return { sendVerifyEmail, sendWebLoginEmail, sendAdvertiserReceiptEmail, sendGiftRedemptionEmail };
 }
 
 module.exports = { createMailer };
