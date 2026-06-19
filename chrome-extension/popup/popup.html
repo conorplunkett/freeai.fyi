@@ -22,39 +22,53 @@
   <section class="hero">
     <div class="earn-label">Claude credits</div>
     <div class="earn" id="earnings">$0.00</div>
+    <div class="progress" id="progress"><b>0%</b> toward your next free month of Claude</div>
   </section>
+
+  <a class="redeem-cta" id="redeem-cta" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem for Claude →</a>
 
   <section class="cards">
     <div class="card"><div class="n" id="impressions">0</div><div class="l">impressions</div></div>
-    <div class="card"><div class="n" id="clicks">0</div><div class="l">clicks · 50×</div></div>
     <div class="card"><div class="n" id="perday">$0.00</div><div class="l">per day</div></div>
   </section>
-
-  <!-- TEST MODE -->
-  <div class="testrow">
-    <div class="testrow-l">
-      <span class="testrow-title">Test mode <span class="pill" id="test-pill" hidden>ON</span></span>
-      <span class="testrow-sub">Show a mock ad on the page right now — no waiting.</span>
-    </div>
-    <label class="switch" title="Toggle test mode">
-      <input type="checkbox" id="testmode" />
-      <span class="slider"></span>
-    </label>
-  </div>
-  <p class="hint" id="test-hint" hidden>Mock ad is live on any supported tab. <span id="test-counts"></span></p>
-
-  <button class="demo" id="demo">Run a 30-second demo</button>
-  <p class="hint" id="hint">Open <b>chatgpt.com</b>, <b>claude.ai</b>, or <b>gemini.google.com</b>, then ask something — the sponsored line appears while it thinks.</p>
 
   <section class="board-wrap">
     <h2>Live bid market</h2>
     <ol class="board" id="board"></ol>
   </section>
 
+  <div class="status" id="status">
+    <span class="dot"></span>
+    <span class="status-txt">Active on <b>chatgpt.com</b>, <b>claude.ai</b></span>
+  </div>
+
   <footer class="foot">
     <a href="https://freeai.fyi" target="_blank" rel="noopener">freeai.fyi</a>
-    <button class="reset" id="reset">Reset</button>
+    <a class="redeem-link" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem credits →</a>
   </footer>
+
+  <!-- Developer tools — kept subtle, collapsed by default. -->
+  <details class="devtools">
+    <summary>Developer tools</summary>
+
+    <div class="testrow">
+      <div class="testrow-l">
+        <span class="testrow-title">Test mode <span class="pill" id="test-pill" hidden>ON</span></span>
+        <span class="testrow-sub">Show a mock ad on the page right now — no waiting.</span>
+      </div>
+      <label class="switch" title="Toggle test mode">
+        <input type="checkbox" id="testmode" />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <p class="hint" id="test-hint" hidden>Mock ad is live on any supported tab. <span id="test-counts"></span></p>
+
+    <button class="demo" id="demo">Run a 30-second demo</button>
+    <p class="hint" id="hint">Open <b>chatgpt.com</b>, <b>claude.ai</b>, or <b>gemini.google.com</b>, then ask something — the sponsored line appears while it thinks.</p>
+
+    <div class="devstats"><span id="clicks">0</span> clicks · 50× an impression</div>
+    <button class="reset" id="reset">Reset earnings</button>
+  </details>
 
   <script src="../src/ads.js"></script>
   <script src="popup.js"></script>
