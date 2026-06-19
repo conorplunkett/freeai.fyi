@@ -888,6 +888,25 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Headers": "Content-Type,X-Admin-Key,Authorization,apikey",
   "Access-Control-Max-Age": "86400",
 };
+// Allowed browser origins. Reflect the caller's Origin when it's on our
+// allowlist (apex + www variants of SITE_URL, plus any CORS_ORIGIN entries) so
+// both https://freeai.fyi and https://www.freeai.fyi pass preflight.
+const ALLOWED_ORIGINS: Set<string> = (() => {
+  const set = new Set<string>();
+  const add = (o: string) => { const v = (o || "").trim().replace(/\/+$/, ""); if (v) set.add(v); };
+  (env("CORS_ORIGIN") || config.siteUrl || "").split(",").forEach(add);
+  try {
+    const u = new URL(config.siteUrl);
+    const host = u.host.replace(/^www\./, "");
+    add(`${u.protocol}//${host}`);
+    add(`${u.protocol}//www.${host}`);
+  } catch { /* siteUrl not a URL — skip variants */ }
+  return set;
+})();
+function resolveOrigin(req: Request): string {
+  const o = (req.headers.get("Origin") || "").replace(/\/+$/, "");
+  return ALLOWED_ORIGINS.has(o) ? o : (config.corsOrigin || "*");
+}
 const json = (status: number, body: any) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 const redirect = (url: string) => new Response(null, { status: 302, headers: { ...CORS, Location: url } });
@@ -1393,7 +1412,16 @@ function stripPrefix(pathname: string) {
 
 Deno.serve(async (req: Request) => {
   const started = Date.now();
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  const allowOrigin = resolveOrigin(req);
+  // Stamp the per-request allowed origin onto every response we return.
+  const withCors = (res: Response) => {
+    res.headers.set("Access-Control-Allow-Origin", allowOrigin);
+    res.headers.set("Vary", "Origin");
+    return res;
+  };
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { ...CORS, "Access-Control-Allow-Origin": allowOrigin, "Vary": "Origin" } });
+  }
 
   const url = new URL(req.url);
   const path = stripPrefix(url.pathname);
@@ -1407,21 +1435,21 @@ Deno.serve(async (req: Request) => {
       if (m) { handler = r.handler; r.keys.forEach((k: string, i: number) => (params[k] = decodeURIComponent(m[i + 1]))); break; }
     }
   }
-  if (!handler) return json(404, { error: "not found" });
+  if (!handler) return withCors(json(404, { error: "not found" }));
 
   // read + size-cap the body
   const rawBody = await req.text();
-  if (rawBody && Buffer.byteLength(rawBody) > config.maxBodyBytes) return json(413, { error: "payload too large" });
+  if (rawBody && Buffer.byteLength(rawBody) > config.maxBodyBytes) return withCors(json(413, { error: "payload too large" }));
   let body: any = null;
-  if (rawBody) { try { body = JSON.parse(rawBody); } catch { return json(400, { error: "invalid json" }); } }
+  if (rawBody) { try { body = JSON.parse(rawBody); } catch { return withCors(json(400, { error: "invalid json" })); } }
 
   const ctx = { req, headers: req.headers, body, rawBody, query: url.searchParams, params };
   try {
-    return await handler(ctx);
+    return withCors(await handler(ctx));
   } catch (err: any) {
     console.error(`[freeai] ${req.method} ${path} failed:`, err?.message);
     lastError = { at: new Date().toISOString(), method: req.method, path, message: err?.message, stack: err?.stack };
-    return json(500, { error: "internal error" });
+    return withCors(json(500, { error: "internal error" }));
   } finally {
     console.log(`[freeai] ${req.method} ${path} ${Date.now() - started}ms`);
   }
