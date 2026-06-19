@@ -1,2 +1,5 @@
 node_modules/
 __pycache__/
+
+# Supabase CLI scratch (project link / version cache) — never committed.
+supabase/.temp/
