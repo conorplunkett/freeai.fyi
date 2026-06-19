@@ -127,6 +127,24 @@ if (adline) {
   });
 }
 
+// --- Ad color: keep the swatch picker and the #hex text field in sync ---
+const adcolor = document.getElementById("adcolor");
+const adcolorSwatch = document.getElementById("adcolor-swatch");
+if (adcolor && adcolorSwatch) {
+  const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v);
+  // Picker → text: write the chosen hex (lowercase, with #).
+  adcolorSwatch.addEventListener("input", () => {
+    adcolor.value = adcolorSwatch.value.toLowerCase();
+  });
+  // Text → picker: mirror a complete #rrggbb into the swatch. The field is
+  // optional, so a blank or mid-typing value just leaves the swatch as-is.
+  adcolor.addEventListener("input", () => {
+    const v = adcolor.value.trim();
+    const hex = v.startsWith("#") ? v : `#${v}`;
+    if (isHex(hex)) adcolorSwatch.value = hex.toLowerCase();
+  });
+}
+
 // --- Live bid / estimate calculator ---
 const priceEl = document.getElementById("price");
 const blocksEl = document.getElementById("blocks");
@@ -134,7 +152,7 @@ const fmt = (n) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2,
 const fmtInt = (n) => n.toLocaleString();
 
 function recalc() {
-  const price = Math.max(1, parseFloat(priceEl.value) || 0);
+  const price = Math.max(0.5, parseFloat(priceEl.value) || 0);
   const blocks = Math.max(1, parseInt(blocksEl.value) || 0);
   const total = price * blocks;
   const imp = blocks * 1000;

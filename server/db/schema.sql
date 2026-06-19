@@ -47,7 +47,7 @@ create table if not exists campaigns (
   -- Advertiser-chosen accent color for the ad line, "#rrggbb"; null falls back
   -- to a per-brand color in the client.
   color text check (color is null or color ~* '^#[0-9a-f]{6}$'),
-  price_per_block_cents integer not null check (price_per_block_cents >= 100),  -- min $1.00
+  price_per_block_cents integer not null check (price_per_block_cents >= 50),  -- min $0.50 (Stripe USD minimum)
   blocks integer not null check (blocks > 0),
   impressions_total integer not null,      -- blocks * 1000
   impressions_remaining integer not null,

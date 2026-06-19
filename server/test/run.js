@@ -129,8 +129,9 @@ const fakeMailer = {
     assert.strictEqual(call.params["metadata[campaign_id]"], campA);
   });
 
-  await check("checkout rejects sub-$1 bids and XSS ad lines", async () => {
-    assert.strictEqual((await api("POST", "/v1/checkout", { email: "a@b.co", adLine: "ok line", url: "https://x.com", pricePerBlock: 0.5, blocks: 1 })).status, 400);
+  await check("checkout rejects sub-$0.50 bids and XSS ad lines", async () => {
+    // $0.50 is the floor (Stripe USD minimum); anything below is rejected.
+    assert.strictEqual((await api("POST", "/v1/checkout", { email: "a@b.co", adLine: "ok line", url: "https://x.com", pricePerBlock: 0.49, blocks: 1 })).status, 400);
     const xss = await api("POST", "/v1/checkout", { email: "a@b.co", adLine: '<script>alert(1)</script>', url: "https://x.com", pricePerBlock: 5, blocks: 1 });
     assert.strictEqual(xss.status, 400);
   });

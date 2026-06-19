@@ -1442,7 +1442,7 @@ route("POST", "/v1/checkout", async (ctx: any) => {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
   if (!isCleanAdLine(adLine)) return json(400, { error: "ad line must be 3-60 printable chars, no < >" });
   if (!/^https:\/\/[^\s]+$/.test(url || "")) return json(400, { error: "https url required" });
-  if (!(priceCents >= 100)) return json(400, { error: "min bid is $1.00 per block" });
+  if (!(priceCents >= 50)) return json(400, { error: "min bid is $0.50 per block" });
   if (!(nBlocks >= 1)) return json(400, { error: "at least 1 block" });
   const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, color: normalizeHexColor(color), pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
   const session = await stripe.createCheckoutSession({
