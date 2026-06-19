@@ -42,6 +42,7 @@ function renderBoard() {
       (a, i) =>
         `<li><span class="rk">${i + 1}</span>` +
         `<span class="chip" style="background:${a.color};color:${a.ink}">${a.chip}</span>` +
+        `<span class="nm">${a.brand}</span>` +
         `<span class="ln">${a.line}</span></li>`
     )
     .join("");

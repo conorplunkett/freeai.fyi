@@ -87,6 +87,7 @@ body {
   display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px;
   font-weight: 800; font-size: 9px; flex: 0 0 auto;
 }
+.board .nm { font-weight: 700; color: #1b1e25; flex: 0 0 auto; white-space: nowrap; }
 .board .ln { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .foot {

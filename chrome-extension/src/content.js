@@ -95,8 +95,10 @@
   bar.setAttribute("role", "complementary");
   bar.innerHTML =
     '<span class="bb-chip">R</span>' +
-    '<span class="bb-line">Ramp · save time and money</span>';
+    '<span class="bb-name">Ramp</span>' +
+    '<span class="bb-line">save time and money</span>';
   const elChip = bar.querySelector(".bb-chip");
+  const elName = bar.querySelector(".bb-name");
   const elLine = bar.querySelector(".bb-line");
 
   // The ad currently on screen. We surface ONE ad at a time — the top of the
@@ -216,6 +218,10 @@
       elChip.textContent = ad.chip;
       elChip.style.background = ad.color;
       elChip.style.color = ad.ink;
+      // logo · brand · message — brand is its own bold element. Hide it if an
+      // ad somehow arrives without one so we don't render an empty gap.
+      elName.textContent = ad.brand || "";
+      elName.style.display = ad.brand ? "" : "none";
       elLine.textContent = ad.line;
     }
     // Head-only ad: no sub-tag pill. Keep the bb-test class so test-mode ads

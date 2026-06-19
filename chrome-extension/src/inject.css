@@ -98,6 +98,13 @@
   color: var(--ov-chip-ink);
   flex: 0 0 auto;
 }
+.bb-name {
+  color: var(--ov-text);
+  font-weight: 700;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
 .bb-line {
   color: var(--ov-line);
   white-space: nowrap;
