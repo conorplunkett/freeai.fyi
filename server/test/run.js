@@ -67,7 +67,7 @@ const fakeMailer = {
     referralRewardCents: 2000, referralCap: 10,
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
-    emailTokenTtlMs: 1800000, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
+    emailTokenTtlMs: 1800000, emailCooldownMs: 0, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
     logRequests: false, giftFulfillmentEmail: "conor.p43@gmail.com",
   };
   const repo = createRepo(poolNs);
@@ -409,9 +409,11 @@ const fakeMailer = {
     assert.strictEqual(me.body.email, "web@example.com");
     assert.strictEqual(me.body.balanceUsd, 99);
 
-    // redeem Claude Pro, 3 months = $60, leaving $39
+    // redeem Claude Pro, 3 months = $60, leaving $39. A client-supplied
+    // recipientEmail is IGNORED — the gift always goes to the account email,
+    // so a stolen session can't redirect a cash-out to an attacker inbox.
     const r = await api("POST", "/v1/web/redemptions",
-      { plan: "pro", months: 3, recipientEmail: "gift@example.com" },
+      { plan: "pro", months: 3, recipientEmail: "attacker@evil.com" },
       { Authorization: `Bearer ${session}` });
     assert.strictEqual(r.status, 200);
     assert.strictEqual(r.body.amountUsd, 60);
@@ -421,7 +423,7 @@ const fakeMailer = {
     assert.strictEqual(mail.to, "conor.p43@gmail.com");
     assert.strictEqual(mail.planName, "Claude Pro");
     assert.strictEqual(mail.months, 3);
-    assert.strictEqual(mail.recipientEmail, "gift@example.com");
+    assert.strictEqual(mail.recipientEmail, "web@example.com", "recipient is forced to the account email");
 
     const after = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${session}` });
     assert.strictEqual(after.body.balanceUsd, 39);
@@ -432,10 +434,34 @@ const fakeMailer = {
     assert.strictEqual(broke.status, 403);
     assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1 })).status, 401);
 
-    // validation on the logged-in path: bad plan / months / recipient email
-    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "ultra", months: 1, recipientEmail: "a@b.co" }, { Authorization: `Bearer ${session}` })).status, 400);
-    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 2, recipientEmail: "a@b.co" }, { Authorization: `Bearer ${session}` })).status, 400);
-    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1, recipientEmail: "nope" }, { Authorization: `Bearer ${session}` })).status, 400);
+    // validation on the logged-in path: bad plan / months
+    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "ultra", months: 1 }, { Authorization: `Bearer ${session}` })).status, 400);
+    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 2 }, { Authorization: `Bearer ${session}` })).status, 400);
+
+    // sign out revokes the session server-side: the same bearer token is dead
+    const logout = await api("POST", "/v1/web/logout", {}, { Authorization: `Bearer ${session}` });
+    assert.strictEqual(logout.status, 200);
+    assert.strictEqual((await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${session}` })).status, 401);
+  });
+
+  await check("magic-link sends are rate-limited per email (anti-bomb / anti-enumeration)", async () => {
+    // second app instance with a real cooldown; the main suite runs with it off
+    const cfgCd = { ...config, emailCooldownMs: 60000 };
+    const { server: s4 } = createApp({ repo, stripe, mailer: fakeMailer, rateLimiter: bigLimiter, config: cfgCd });
+    await new Promise((r) => s4.listen(0, r));
+    const b4 = `http://127.0.0.1:${s4.address().port}`;
+    const post = (p, b) => fetch(b4 + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(async (r) => ({ status: r.status, body: await r.json() }));
+
+    const before = mailbox.length;
+    const r1 = await post("/v1/web/login", { email: "flood@example.com" });
+    const r2 = await post("/v1/web/login", { email: "flood@example.com" });
+    // both responses look identical to the caller — no enumeration signal …
+    assert.strictEqual(r1.status, 200);
+    assert.strictEqual(r2.status, 200);
+    assert.ok(r2.body.sent, "throttled response shape is unchanged");
+    // … but only one email actually went out within the cooldown window
+    assert.strictEqual(mailbox.length - before, 1, "second rapid send is suppressed");
+    s4.close();
   });
 
   // ---------- referrals ----------

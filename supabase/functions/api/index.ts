@@ -52,6 +52,7 @@ function loadConfig() {
     referralCap: parseInt(env("REFERRAL_CAP", "10"), 10),
     giftFulfillmentEmail: env("GIFT_FULFILLMENT_EMAIL", "conor.p43@gmail.com"),
     emailTokenTtlMs: parseInt(env("EMAIL_TOKEN_TTL_MS", "1800000"), 10),
+    emailCooldownMs: parseInt(env("EMAIL_COOLDOWN_MS", "60000"), 10), // min gap between magic-link sends per email; 0 disables. DB-backed, so it holds even though the in-memory rate limiter is dropped here.
     webSessionTtlMs: parseInt(env("WEB_SESSION_TTL_MS", "2592000000"), 10),
     clickTokenTtlMs: parseInt(env("CLICK_TOKEN_TTL_MS", "120000"), 10),
     maxBodyBytes: parseInt(env("MAX_BODY_BYTES", "65536"), 10),
@@ -587,7 +588,23 @@ function createRepo(pool: any) {
       const { rows } = await pool.query(`select u.* from users u join devices d on d.user_id = u.id where d.id = $1`, [deviceId]);
       return rows[0] || null;
     },
-    async createEmailToken(email: string, deviceId: string | null, ttlMs: number, referralCode?: any) {
+    async createEmailToken(email: string, deviceId: string | null, ttlMs: number, referralCode?: any, cooldownMs?: number) {
+      // Per-email send cooldown: collapse rapid repeat requests so the magic-link
+      // endpoints can't be used to email-bomb or probe an address. Scoped by
+      // device so verify-email (device-linked) and website-login (device-null)
+      // never throttle each other. Returns null when a fresh token was just
+      // issued — the caller responds the same either way so nothing leaks.
+      if (cooldownMs) {
+        const recent = await pool.query(
+          `select 1 from email_tokens
+            where lower(email) = lower($1) and used_at is null
+              and device_id is not distinct from $2
+              and created_at > now() - ($3 || ' milliseconds')::interval
+            limit 1`,
+          [email, deviceId || null, String(cooldownMs)]
+        );
+        if (recent.rows[0]) return null;
+      }
       const token = crypto.randomBytes(32).toString("base64url");
       await pool.query(
         `insert into email_tokens (token, email, device_id, referral_code, expires_at)
@@ -778,6 +795,10 @@ function createRepo(pool: any) {
         [sessionToken]
       );
       return rows[0] || null;
+    },
+    async deleteWebSession(sessionToken: string | null) {
+      if (!sessionToken) return;
+      await pool.query("delete from web_sessions where token = $1", [sessionToken]);
     },
     async balanceForUser(userId: string) {
       const { rows } = await pool.query(
@@ -1193,8 +1214,8 @@ route("POST", "/v1/auth/request-link", async (ctx: any) => {
   const device = await authDeviceFrom(ctx);
   if (!device) return json(401, { error: "bad device credentials" });
   if (!ctx.body?.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ctx.body.email)) return json(400, { error: "valid email required" });
-  const token = await repo.createEmailToken(ctx.body.email, device.id, config.emailTokenTtlMs);
-  await mailer.sendVerifyEmail(ctx.body.email, `${config.apiBaseUrl}/v1/auth/verify?token=${token}`);
+  const token = await repo.createEmailToken(ctx.body.email, device.id, config.emailTokenTtlMs, null, config.emailCooldownMs);
+  if (token) await mailer.sendVerifyEmail(ctx.body.email, `${config.apiBaseUrl}/v1/auth/verify?token=${token}`);
   return json(200, { ok: true, sent: true });
 });
 route("GET", "/v1/auth/verify", async (ctx: any) => {
@@ -1369,8 +1390,8 @@ route("GET", "/v1/auth/apple/callback", async (ctx: any) => {
 route("POST", "/v1/web/login", async (ctx: any) => {
   const body = ctx.body || {};
   if (!body.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) return json(400, { error: "valid email required" });
-  const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs, body.referralCode);
-  await mailer.sendWebLoginEmail(body.email, `${config.apiBaseUrl}/v1/web/session?token=${token}`);
+  const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs, body.referralCode, config.emailCooldownMs);
+  if (token) await mailer.sendWebLoginEmail(body.email, `${config.apiBaseUrl}/v1/web/session?token=${token}`);
   return json(200, { ok: true, sent: true });
 });
 route("GET", "/v1/web/session", async (ctx: any) => {
@@ -1383,6 +1404,12 @@ route("GET", "/v1/web/me", async (ctx: any) => {
   if (!user) return json(401, { error: "not signed in" });
   const bal = await repo.balanceForUser(user.id);
   return json(200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000 });
+});
+// Sign out: revoke the session server-side so the bearer token is dead even if
+// it lingers in a browser/localStorage. Always 200 (idempotent).
+route("POST", "/v1/web/logout", async (ctx: any) => {
+  await repo.deleteWebSession(sessionFrom(ctx));
+  return json(200, { ok: true });
 });
 route("GET", "/v1/web/earnings", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));
@@ -1447,8 +1474,10 @@ route("POST", "/v1/web/redemptions", async (ctx: any) => {
   const months = parseInt(body.months, 10);
   const amountCents = plan ? giftPriceCents(plan.id, months) : null;
   if (!amountCents) return json(400, { error: "plan must be pro/max5x/max20x and months 1/3/6/12" });
-  const recipientEmail = body.recipientEmail || user.email;
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) return json(400, { error: "valid recipientEmail required" });
+  // Gift cards go only to the account's own email — never a request-supplied
+  // address — so a stolen session can't redirect a cash-out to an attacker inbox.
+  const recipientEmail = user.email;
+  if (!recipientEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) return json(400, { error: "your account needs a verified email to redeem" });
   const balance = await repo.balanceForUser(user.id);
   if (balance.balanceMillicents < amountCents * 1000) return json(403, { error: "insufficient credits", balanceUsd: balance.balanceMillicents / 100000, requiredUsd: amountCents / 100 });
   const redemptionId = crypto.randomUUID();

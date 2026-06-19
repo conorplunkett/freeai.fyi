@@ -433,7 +433,24 @@ function createRepo(pool) {
     },
 
     // ---------- email verification (magic link) ----------
-    async createEmailToken(email, deviceId, ttlMs, referralCode) {
+    async createEmailToken(email, deviceId, ttlMs, referralCode, cooldownMs) {
+      // Per-email send cooldown: collapse rapid repeat requests so the
+      // magic-link endpoints can't be used to email-bomb or probe an address.
+      // Scoped by device so the verify-email (device-linked) and website-login
+      // (device-null) flows never throttle each other. Returns null when a fresh
+      // token was just issued — the caller responds the same either way so a
+      // throttle never leaks whether the address exists.
+      if (cooldownMs) {
+        const recent = await pool.query(
+          `select 1 from email_tokens
+            where lower(email) = lower($1) and used_at is null
+              and device_id is not distinct from $2
+              and created_at > now() - ($3 || ' milliseconds')::interval
+            limit 1`,
+          [email, deviceId || null, String(cooldownMs)]
+        );
+        if (recent.rows[0]) return null;
+      }
       const token = crypto.randomBytes(32).toString("base64url");
       await pool.query(
         `insert into email_tokens (token, email, device_id, referral_code, expires_at)
@@ -679,6 +696,13 @@ function createRepo(pool) {
         [sessionToken]
       );
       return rows[0] || null;
+    },
+
+    // Revoke a web session server-side so the bearer token is dead immediately,
+    // even if a copy lingers in a browser's localStorage. Idempotent.
+    async deleteWebSession(sessionToken) {
+      if (!sessionToken) return;
+      await pool.query("delete from web_sessions where token = $1", [sessionToken]);
     },
 
     // Aggregate credit balance for a user, across every device linked to them

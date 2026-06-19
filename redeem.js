@@ -78,7 +78,9 @@ function showRedeemPage(email) {
   $("login-page").hidden = true;
   $("redeem-page").hidden = false;
   $("balance-email").textContent = email;
-  if (!$("recipient").value) $("recipient").value = email;
+  // Gift cards are delivered to the account email; the field is read-only and
+  // the server ignores any client-supplied recipient.
+  $("recipient").value = email;
   showRedeemView();
 }
 
@@ -266,7 +268,10 @@ $("resend-btn-2").addEventListener("click", () => handleResend($("resend-btn-2")
 $("back-btn").addEventListener("click", () => showStep("providers"));
 
 // ── Sign out ──
-$("signout").addEventListener("click", () => {
+$("signout").addEventListener("click", async () => {
+  // Revoke server-side first so the token is dead even if a copy lingers
+  // anywhere; best-effort — clear locally and reload regardless.
+  try { await apiPost("/v1/web/logout", {}); } catch {}
   localStorage.removeItem(SESSION_KEY);
   location.reload();
 });
@@ -342,8 +347,9 @@ $("redeem-btn").addEventListener("click", async () => {
   btn.disabled = true;
   const old = btn.textContent;
   btn.textContent = "Redeeming…";
+  // recipient is the account email (server-enforced); not sent in the request.
   const { status, body } = await apiPost("/v1/web/redemptions", {
-    plan: selected.plan, months: selected.months, recipientEmail,
+    plan: selected.plan, months: selected.months,
   });
   btn.textContent = old;
   const result = $("redeem-result");

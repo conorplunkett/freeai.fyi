@@ -209,8 +209,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const device = await authDeviceFrom(body);
     if (!device) return json(res, 401, { error: "bad device credentials" });
     if (!body.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) return json(res, 400, { error: "valid email required" });
-    const token = await repo.createEmailToken(body.email, device.id, config.emailTokenTtlMs);
-    await mailer.sendVerifyEmail(body.email, `${config.apiBaseUrl}/v1/auth/verify?token=${token}`);
+    const token = await repo.createEmailToken(body.email, device.id, config.emailTokenTtlMs, null, config.emailCooldownMs);
+    if (token) await mailer.sendVerifyEmail(body.email, `${config.apiBaseUrl}/v1/auth/verify?token=${token}`);
     json(res, 200, { ok: true, sent: true });
   });
 
@@ -456,8 +456,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!body?.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) {
       return json(res, 400, { error: "valid email required" });
     }
-    const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs, body.referralCode);
-    await mailer.sendWebLoginEmail(body.email, `${config.apiBaseUrl}/v1/web/session?token=${token}`);
+    const token = await repo.createEmailToken(body.email, null, config.emailTokenTtlMs, body.referralCode, config.emailCooldownMs);
+    if (token) await mailer.sendWebLoginEmail(body.email, `${config.apiBaseUrl}/v1/web/session?token=${token}`);
     json(res, 200, { ok: true, sent: true });
   });
 
@@ -472,6 +472,14 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!user) return json(res, 401, { error: "not signed in" });
     const bal = await repo.balanceForUser(user.id);
     json(res, 200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000 });
+  });
+
+  // Sign out: revoke the session server-side so the bearer token is dead even
+  // if it lingers in a browser/localStorage or was copied elsewhere. Always 200
+  // (idempotent) — clearing the client-side token is the caller's job.
+  route("POST", "/v1/web/logout", async (req, res, body, rawBody, query) => {
+    await repo.deleteWebSession(sessionFrom(req, body, query));
+    json(res, 200, { ok: true });
   });
 
   // Earnings dashboard: lifetime / today / month-to-date credit totals plus a
@@ -580,9 +588,12 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const amountCents = plan ? giftPriceCents(plan.id, months) : null;
     if (!amountCents) return json(res, 400, { error: "plan must be pro/max5x/max20x and months 1/3/6/12" });
 
-    const recipientEmail = body.recipientEmail || user.email;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) {
-      return json(res, 400, { error: "valid recipientEmail required" });
+    // Gift cards are delivered only to the account's own email — never an
+    // address supplied in the request. This caps the blast radius of a stolen
+    // session: a hijacked token can't redirect a cash-out to an attacker inbox.
+    const recipientEmail = user.email;
+    if (!recipientEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) {
+      return json(res, 400, { error: "your account needs a verified email to redeem" });
     }
 
     const balance = await repo.balanceForUser(user.id);
