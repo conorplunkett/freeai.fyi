@@ -345,6 +345,37 @@ async function main() {
       await page.waitForFunction(() => !document.querySelector(".bb-bar.bb-show"), { timeout: 5000 });
     });
 
+    await check("on hide the box stays mounted + space-reserved and fades over 2s (no reflow)", async () => {
+      const meta = await page.$eval(".bb-bar", (el) => {
+        const s = getComputedStyle(el);
+        return { connected: el.isConnected, display: s.display, opacityDur: s.transitionDuration };
+      });
+      assert.ok(meta.connected, "bar was removed from the DOM on hide");
+      assert.strictEqual(meta.display, "flex", "box collapsed instead of reserving space");
+      assert.ok(/(^|,)\s*2s/.test(meta.opacityDur), `expected a 2s fade, got ${meta.opacityDur}`);
+      // partway through the 2s fade it should be visibly dimming, not snapped off
+      await sleep(700);
+      const mid = await page.$eval(".bb-bar", (el) => parseFloat(getComputedStyle(el).opacity));
+      assert.ok(mid > 0 && mid < 1, `expected a partial fade, got opacity ${mid}`);
+      // and after the full 2s it should be invisible (still mounted)
+      await sleep(1800);
+      const end = await page.$eval(".bb-bar", (el) => {
+        const s = getComputedStyle(el);
+        return { opacity: parseFloat(s.opacity), visibility: s.visibility };
+      });
+      assert.ok(end.opacity < 0.05, `did not finish fading, opacity ${end.opacity}`);
+      assert.strictEqual(end.visibility, "hidden", "faded box should be visibility:hidden");
+    });
+
+    await check("a new generation fades the same box back in (reused, not recreated)", async () => {
+      await page.evaluate(() => window.setGenerating(true));
+      await page.waitForSelector(".bb-bar.bb-show", { timeout: 5000 });
+      const n = await page.$$eval(".bb-bar", (els) => els.length);
+      assert.strictEqual(n, 1, "more than one bar exists — box should be reused");
+      await page.evaluate(() => window.setGenerating(false));
+      await page.waitForFunction(() => !document.querySelector(".bb-bar.bb-show"), { timeout: 5000 });
+    });
+
     await check("Test Mode without generation ⇒ bar stays hidden", async () => {
       await setState({ testMode: true });
       await refreshTab();
