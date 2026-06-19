@@ -1,9 +1,11 @@
 /* FreeAI admin dashboard.
  *
- * Auth model: the ADMIN_KEY is the password. It lives only in sessionStorage and
- * is sent as the `x-admin-key` header on every request. No data renders until a
- * valid key unlocks the gate; the server re-validates the key on every endpoint,
- * so this static page exposes nothing on its own. */
+ * Auth model: the ADMIN_KEY is the password. It's remembered in localStorage so
+ * you only enter it once per browser (never re-typed), and sent as the
+ * `x-admin-key` header on every request. No data renders until a valid key
+ * unlocks the gate; the server re-validates the key on every endpoint, so this
+ * static page exposes nothing on its own — the financial API stays protected
+ * even though the page never nags you for a password. */
 
 const API_BASE = (
   document.querySelector('meta[name="freeai-api"]')?.content ||
@@ -11,9 +13,9 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 const KEY_STORE = "freeai_admin_key";
-const getKey = () => sessionStorage.getItem(KEY_STORE) || "";
-const setKey = (k) => sessionStorage.setItem(KEY_STORE, k);
-const clearKey = () => sessionStorage.removeItem(KEY_STORE);
+const getKey = () => localStorage.getItem(KEY_STORE) || "";
+const setKey = (k) => localStorage.setItem(KEY_STORE, k);
+const clearKey = () => localStorage.removeItem(KEY_STORE);
 
 // ── tiny DOM + format helpers ──────────────────────────────────────────────
 const $ = (sel, root = document) => root.querySelector(sel);
