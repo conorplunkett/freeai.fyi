@@ -880,6 +880,8 @@ async function runPayouts() {
 
 // ─────────────────────────── http plumbing ─────────────────────────────────
 let serving = !config.killswitch;
+// TEMP: capture the most recent unhandled route error for /v1/_diag.
+let lastError: any = null;
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": config.corsOrigin || "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -953,6 +955,7 @@ route("GET", "/v1/_diag", async (ctx: any) => {
       ipHash: null, ipDailyCap: 0,
     });
   } catch (e: any) { out.ingestErr = String(e?.stack || e?.message || e); }
+  out.lastError = lastError;
   return json(200, out);
 });
 route("GET", "/v1/config", async () => json(200, { serving, revenueShare: config.revenueShare }));
@@ -1417,6 +1420,7 @@ Deno.serve(async (req: Request) => {
     return await handler(ctx);
   } catch (err: any) {
     console.error(`[freeai] ${req.method} ${path} failed:`, err?.message);
+    lastError = { at: new Date().toISOString(), method: req.method, path, message: err?.message, stack: err?.stack };
     return json(500, { error: "internal error" });
   } finally {
     console.log(`[freeai] ${req.method} ${path} ${Date.now() - started}ms`);
