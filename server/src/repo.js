@@ -117,7 +117,7 @@ function createRepo(pool) {
     // ---------- auction ----------
     async activeAds(limit = 20) {
       const { rows } = await pool.query(
-        `select id, brand, ad_line, url, category, price_per_block_cents, show_on_leaderboard
+        `select id, brand, ad_line, url, category, color, price_per_block_cents, show_on_leaderboard
            from campaigns
           where status = 'active' and impressions_remaining > 0
           order by price_per_block_cents desc, activated_at asc
@@ -140,7 +140,7 @@ function createRepo(pool) {
     },
 
     // ---------- advertiser checkout ----------
-    async createPendingCampaign({ email, brand, adLine, url, category, pricePerBlockCents, blocks, showOnLeaderboard }) {
+    async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, showOnLeaderboard }) {
       return tx(async (c) => {
         const adv = await c.query(
           "insert into advertisers (email) values ($1) returning id",
@@ -148,11 +148,11 @@ function createRepo(pool) {
         );
         const { rows } = await c.query(
           `insert into campaigns
-             (advertiser_id, brand, ad_line, url, category, price_per_block_cents,
+             (advertiser_id, brand, ad_line, url, category, color, price_per_block_cents,
               blocks, impressions_total, impressions_remaining, show_on_leaderboard)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10)
            returning id`,
-          [adv.rows[0].id, brand || null, adLine, url, category || "other",
+          [adv.rows[0].id, brand || null, adLine, url, category || "other", color || null,
            pricePerBlockCents, blocks, blocks * 1000, showOnLeaderboard !== false]
         );
         return rows[0].id;

@@ -118,6 +118,14 @@ function isUuid(s: any) {
   return typeof s === "string" && UUID_RE.test(s);
 }
 
+// Advertiser accent color, "#rrggbb" or bare "rrggbb" → canonical "#rrggbb",
+// else null (client falls back to a per-brand color).
+function normalizeHexColor(value: any) {
+  if (value == null || value === "") return null;
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(value).trim());
+  return match ? `#${match[1].toLowerCase()}` : null;
+}
+
 // ─────────────────────────── giftcards.js ──────────────────────────────────
 const GIFT_PLANS: any = {
   pro: { id: "pro", name: "Claude Pro", tagline: "For the curious", monthlyCents: 2000 },
@@ -336,7 +344,7 @@ function createRepo(pool: any) {
     },
     async activeAds(limit = 20) {
       const { rows } = await pool.query(
-        `select id, brand, ad_line, url, category, price_per_block_cents, show_on_leaderboard
+        `select id, brand, ad_line, url, category, color, price_per_block_cents, show_on_leaderboard
            from campaigns where status = 'active' and impressions_remaining > 0
           order by price_per_block_cents desc, activated_at asc limit $1`,
         [limit]
@@ -352,15 +360,15 @@ function createRepo(pool: any) {
       );
       return rows;
     },
-    async createPendingCampaign({ email, brand, adLine, url, category, pricePerBlockCents, blocks, showOnLeaderboard }: any) {
+    async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, showOnLeaderboard }: any) {
       return tx(async (c: any) => {
         const adv = await c.query("insert into advertisers (email) values ($1) returning id", [email]);
         const { rows } = await c.query(
           `insert into campaigns
-             (advertiser_id, brand, ad_line, url, category, price_per_block_cents,
+             (advertiser_id, brand, ad_line, url, category, color, price_per_block_cents,
               blocks, impressions_total, impressions_remaining, show_on_leaderboard)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9) returning id`,
-          [adv.rows[0].id, brand || null, adLine, url, category || "other",
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10) returning id`,
+          [adv.rows[0].id, brand || null, adLine, url, category || "other", color || null,
            pricePerBlockCents, blocks, blocks * 1000, showOnLeaderboard !== false]
         );
         return rows[0].id;
@@ -1016,7 +1024,7 @@ route("GET", "/v1/_diag", async (ctx: any) => {
 route("GET", "/v1/config", async () => json(200, { serving, revenueShare: config.revenueShare }));
 route("GET", "/v1/ads", async () => {
   const ads = serving ? await repo.activeAds() : [];
-  return json(200, { revenueShare: config.revenueShare, ads: ads.map((a: any) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category })) });
+  return json(200, { revenueShare: config.revenueShare, ads: ads.map((a: any) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category, color: a.color || undefined })) });
 });
 route("GET", "/v1/leaderboard", async () => {
   const rows = await repo.leaderboard();
@@ -1059,7 +1067,7 @@ route("GET", "/v1/go/:token", async (ctx: any) => {
 
 // ── advertiser checkout ──
 route("POST", "/v1/checkout", async (ctx: any) => {
-  const { email, adLine, url, brand, category, pricePerBlock, blocks, showOnLeaderboard } = ctx.body || {};
+  const { email, adLine, url, brand, category, color, pricePerBlock, blocks, showOnLeaderboard } = ctx.body || {};
   const priceCents = Math.round(Number(pricePerBlock) * 100);
   const nBlocks = parseInt(blocks, 10);
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
@@ -1067,7 +1075,7 @@ route("POST", "/v1/checkout", async (ctx: any) => {
   if (!/^https:\/\/[^\s]+$/.test(url || "")) return json(400, { error: "https url required" });
   if (!(priceCents >= 100)) return json(400, { error: "min bid is $1.00 per block" });
   if (!(nBlocks >= 1)) return json(400, { error: "at least 1 block" });
-  const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
+  const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, color: normalizeHexColor(color), pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
   const session = await stripe.createCheckoutSession({
     mode: "payment", customer_email: email, receipt_email: email,
     line_items: [{ quantity: nBlocks, price_data: { currency: "usd", unit_amount: priceCents, product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `"${adLine}"` } } }],

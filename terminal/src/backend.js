@@ -31,6 +31,7 @@ export class FreeAiBackend {
       url: safeHttpUrl(ad.url || ""),
       brand: typeof ad.brand === "string" ? ad.brand : undefined,
       category: typeof ad.cat === "string" ? ad.cat : undefined,
+      color: typeof ad.color === "string" ? ad.color : undefined,
     })).filter((ad) => ad.id && ad.line);
   }
 

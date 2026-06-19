@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { readTranscriptActivity } from "./transcript.js";
 import { readState, updateState } from "./state.js";
-import { safeHttpUrl, stripControlChars } from "./util.js";
+import { composeAdText, safeHttpUrl } from "./util.js";
+import { dimLabel, hyperlink, resolveAdColor, shimmer } from "./color.js";
 
 const ACTIVE_STALE_MS = 4000;
 const PREV_TIMEOUT_MS = 1500;
@@ -43,7 +44,7 @@ export async function runStatusLine({
     }
 
     const lines = [];
-    const adLine = active ? buildAdLine(state) : "";
+    const adLine = active ? buildAdLine(state, { now }) : "";
     if (adLine) lines.push(adLine);
     const prev = prevPath ? await runPreviousStatusLine(prevPath, input) : "";
     if (prev) lines.push(prev);
@@ -53,14 +54,21 @@ export async function runStatusLine({
   }
 }
 
-export function buildAdLine(state) {
-  const line = stripControlChars(state?.ad?.line || "");
+export function buildAdLine(state, { now = Date.now() } = {}) {
+  const ad = state?.ad || {};
+  const text = composeAdText(ad.brand, ad.line);
+  if (!text) return "";
+
+  // Advertiser color when set, else a stable per-brand fallback so the line
+  // always looks deliberate.
+  const rgb = resolveAdColor({ color: ad.color, seed: ad.brand || ad.line });
+  // Bold + colored + underlined, with a shimmer band sweeping across — reads
+  // as a live, clickable link like the Chrome extension's ad bar.
+  const styled = `${dimLabel("ad\u00b7")} ${shimmer(text, rgb, { now })}`;
+
   const url = safeHttpUrl(state?.trackingUrl || "");
-  if (!line) return "";
-  const text = `ad\u00b7 ${line}`;
-  if (!url) return text;
-  const esc = "\u001b";
-  return `${esc}]8;;${url}${esc}\\${text}${esc}]8;;${esc}\\`;
+  if (!url) return styled;
+  return hyperlink(url, styled);
 }
 
 async function runPreviousStatusLine(prevPath, input) {

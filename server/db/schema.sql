@@ -44,6 +44,9 @@ create table if not exists campaigns (
   ad_line text not null check (char_length(ad_line) between 3 and 60),
   url text not null check (url like 'https://%'),
   category text not null default 'other',
+  -- Advertiser-chosen accent color for the ad line, "#rrggbb"; null falls back
+  -- to a per-brand color in the client.
+  color text check (color is null or color ~* '^#[0-9a-f]{6}$'),
   price_per_block_cents integer not null check (price_per_block_cents >= 100),  -- min $1.00
   blocks integer not null check (blocks > 0),
   impressions_total integer not null,      -- blocks * 1000
@@ -60,6 +63,9 @@ create table if not exists campaigns (
   paid_at timestamptz,
   activated_at timestamptz
 );
+
+-- Backfill the color column on databases created before it existed.
+alter table campaigns add column if not exists color text;
 
 create index if not exists campaigns_auction_idx
   on campaigns (status, price_per_block_cents desc)

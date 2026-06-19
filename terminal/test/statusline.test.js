@@ -24,6 +24,14 @@ function capture() {
   };
 }
 
+// The ad line is now styled (color/bold/shimmer) and OSC 8-wrapped; strip both
+// to assert on the visible text.
+function stripAnsi(value) {
+  return String(value)
+    .replace(/\u001b\]8;;[^\u001b]*\u001b\\/g, "")
+    .replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 test("runStatusLine prints a clickable ad only for an active transcript", async () => {
   const dir = tempDir();
   const statePath = join(dir, "state.json");
@@ -44,7 +52,7 @@ test("runStatusLine prints a clickable ad only for an active transcript", async 
     stdout: out.stream,
   });
   assert.match(out.text(), /\u001b]8;;https:\/\/api\.example\/v1\/go\/tok/);
-  assert.match(out.text(), /ad· Try Acme/);
+  assert.match(stripAnsi(out.text()), /ad· Try Acme/);
   assert.doesNotMatch(out.text(), /\u001b\[31m/);
 });
 
@@ -77,6 +85,19 @@ test("runStatusLine suppresses ad while idle and still chains previous statusLin
   assert.equal(out.text(), "prev-line");
 });
 
-test("buildAdLine falls back to non-clickable text when tracking URL is absent", () => {
-  assert.equal(buildAdLine({ ad: { line: "Ad" }, trackingUrl: "" }), "ad· Ad");
+test("buildAdLine falls back to styled, non-clickable text when tracking URL is absent", () => {
+  const out = buildAdLine({ ad: { line: "Ad" }, trackingUrl: "" });
+  assert.equal(stripAnsi(out), "ad· Ad");
+  assert.doesNotMatch(out, /\u001b]8;;/); // no hyperlink without a tracking URL
+});
+
+test("buildAdLine renders brand, advertiser color and a clickable link", () => {
+  const out = buildAdLine({
+    ad: { brand: "Linear", line: "Plan your next sprint faster", color: "#5b5bd6" },
+    trackingUrl: "https://api.example/v1/go/tok",
+  }, { now: 0 });
+  assert.equal(stripAnsi(out), "ad· Linear — Plan your next sprint faster");
+  assert.match(out, /\u001b\[1m/);              // bold
+  assert.match(out, /\u001b\[38;2;91;91;214m/); // advertiser color #5b5bd6
+  assert.match(out, /\u001b]8;;https:\/\/api\.example\/v1\/go\/tok/); // clickable
 });

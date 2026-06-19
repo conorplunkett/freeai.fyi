@@ -16,6 +16,7 @@ export function initialState({ sessionId, ad, trackingUrl }) {
       url: ad.url || "",
       brand: ad.brand || "",
       category: ad.category || "",
+      color: ad.color || "",
     } : null,
     trackingUrl: trackingUrl || "",
     impression: {

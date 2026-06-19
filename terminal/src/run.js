@@ -10,7 +10,7 @@ import { sessionDir } from "./paths.js";
 import { buildFreeAiStatusLine, effectiveStatusLine, extractSettingsArg,
   readSettingsValue, writeSessionSettings } from "./settings.js";
 import { initialState, updateState, writeState } from "./state.js";
-import { removePath, safeHttpUrl, randomId } from "./util.js";
+import { composeAdText, removePath, safeHttpUrl, randomId } from "./util.js";
 
 // Opt-in stderr tracing. The ad path is intentionally silent in normal use, so
 // when "doctor" is green but no ad shows, `FREEAI_DEBUG=1 claude` reveals which
@@ -114,7 +114,7 @@ async function prepareFreeAiSession({
     cliPath, statePath, prevPath: prevPath || undefined,
   });
   const spinnerVerbs = await supportedSpinnerVerbs(realClaude)
-    ? { mode: "replace", verbs: [ad.line] }
+    ? { mode: "replace", verbs: [composeAdText(ad.brand, ad.line)] }
     : undefined;
   writeSessionSettings({ path: settingsPath, userSettings, statusLine, spinnerVerbs });
 

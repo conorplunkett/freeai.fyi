@@ -27,4 +27,13 @@ function isCleanAdLine(s) {
   return true;
 }
 
-module.exports = { escapeHtml, isCleanAdLine };
+// Advertiser-supplied accent color. Accept "#rrggbb" or bare "rrggbb"; return
+// canonical lowercase "#rrggbb", or null when absent/invalid (the client then
+// falls back to a per-brand color).
+function normalizeHexColor(value) {
+  if (value == null || value === "") return null;
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(value).trim());
+  return match ? `#${match[1].toLowerCase()}` : null;
+}
+
+module.exports = { escapeHtml, isCleanAdLine, normalizeHexColor };

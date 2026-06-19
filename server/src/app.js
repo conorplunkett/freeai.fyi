@@ -7,7 +7,7 @@ const crypto = require("node:crypto");
 const { verifyWebhookSignature } = require("./stripe");
 const { GIFT_PLANS, GIFT_MONTHS, giftPriceCents } = require("./giftcards");
 const { runPayouts } = require("./payouts");
-const { escapeHtml, isCleanAdLine } = require("./util");
+const { escapeHtml, isCleanAdLine, normalizeHexColor } = require("./util");
 
 function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   // Killswitch: when off, /v1/config tells extensions to stop serving and
@@ -78,7 +78,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const ads = serving ? await repo.activeAds() : [];
     json(res, 200, {
       revenueShare: config.revenueShare,
-      ads: ads.map((a) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category })),
+      ads: ads.map((a) => ({ id: a.id, brand: a.brand, line: a.ad_line, url: a.url, cat: a.category, color: a.color || undefined })),
     });
   });
 
@@ -130,7 +130,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
 
   // ---------- money in: advertiser checkout ----------
   route("POST", "/v1/checkout", async (req, res, body) => {
-    const { email, adLine, url, brand, category, pricePerBlock, blocks, showOnLeaderboard } = body || {};
+    const { email, adLine, url, brand, category, color, pricePerBlock, blocks, showOnLeaderboard } = body || {};
     const priceCents = Math.round(Number(pricePerBlock) * 100);
     const nBlocks = parseInt(blocks, 10);
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { error: "valid email required" });
@@ -140,7 +140,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!(nBlocks >= 1)) return json(res, 400, { error: "at least 1 block" });
 
     const campaignId = await repo.createPendingCampaign({
-      email, brand, adLine, url, category, pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard,
+      email, brand, adLine, url, category, color: normalizeHexColor(color),
+      pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard,
     });
     const session = await stripe.createCheckoutSession({
       mode: "payment", customer_email: email, receipt_email: email,
