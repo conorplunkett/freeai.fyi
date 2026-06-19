@@ -1293,6 +1293,31 @@ function createRepo(pool: any) {
       )).rows;
       return { byStatus, recent };
     },
+
+    // Waitlist demand per surface + recent signups (who's waiting for what).
+    async adminWaitlist(limit = 200) {
+      const bySurface = (await pool.query(
+        `select s.surface, s.label, count(w.id)::int as n
+           from waitlist_surfaces s left join waitlist_signups w on w.surface = s.surface
+          group by s.surface, s.label, s.sort_order order by s.sort_order asc, s.surface asc`
+      )).rows;
+      const recent = (await pool.query(
+        `select w.surface, w.created_at, u.email
+           from waitlist_signups w left join users u on u.id = w.user_id
+          order by w.created_at desc limit $1`,
+        [Math.max(1, Math.min(500, limit))]
+      )).rows;
+      return { bySurface, recent };
+    },
+
+    // Most recent runtime errors captured by the dispatch handler.
+    async adminErrors(limit = 100) {
+      const { rows } = await pool.query(
+        "select id, method, path, message, created_at from diag_errors order by created_at desc limit $1",
+        [Math.max(1, Math.min(500, limit))]
+      );
+      return rows;
+    },
   };
 }
 const repo = createRepo(pool);
@@ -2094,6 +2119,21 @@ route("GET", "/v1/admin/config", async (ctx: any) => {
   });
 });
 
+route("GET", "/v1/admin/waitlist", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const d = await repo.adminWaitlist();
+  return json(200, {
+    bySurface: d.bySurface.map((s: any) => ({ surface: s.surface, label: s.label, count: s.n })),
+    signups: d.recent.map((r: any) => ({ surface: r.surface, email: r.email, createdAt: r.created_at })),
+  });
+});
+
+route("GET", "/v1/admin/errors", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const rows = await repo.adminErrors();
+  return json(200, { errors: rows.map((r: any) => ({ id: String(r.id), method: r.method, path: r.path, message: r.message, createdAt: r.created_at })) });
+});
+
 // ─────────────────────────────── dispatch ──────────────────────────────────
 function stripPrefix(pathname: string) {
   let path = pathname.replace(/^\/functions\/v1/, ""); // defensive: platform prefix
@@ -2139,6 +2179,9 @@ Deno.serve(async (req: Request) => {
     return withCors(await handler(ctx));
   } catch (err: any) {
     console.error(`[freeai] ${req.method} ${path} failed:`, err?.message);
+    // Best-effort: persist the failure for the admin dashboard. Never let
+    // logging break the error response.
+    try { await pool.query("insert into diag_errors (method, path, message, stack) values ($1,$2,$3,$4)", [req.method, path, String(err?.message || err), String(err?.stack || "")]); } catch (_e) { /* ignore */ }
     return withCors(json(500, { error: "internal error" }));
   } finally {
     console.log(`[freeai] ${req.method} ${path} ${Date.now() - started}ms`);

@@ -113,6 +113,7 @@ const TABS = [
   { id: "emails", label: "Emails", render: renderEmails },
   { id: "payouts", label: "Payouts", render: renderPayouts },
   { id: "referrals", label: "Referrals", render: renderReferrals },
+  { id: "waitlist", label: "Waitlist", render: renderWaitlist },
   { id: "devices", label: "Devices & Fraud", render: renderDevices },
   { id: "schema", label: "Schema", render: renderSchema },
   { id: "settings", label: "Settings", render: renderSettings },
@@ -474,6 +475,17 @@ async function renderReferrals(view) {
       ])));
 }
 
+async function renderWaitlist(view) {
+  const d = await api("/v1/admin/waitlist");
+  view.innerHTML = "";
+  view.append(tiles(d.bySurface.map((s) => ({ k: s.label || s.surface, v: num(s.count), s: "waiting" }))));
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Recent signups"),
+      h("p", { class: "hint" }, "People who asked to be notified when a surface ships.")),
+    table([{ label: "Email" }, { label: "Surface" }, { label: "When" }], d.signups,
+      (s) => [h("span", { class: "mono" }, s.email || "—"), s.surface, dt(s.createdAt)])));
+}
+
 async function renderDevices(view) {
   const d = await api("/v1/admin/devices");
   view.innerHTML = "";
@@ -566,6 +578,14 @@ async function renderSettings(view) {
     h("div", { class: "card-head" }, h("h2", {}, "Manual balance adjustment")),
     h("p", { class: "hint" }, "Credit or debit a user’s balance directly. Find the user under the Users tab and use “Adjust”, or use a device/user ID below."),
     adjustForm()));
+  const errs = await api("/v1/admin/errors");
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Recent runtime errors"),
+      h("p", { class: "hint" }, errs.errors.length ? "Server errors captured by the API dispatch handler." : "No errors logged 🎉")),
+    errs.errors.length
+      ? table([{ label: "When" }, { label: "Method" }, { label: "Path" }, { label: "Message" }], errs.errors,
+          (e) => [dt(e.createdAt), e.method, td(h("span", { class: "mono" }, e.path)), td(h("span", {}, e.message), "wrap")])
+      : null));
   view.append(h("div", { class: "card danger-zone" },
     h("div", { class: "card-head" }, h("h2", {}, "Session")),
     h("p", { class: "hint" }, "API: " + API_BASE),
