@@ -923,6 +923,18 @@ function createRepo(pool: any) {
       );
       return r.rows[0];
     },
+    // First-login onboarding gate: true once the user has referred anyone — either
+    // sent at least one invite, or has a friend who joined with their code. Drives
+    // the "refer a friend to start earning" screen the new user must clear before
+    // reaching their dashboard.
+    async hasReferredAnyone(userId: string) {
+      const r = await pool.query(
+        `select exists(select 1 from referral_invites where referrer_user_id = $1)
+             or exists(select 1 from referrals where referrer_user_id = $1) as referred`,
+        [userId]
+      );
+      return r.rows[0]?.referred === true;
+    },
     async referralStats(userId: string) {
       const stats = await pool.query(
         `select
@@ -1735,7 +1747,8 @@ route("GET", "/v1/web/me", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));
   if (!user) return json(401, { error: "not signed in" });
   const bal = await repo.balanceForUser(user.id);
-  return json(200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000 });
+  const referred = await repo.hasReferredAnyone(user.id);
+  return json(200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000, needsReferral: !referred });
 });
 // Sign out: revoke the session server-side so the bearer token is dead even if
 // it lingers in a browser/localStorage. Always 200 (idempotent).

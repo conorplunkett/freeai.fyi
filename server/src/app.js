@@ -471,7 +471,8 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const user = await repo.userForSession(sessionFrom(req, body, query));
     if (!user) return json(res, 401, { error: "not signed in" });
     const bal = await repo.balanceForUser(user.id);
-    json(res, 200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000 });
+    const referred = await repo.hasReferredAnyone(user.id);
+    json(res, 200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000, needsReferral: !referred });
   });
 
   // Sign out: revoke the session server-side so the bearer token is dead even
