@@ -241,3 +241,34 @@ alter table ledger add constraint ledger_entry_type_check check (entry_type in (
   'gift_redemption_debit', -- redeemed for a Claude gift card        (- device)
   'referral_credit'      -- $20 bonus for a qualified referral        (+ user)
 ));
+
+-- ── Waitlists ────────────────────────────────────────────────────────────────
+-- Users can join a waitlist to be notified when ads launch on a surface that
+-- isn't live yet: the desktop app, the command line, the Chrome extension, and
+-- the VS Code extension. The surfaces live in an enum-style reference table
+-- (rather than a CHECK constraint) so adding a surface is a one-row INSERT, with
+-- a human label and a display order, and no schema migration.
+create table if not exists waitlist_surfaces (
+  surface text primary key,
+  label text not null,
+  sort_order integer not null default 0
+);
+insert into waitlist_surfaces (surface, label, sort_order) values
+  ('desktop',          'Ads on desktop',               1),
+  ('command_line',     'Ads on the command line',      2),
+  ('chrome_extension', 'Ads on the Chrome extension',  3),
+  ('vscode_extension', 'Ads on the VS Code extension', 4)
+on conflict (surface) do nothing;
+
+-- One row per (user, surface) interest. The surface is a foreign key into the
+-- enum table above, and the (user_id, surface) pair is unique so a re-signup is
+-- a no-op; a single user may sit on several waitlists.
+create table if not exists waitlist_signups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id),
+  surface text not null references waitlist_surfaces(surface),
+  created_at timestamptz not null default now(),
+  unique (user_id, surface)
+);
+create index if not exists waitlist_signups_user_idx on waitlist_signups (user_id);
+create index if not exists waitlist_signups_surface_idx on waitlist_signups (surface);

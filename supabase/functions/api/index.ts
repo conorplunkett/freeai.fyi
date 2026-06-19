@@ -945,6 +945,25 @@ function createRepo(pool: any) {
         await c.query("insert into payouts (user_id, amount_cents, stripe_transfer_id) values ($1,$2,$3)", [userId, amountCents, transferId]);
       });
     },
+    async listWaitlistSurfaces() {
+      const { rows } = await pool.query("select surface, label from waitlist_surfaces order by sort_order asc, surface asc");
+      return rows;
+    },
+    async joinWaitlist(userId: string, surface: string) {
+      const { rows } = await pool.query(
+        `insert into waitlist_signups (user_id, surface) values ($1, $2)
+         on conflict (user_id, surface) do nothing returning id`,
+        [userId, surface]
+      );
+      return !!rows[0];
+    },
+    async waitlistsForUser(userId: string) {
+      const { rows } = await pool.query(
+        "select surface, created_at from waitlist_signups where user_id = $1 order by created_at asc",
+        [userId]
+      );
+      return rows;
+    },
   };
 }
 const repo = createRepo(pool);
@@ -1424,6 +1443,26 @@ route("GET", "/v1/web/referrals", async (ctx: any) => {
     invitedCount: stats.invitedCount,
     creditsEarnedUsd: stats.creditsEarnedMillicents / 100000, referrals: stats.referrals,
   });
+});
+route("GET", "/v1/web/waitlist", async (ctx: any) => {
+  const user = await repo.userForSession(sessionFrom(ctx));
+  if (!user) return json(401, { error: "not signed in" });
+  const surfaces = await repo.listWaitlistSurfaces();
+  const joined = new Set((await repo.waitlistsForUser(user.id)).map((w: any) => w.surface));
+  return json(200, {
+    surfaces: surfaces.map((s: any) => ({ surface: s.surface, label: s.label, joined: joined.has(s.surface) })),
+  });
+});
+route("POST", "/v1/web/waitlist", async (ctx: any) => {
+  const user = await repo.userForSession(sessionFrom(ctx));
+  if (!user) return json(401, { error: "not signed in" });
+  const surface = ctx.body?.surface;
+  const known = await repo.listWaitlistSurfaces();
+  if (!surface || !known.some((s: any) => s.surface === surface)) {
+    return json(400, { error: "unknown surface", surfaces: known.map((s: any) => s.surface) });
+  }
+  const created = await repo.joinWaitlist(user.id, surface);
+  return json(200, { ok: true, surface, joined: true, alreadyJoined: !created });
 });
 route("POST", "/v1/web/referrals/invite", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));
