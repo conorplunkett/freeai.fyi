@@ -304,10 +304,14 @@ a { color: inherit; text-decoration: none; }
 .copy-btn:hover { border-color: #cfd4dc; }
 .install-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .btn-green {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   background: linear-gradient(180deg, var(--green-grad-a), var(--green-grad-b)); color: #fff;
   font-weight: 700; font-size: 15px; padding: 13px 24px; border-radius: 12px;
   box-shadow: 0 12px 28px -14px rgba(var(--accent-rgb),.7);
+  transition: transform .15s, filter .15s;
 }
+.btn-green:hover { transform: translateY(-2px); filter: brightness(1.04); }
+.btn-chrome { flex: none; }
 .btn-outline { border: 1px solid var(--line); background: #fff; font-weight: 600; font-size: 15px; padding: 13px 24px; border-radius: 12px; }
 .btn-outline:hover { border-color: #cfd4dc; }
 .install-fine { font-size: 13.5px; color: var(--gray-2); margin-top: 22px; }
