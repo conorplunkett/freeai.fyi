@@ -76,17 +76,22 @@ def find_chrome():
 def icon_html(size, grad_top, grad_bot):
     r = round(size * RADIUS_RATIO)
     fs = round(size * FONT_RATIO)
+    # Center the glyph with an SVG <text dominant-baseline="central"> (same as
+    # _brand.mjs markSVG / the favicon) — flex + line-height:1 sits it too high.
     return (
         "<!doctype html><html><head><meta charset=utf-8>"
         "<link rel=preconnect href='https://fonts.googleapis.com'>"
         "<link href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap' rel=stylesheet>"
         "<style>html,body{margin:0;padding:0;background:transparent}"
-        f"#m{{position:absolute;left:{PAD}px;top:{PAD}px;width:{size}px;height:{size}px;"
-        f"border-radius:{r}px;background:linear-gradient(180deg,{grad_top} 0%,{grad_bot} 100%);"
-        "display:flex;align-items:center;justify-content:center;color:#fff;"
-        f"font-family:{FONT_STACK};font-weight:700;font-size:{fs}px;"
-        "line-height:1;letter-spacing:0}"
-        "</style></head><body><div id=m>F$</div></body></html>"
+        f"svg{{position:absolute;left:{PAD}px;top:{PAD}px}}</style></head><body>"
+        f"<svg width={size} height={size} viewBox='0 0 {size} {size}' xmlns='http://www.w3.org/2000/svg'>"
+        "<defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'>"
+        f"<stop offset='0' stop-color='{grad_top}'/><stop offset='1' stop-color='{grad_bot}'/>"
+        "</linearGradient></defs>"
+        f"<rect width='{size}' height='{size}' rx='{r}' fill='url(#g)'/>"
+        f"<text x='{size / 2}' y='{size / 2}' text-anchor='middle' dominant-baseline='central' "
+        f"font-family=\"{FONT_STACK}\" font-weight='700' font-size='{fs}' letter-spacing='0' "
+        "fill='#fff'>F$</text></svg></body></html>"
     )
 
 
