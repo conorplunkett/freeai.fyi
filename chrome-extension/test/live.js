@@ -184,52 +184,46 @@ async function main() {
       assert.ok(d < 24, `bar starts ${d}px from the reply's left edge — not left-aligned`);
     });
 
-    await check("Claude star-only stage ⇒ bar shows BELOW the thinking star", async () => {
-      // Claude's real star markup: .epitaxy-spark-working inside a flex row,
-      // inside the .epitaxy-transcript-width wrapper. The bar should land as
-      // the wrapper's last child, below the star row, and STAY there.
+    await check("Claude star-only stage ⇒ bar shows below the star, in the turn container", async () => {
+      // Claude anchors on the per-turn div[data-test-render-count] container.
+      // The visible thinking star (.epitaxy-spark-working) drives detection;
+      // the bar should land as the turn's last child, below the star, and STAY.
       await page.evaluate(() => {
         document.querySelector('[data-message-author-role="assistant"]').remove();
-        // Claude keeps an empty streaming bubble ABOVE the star — it must not
-        // steal the anchor (that's what put the bar above the star)
-        const bubble = document.createElement("div");
-        bubble.setAttribute("data-is-streaming", "true");
-        bubble.id = "claude-bubble";
-        document.getElementById("messages").appendChild(bubble);
-        const wrap = document.createElement("div");
-        wrap.className = "epitaxy-transcript-width";
-        wrap.id = "claude-wrap";
-        const row = document.createElement("div");
-        row.className = "flex items-center";
-        const span = document.createElement("span");
+        const turn = document.createElement("div");
+        turn.setAttribute("data-test-render-count", "1");
+        turn.id = "claude-turn";
         const star = document.createElement("div");
         star.className = "epitaxy-spark-working";
         star.id = "claude-star";
-        span.appendChild(star);
-        row.appendChild(span);
-        wrap.appendChild(row);
-        document.getElementById("messages").appendChild(wrap);
+        star.style.cssText = "display:block;width:18px;height:18px"; // real star is visible
+        turn.appendChild(star);
+        document.getElementById("messages").appendChild(turn);
       });
       await page.waitForFunction(() => {
-        const b = document.querySelector("#claude-wrap > .bb-bar.bb-show");
+        const turn = document.getElementById("claude-turn");
+        const b = turn && turn.querySelector(".bb-bar.bb-show");
         const star = document.getElementById("claude-star");
-        return b && star && !!(star.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        return (
+          b && star &&
+          turn.lastElementChild === b &&
+          !!(star.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+        );
       }, { timeout: 5000 });
       // a node streaming in after the bar must still leave the bar last
       await page.evaluate(() => {
         const late = document.createElement("div");
         late.textContent = "first words…";
-        const wrap = document.getElementById("claude-wrap");
-        wrap.insertBefore(late, wrap.querySelector(".bb-bar"));
+        const turn = document.getElementById("claude-turn");
+        turn.insertBefore(late, turn.querySelector(".bb-bar"));
       });
       await page.waitForFunction(
-        () => document.getElementById("claude-wrap").lastElementChild.classList.contains("bb-bar"),
+        () => document.getElementById("claude-turn").lastElementChild.classList.contains("bb-bar"),
         { timeout: 3000 }
       );
       // restore the ChatGPT-style reply for the rest of the checks
       await page.evaluate(() => {
-        document.getElementById("claude-bubble").remove();
-        document.getElementById("claude-wrap").remove();
+        document.getElementById("claude-turn").remove();
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
@@ -242,6 +236,13 @@ async function main() {
     const buildGeminiDots = () => {
       window.setGenerating(false);
       document.querySelector('[data-message-author-role="assistant"]').remove();
+      const msgs = document.getElementById("messages");
+      // an OLDER, completed turn — its model-response is the LAST in the DOM
+      // (Gemini keeps several around). The bar must NOT anchor here.
+      const newestUser = document.createElement("div");
+      newestUser.id = "gem-newest-user";
+      newestUser.textContent = "newest user message";
+      // the ACTIVE turn's model-response, holding the live dots
       const mr = document.createElement("model-response");
       mr.id = "gem-mr";
       const content = document.createElement("div"); // response-content (collapsed)
@@ -250,23 +251,31 @@ async function main() {
       overlay.style.position = "absolute"; // out of flow, like the real overlay
       const dots = document.createElement("thinking-dots-animation");
       dots.id = "gem-dots";
-      dots.innerHTML = '<div class="thinking-dots-animation"></div>';
+      dots.style.cssText = "display:block;width:28px;height:28px"; // real dots are visible (28×28)
+      dots.innerHTML = '<div class="thinking-dots-animation" style="width:28px;height:28px"></div>';
       overlay.appendChild(dots);
       content.appendChild(overlay);
       mr.appendChild(content);
-      document.getElementById("messages").appendChild(mr);
+      // a TRAILING empty model-response → reproduces "active turn is not last"
+      const trailing = document.createElement("model-response");
+      trailing.id = "gem-mr-trailing";
+      msgs.appendChild(newestUser);
+      msgs.appendChild(mr);
+      msgs.appendChild(trailing);
     };
 
-    await check("Gemini dots-only ⇒ bar lands inside model-response, below the dots (not page bottom)", async () => {
+    await check("Gemini dots in a NON-last model-response ⇒ bar anchors to the dots' turn", async () => {
       await page.evaluate(buildGeminiDots);
       await page.waitForFunction(() => {
         const mr = document.getElementById("gem-mr");
-        const b = mr && mr.querySelector(".bb-bar.bb-show");
+        const trailing = document.getElementById("gem-mr-trailing");
+        const b = document.querySelector(".bb-bar.bb-show");
         const dots = document.getElementById("gem-dots");
         return (
           b &&
           dots &&
-          mr.contains(b) &&                  // NOT escaped to the page bottom
+          mr.contains(b) &&                  // the ACTIVE (dots') turn
+          !trailing.contains(b) &&           // NOT the stale last model-response
           mr.lastElementChild === b &&       // sits at the end of the reply
           !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) // below the dots
         );
@@ -292,7 +301,10 @@ async function main() {
         );
       }, { timeout: 3000 });
       await page.evaluate(() => {
-        document.getElementById("gem-mr").remove();
+        for (const id of ["gem-mr", "gem-mr-trailing", "gem-newest-user"]) {
+          const n = document.getElementById(id);
+          if (n) n.remove();
+        }
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });

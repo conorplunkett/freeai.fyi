@@ -59,12 +59,11 @@
     "div[data-test-render-count]",            // Claude — assistant turn container
     '[data-message-author-role="assistant"]', // ChatGPT
     ".result-streaming",                      // ChatGPT (older)
-    // Gemini — the per-turn <model-response> CONTAINS the thinking dots
-    // (thinking-dots-animation is nested deep inside it), so the bar as its
-    // last child lands BELOW the dots in both the dots-only and dots+text
-    // stages. Do NOT anchor on the dots themselves: they live in an
-    // absolutely-positioned <thinking-overlay> whose in-flow parent collapses
-    // before any text streams, which dropped the bar at the page bottom.
+    // Gemini — the per-turn <model-response> wraps the thinking dots and the
+    // streamed reply, so the bar as its last child lands below both. This is
+    // only a FALLBACK: Gemini keeps many model-responses around and the active
+    // one is often not the last in the DOM, so findAnchor() prefers the
+    // model-response that actually contains the live dots (see below).
     "model-response",                         // Gemini
   ];
 
@@ -126,11 +125,40 @@
   // tick because these apps re-render aggressively (React may evict us) and
   // the anchor often appears a beat after the Stop button.
   let anchorEl = null;
+  // Last visible element (in document order) matching any of the selectors.
+  function lastVisibleMatch(selectors) {
+    let found = null;
+    for (const sel of selectors) {
+      let els;
+      try { els = document.querySelectorAll(sel); } catch (_) { continue; }
+      for (const el of els) {
+        if (!isVisible(el)) continue;
+        if (
+          !found ||
+          (typeof found.compareDocumentPosition === "function" &&
+            found.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
+        ) {
+          found = el;
+        }
+      }
+    }
+    return found;
+  }
   function findAnchor() {
-    // Collect one candidate per selector, then pick the candidate LATEST in
-    // document order (a descendant beats its ancestor). Priority lists fail
-    // here: e.g. Claude keeps an empty streaming bubble ABOVE the thinking
-    // star, and anchoring there put the bar above the star.
+    // Gemini: anchor to the <model-response> that actually CONTAINS the live
+    // thinking dots, not the last model-response in the DOM. Gemini keeps
+    // several model-responses around and the generating one is often not last,
+    // so a document-order pick landed the bar in a stale turn ABOVE the newest
+    // user message.
+    const dots = lastVisibleMatch(["thinking-dots-animation", ".thinking-dots-animation"]);
+    if (dots && typeof dots.closest === "function") {
+      const mr = dots.closest("model-response");
+      if (mr) return mr;
+    }
+    // Everything else: collect one candidate per selector, then pick the
+    // candidate LATEST in document order (a descendant beats its ancestor).
+    // Priority lists fail here: e.g. Claude keeps an empty streaming bubble
+    // ABOVE the thinking star, and anchoring there put the bar above the star.
     const candidates = [];
     for (const sel of ANCHORS) {
       try {
