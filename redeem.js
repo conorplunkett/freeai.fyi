@@ -167,8 +167,7 @@ function showError(msg) {
 }
 function showStep(step) {
   $("auth-step-providers").hidden = step !== "providers";
-  $("auth-step-email").hidden    = step !== "email";
-  $("auth-step-sent").hidden     = step !== "sent";
+  $("auth-step-sent").hidden      = step !== "sent";
   if (step !== "sent") showError("");
 }
 
@@ -182,17 +181,6 @@ $("google-btn").addEventListener("click", (e) => {
   if (!API_BASE) return showError("Sign-in is unavailable right now.");
   window.location.href = oauthUrl("google");
 });
-$("apple-btn").addEventListener("click", (e) => {
-  e.preventDefault();
-  if (!API_BASE) return showError("Sign-in is unavailable right now.");
-  window.location.href = oauthUrl("apple");
-});
-
-// ── "Continue with email" ──
-$("email-opt-btn").addEventListener("click", () => showStep("email"));
-
-// ── "← back" from email step ──
-$("back-to-providers").addEventListener("click", () => showStep("providers"));
 
 // ── Send magic link ──
 let lastEmail = "";
@@ -227,7 +215,7 @@ $("login-email").addEventListener("keydown", (e) => {
 
 // ── Resend (both buttons) ──
 async function handleResend(btn) {
-  if (!lastEmail) { showStep("email"); return; }
+  if (!lastEmail) { showStep("providers"); return; }
   btn.disabled = true;
   btn.textContent = "Sending…";
   await requestLink(lastEmail);
@@ -240,7 +228,7 @@ $("resend-btn").addEventListener("click", () => handleResend($("resend-btn")));
 $("resend-btn-2").addEventListener("click", () => handleResend($("resend-btn-2")));
 
 // ── "← back" from sent step ──
-$("back-btn").addEventListener("click", () => showStep("email"));
+$("back-btn").addEventListener("click", () => showStep("providers"));
 
 // ── Sign out ──
 $("signout").addEventListener("click", () => {
