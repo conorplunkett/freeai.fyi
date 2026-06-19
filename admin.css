@@ -1,5 +1,8 @@
 /* FreeAI admin dashboard — consumes the brand tokens from theme.css. */
 * { box-sizing: border-box; }
+/* The `hidden` attribute must win over the `display:grid` rules on .app/.gate,
+   otherwise the (logged-out) app shell stays visible behind the login gate. */
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
 body {
   font-family: var(--sans);
