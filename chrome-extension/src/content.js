@@ -95,11 +95,9 @@
   bar.setAttribute("role", "complementary");
   bar.innerHTML =
     '<span class="bb-chip">R</span>' +
-    '<span class="bb-line">Ramp · save time and money</span>' +
-    '<span class="bb-tag">sponsored · 50% back as Claude credits</span>';
+    '<span class="bb-line">Ramp · save time and money</span>';
   const elChip = bar.querySelector(".bb-chip");
   const elLine = bar.querySelector(".bb-line");
-  const elTag = bar.querySelector(".bb-tag");
 
   // The ad currently on screen. We surface ONE ad at a time — the top of the
   // returned inventory (the auction winner) — and never rotate within a page;
@@ -220,13 +218,10 @@
       elChip.style.color = ad.ink;
       elLine.textContent = ad.line;
     }
-    if (testMode) {
-      elTag.textContent = "TEST AD · mock";
-      bar.classList.add("bb-test");
-    } else {
-      elTag.textContent = "sponsored · 50% back as Claude credits";
-      bar.classList.remove("bb-test");
-    }
+    // Head-only ad: no sub-tag pill. Keep the bb-test class so test-mode ads
+    // stay visually distinguishable (and the live tests can assert on it).
+    if (testMode) bar.classList.add("bb-test");
+    else bar.classList.remove("bb-test");
   }
 
   // ---------- generation detector ----------

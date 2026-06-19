@@ -329,11 +329,10 @@ async function main() {
     await check("bar is actually rendered (visible, has ad copy)", async () => {
       const info = await page.$eval(".bb-bar", (el) => {
         const r = el.getBoundingClientRect();
-        return { w: r.width, h: r.height, line: el.querySelector(".bb-line").textContent, tag: el.querySelector(".bb-tag").textContent };
+        return { w: r.width, h: r.height, line: el.querySelector(".bb-line").textContent };
       });
       assert.ok(info.w > 0 && info.h > 0, "bar has no box");
       assert.ok(info.line.length > 0, "no ad line rendered");
-      assert.match(info.tag, /50%/);
     });
 
     await check("real impression lands in storage at 50% of gross", async () => {
@@ -391,9 +390,8 @@ async function main() {
 
     await check("Test Mode while generating ⇒ labelled mock ad renders", async () => {
       await page.evaluate(() => window.setGenerating(true));
+      // bb-test class is the test-mode marker now that the sub-tag pill is gone.
       await page.waitForSelector(".bb-bar.bb-show.bb-test", { timeout: 5000 });
-      const tag = await page.$eval(".bb-bar .bb-tag", (el) => el.textContent);
-      assert.match(tag, /TEST AD/);
     });
 
     await check("test-mode impressions tick the mock counter, not real earnings", async () => {

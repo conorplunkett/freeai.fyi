@@ -78,9 +78,10 @@ business: Stripe handles KYC, bank accounts, and tax forms (1099s).
 
 1. Stripe Dashboard → enable **Connect**, choose **Express**.
 2. Developers → API keys → copy `sk_test_...` → `STRIPE_SECRET_KEY`.
-3. Developers → Webhooks → add endpoint
-   `https://api.freeai.fyi/v1/webhooks/stripe`, subscribe to
-   `checkout.session.completed` and `account.updated` → copy the signing
+3. Developers → Webhooks → add endpoint at your deployed
+   `…/v1/webhooks/stripe` (production is the Edge Function base,
+   `https://<ref>.supabase.co/functions/v1/api/v1/webhooks/stripe`), subscribe
+   to `checkout.session.completed` and `account.updated` → copy the signing
    secret → `STRIPE_WEBHOOK_SECRET`.
    Locally: `stripe listen --forward-to localhost:8787/v1/webhooks/stripe`.
 4. Test cards: `4242 4242 4242 4242`. Test Connect onboarding accepts fake
@@ -154,27 +155,32 @@ caps → budget exhaustion → Connect onboarding → payout sweep.
 
 ## Wiring the extension
 
-Set one setting in VS Code:
+Point a client at this tree while it runs locally:
 
 ```json
-{ "freeai.serverUrl": "https://api.freeai.fyi" }
+{ "freeai.serverUrl": "http://localhost:8787" }
 ```
 
-The extension then registers a device, pulls auction-ranked ads from
+(Production clients point at the Edge Function base instead —
+`https://<ref>.supabase.co/functions/v1/api`.) The extension then registers a
+device, pulls auction-ranked ads from
 `GET /v1/ads`, and batches impressions/clicks to `POST /v1/events` every 60s
 (offline-safe: failed batches retry, and with no server it falls back to the
 bundled demo inventory).
 
 ## Deploying
 
-- **API**: any Node host — Fly.io / Railway / Render. One process, no build
-  step. Point `DATABASE_URL` at Neon/Supabase/RDS.
-- **DB**: Neon free tier is plenty to start; `npm run migrate` is idempotent.
-- **Site**: static — Cloudflare Pages / Vercel / Netlify + the
-  `freeai.fyi` domain; point the bid form's submit at `POST /v1/checkout`
-  and redirect to the returned `checkoutUrl`.
-- **Cron**: weekly `npm run payouts` (or hit `POST /v1/admin/payouts` with the
-  admin key).
+> Production no longer deploys from this tree. The live API is the Supabase
+> Edge Function in `supabase/functions/api/` (a verbatim port); the site is on
+> Vercel. This `server/` tree runs locally for the test suite and stands by as
+> the rollback. See `supabase/functions/README.md` for the production deploy and
+> secrets. The Fly.io / Neon / Cloudflare deploy this section once described was
+> retired in the migration.
+
+For the record, this Node process is a single, build-step-free server: point
+`DATABASE_URL` at any Postgres, run the idempotent `npm run migrate`, then
+`npm start`. The weekly payout sweep is `npm run payouts` (or `POST
+/v1/admin/payouts` with the admin key).
 
 ## Campaign lifecycle
 
@@ -235,19 +241,22 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
   CORS locked to the site origin, structured request logging, graceful
   shutdown.
 
-## CI & deploy artifacts
+## CI
 
-- **`.github/workflows/ci.yml`** — runs the extension harness, packages the
-  `.vsix` (uploaded as an artifact), spins up a Postgres service to run these
-  15+ API checks, and syntax-checks the site, on every push/PR.
-- **`Dockerfile`** — production image; runs `migrate` then `index.js` on boot.
-- **`fly.toml`** — `fly launch --no-deploy`, set secrets, `fly deploy`.
+- **`.github/workflows/ci.yml`** — the `server` job spins up a Postgres 16
+  service and runs these 15+ end-to-end API checks (`npm install` → `npm test`)
+  on every push/PR. (Separate jobs cover the extension, terminal, desktop, and
+  the site.)
+- **Production deploy** is the Edge Function, not this tree:
+  `.github/workflows/deploy-functions.yml`. The `Dockerfile` and `fly.toml` that
+  once shipped this server were removed in the migration.
 
 ## What's still left for launch (your accounts)
 
 - Real Stripe account + Connect enablement; swap test keys for live.
-- Pick hosts (Neon + Fly + Cloudflare Pages are the defaults assumed here) and
-  point `freeai.fyi` / `api.freeai.fyi` DNS.
 - Set `MAIL_PROVIDER=resend` + `RESEND_API_KEY` for real verification emails.
+- Hosting/DNS and the production secrets now live with the Edge Function — see
+  `supabase/functions/README.md` (the site is on Vercel under the `freeai.fyi`
+  domain).
 - Optional next: GitHub OAuth instead of email-only identity, per-IP device
   limits and click anomaly detection, edge WAF.

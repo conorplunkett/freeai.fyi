@@ -62,6 +62,13 @@ async function api(path, { method = "GET", body } = {}) {
   if (!res.ok) { let m = res.status; try { m = (await res.json()).error || m; } catch {} throw new Error(String(m)); }
   return res.json();
 }
+// Soft variant for optional sections: returns null instead of throwing, so a
+// not-yet-deployed endpoint degrades to a placeholder rather than breaking a tab.
+async function tryApi(path) { try { return await api(path); } catch { return null; } }
+function soonCard(title) {
+  return h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", {}, title)),
+    h("p", { class: "empty" }, "Not available yet — this section’s API update is still deploying."));
+}
 
 // ── login gate ────────────────────────────────────────────────────────────
 // Inline display is set explicitly (not just the `hidden` attribute) so a
@@ -113,6 +120,7 @@ const TABS = [
   { id: "emails", label: "Emails", render: renderEmails },
   { id: "payouts", label: "Payouts", render: renderPayouts },
   { id: "referrals", label: "Referrals", render: renderReferrals },
+  { id: "waitlist", label: "Waitlist", render: renderWaitlist },
   { id: "devices", label: "Devices & Fraud", render: renderDevices },
   { id: "schema", label: "Schema", render: renderSchema },
   { id: "settings", label: "Settings", render: renderSettings },
@@ -460,6 +468,31 @@ async function renderReferrals(view) {
     h("div", { class: "card-head" }, h("h2", {}, "Top referrers")),
     table([{ label: "Referrer" }, { label: "Referred", num: true }, { label: "Rewarded", num: true }, { label: "Earned", num: true }],
       d.top, (t) => [h("span", { class: "mono" }, t.email || short(t.userId)), num(t.referred), num(t.rewarded), usd(t.rewardUsd)])));
+  // Referral invites funnel (emails people invited, and how far each got).
+  const inv = await tryApi("/v1/admin/invites");
+  if (!inv) { view.append(soonCard("Invites sent")); return; }
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Invites sent"),
+      h("p", { class: "hint" }, "Emails referrers invited → joined → rewarded.")),
+    table([{ label: "Invited email" }, { label: "Status" }, { label: "Invited by" }, { label: "Sent" }, { label: "Joined" }, { label: "Rewarded" }],
+      inv.invites, (i) => [
+        h("span", { class: "mono" }, i.email),
+        td(badge(i.status)),
+        h("span", { class: "mono muted" }, i.referrerEmail || "—"),
+        dShort(i.sentAt || i.createdAt), dShort(i.joinedAt), dShort(i.rewardedAt),
+      ])));
+}
+
+async function renderWaitlist(view) {
+  const d = await tryApi("/v1/admin/waitlist");
+  view.innerHTML = "";
+  if (!d) { view.append(soonCard("Waitlist")); return; }
+  view.append(tiles(d.bySurface.map((s) => ({ k: s.label || s.surface, v: num(s.count), s: "waiting" }))));
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Recent signups"),
+      h("p", { class: "hint" }, "People who asked to be notified when a surface ships.")),
+    table([{ label: "Email" }, { label: "Surface" }, { label: "When" }], d.signups,
+      (s) => [h("span", { class: "mono" }, s.email || "—"), s.surface, dt(s.createdAt)])));
 }
 
 async function renderDevices(view) {
@@ -533,10 +566,35 @@ async function renderSettings(view) {
         catch (e) { toast(e.message, true); }
       } }, d.serving ? "Pause ad serving" : "Resume ad serving")),
     h("p", { class: "hint" }, d.serving ? "Ads are live. Pausing stops /v1/ads from returning anything (propagates within ~15s)." : "Ad serving is paused. No ads are being delivered.")));
+  const cfg = await tryApi("/v1/admin/config");
+  if (cfg) view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Economics"),
+      h("p", { class: "hint" }, "Read-only — set via the function’s environment.")),
+    table([{ label: "Setting" }, { label: "Value", num: true }], [
+      { k: "Revenue share to developers", v: cfg.revenueSharePct + "%" },
+      { k: "Reference gross CPM", v: usd(cfg.grossCpmUsd) },
+      { k: "Daily impression cap / device", v: num(cfg.dailyImpressionCap) },
+      { k: "Daily impression cap / IP", v: num(cfg.ipDailyImpressionCap) },
+      { k: "Daily click cap / device", v: num(cfg.dailyClickCap) },
+      { k: "Payout threshold", v: usd(cfg.payoutThresholdUsd) },
+      { k: "Referral reward", v: usd(cfg.referralRewardUsd) },
+      { k: "Referral cap / user", v: num(cfg.referralCap) },
+      { k: "Gift fulfillment inbox", v: cfg.giftFulfillmentEmail },
+    ], (r) => [r.k, r.v]),
+    h("p", { class: "hint", style: "margin-top:14px" }, "Claude gift catalog"),
+    table([{ label: "Plan" }, { label: "Monthly", num: true }], cfg.giftPlans, (p) => [p.name, usd(p.monthlyUsd)])));
   view.append(h("div", { class: "card" },
     h("div", { class: "card-head" }, h("h2", {}, "Manual balance adjustment")),
     h("p", { class: "hint" }, "Credit or debit a user’s balance directly. Find the user under the Users tab and use “Adjust”, or use a device/user ID below."),
     adjustForm()));
+  const errs = await tryApi("/v1/admin/errors");
+  if (errs) view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Recent runtime errors"),
+      h("p", { class: "hint" }, errs.errors.length ? "Server errors captured by the API dispatch handler." : "No errors logged 🎉")),
+    errs.errors.length
+      ? table([{ label: "When" }, { label: "Method" }, { label: "Path" }, { label: "Message" }], errs.errors,
+          (e) => [dt(e.createdAt), e.method, td(h("span", { class: "mono" }, e.path)), td(h("span", {}, e.message), "wrap")])
+      : null));
   view.append(h("div", { class: "card danger-zone" },
     h("div", { class: "card-head" }, h("h2", {}, "Session")),
     h("p", { class: "hint" }, "API: " + API_BASE),

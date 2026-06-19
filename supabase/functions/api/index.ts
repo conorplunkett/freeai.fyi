@@ -1277,6 +1277,47 @@ function createRepo(pool: any) {
       );
       return rows[0]?.id || null;
     },
+
+    // Referral invites funnel: emails a referrer invited, and how far each got
+    // (sent -> joined -> rewarded).
+    async adminInvites(limit = 200) {
+      const byStatus = (await pool.query(
+        "select status, count(*)::int as n from referral_invites group by status order by status"
+      )).rows;
+      const recent = (await pool.query(
+        `select i.email, i.status, i.code, i.created_at, i.sent_at, i.joined_at, i.rewarded_at,
+                u.email as referrer_email
+           from referral_invites i left join users u on u.id = i.referrer_user_id
+          order by i.created_at desc limit $1`,
+        [Math.max(1, Math.min(500, limit))]
+      )).rows;
+      return { byStatus, recent };
+    },
+
+    // Waitlist demand per surface + recent signups (who's waiting for what).
+    async adminWaitlist(limit = 200) {
+      const bySurface = (await pool.query(
+        `select s.surface, s.label, count(w.id)::int as n
+           from waitlist_surfaces s left join waitlist_signups w on w.surface = s.surface
+          group by s.surface, s.label, s.sort_order order by s.sort_order asc, s.surface asc`
+      )).rows;
+      const recent = (await pool.query(
+        `select w.surface, w.created_at, u.email
+           from waitlist_signups w left join users u on u.id = w.user_id
+          order by w.created_at desc limit $1`,
+        [Math.max(1, Math.min(500, limit))]
+      )).rows;
+      return { bySurface, recent };
+    },
+
+    // Most recent runtime errors captured by the dispatch handler.
+    async adminErrors(limit = 100) {
+      const { rows } = await pool.query(
+        "select id, method, path, message, created_at from diag_errors order by created_at desc limit $1",
+        [Math.max(1, Math.min(500, limit))]
+      );
+      return rows;
+    },
   };
 }
 const repo = createRepo(pool);
@@ -2048,6 +2089,51 @@ route("POST", "/v1/admin/ledger/adjust", async (ctx: any) => {
   return json(200, { ok: true, ledgerId: id });
 });
 
+route("GET", "/v1/admin/invites", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const d = await repo.adminInvites();
+  return json(200, {
+    byStatus: d.byStatus.map((s: any) => ({ status: s.status, count: s.n })),
+    invites: d.recent.map((r: any) => ({
+      email: r.email, status: r.status, code: r.code, referrerEmail: r.referrer_email,
+      createdAt: r.created_at, sentAt: r.sent_at, joinedAt: r.joined_at, rewardedAt: r.rewarded_at,
+    })),
+  });
+});
+
+// Read-only view of the economic knobs that drive the marketplace + gift catalog.
+route("GET", "/v1/admin/config", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  return json(200, {
+    revenueSharePct: config.revenueShare * 100,
+    grossCpmUsd: config.grossCpmCents / 100,
+    dailyImpressionCap: config.dailyImpressionCap,
+    ipDailyImpressionCap: config.ipDailyImpressionCap,
+    dailyClickCap: config.dailyClickCap,
+    payoutThresholdUsd: config.payoutThresholdCents / 100,
+    referralRewardUsd: config.referralRewardCents / 100,
+    referralCap: config.referralCap,
+    giftFulfillmentEmail: config.giftFulfillmentEmail,
+    giftPlans: Object.values(GIFT_PLANS).map((p: any) => ({ id: p.id, name: p.name, monthlyUsd: p.monthlyCents / 100 })),
+    serving,
+  });
+});
+
+route("GET", "/v1/admin/waitlist", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const d = await repo.adminWaitlist();
+  return json(200, {
+    bySurface: d.bySurface.map((s: any) => ({ surface: s.surface, label: s.label, count: s.n })),
+    signups: d.recent.map((r: any) => ({ surface: r.surface, email: r.email, createdAt: r.created_at })),
+  });
+});
+
+route("GET", "/v1/admin/errors", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const rows = await repo.adminErrors();
+  return json(200, { errors: rows.map((r: any) => ({ id: String(r.id), method: r.method, path: r.path, message: r.message, createdAt: r.created_at })) });
+});
+
 // ─────────────────────────────── dispatch ──────────────────────────────────
 function stripPrefix(pathname: string) {
   let path = pathname.replace(/^\/functions\/v1/, ""); // defensive: platform prefix
@@ -2093,6 +2179,9 @@ Deno.serve(async (req: Request) => {
     return withCors(await handler(ctx));
   } catch (err: any) {
     console.error(`[freeai] ${req.method} ${path} failed:`, err?.message);
+    // Best-effort: persist the failure for the admin dashboard. Never let
+    // logging break the error response.
+    try { await pool.query("insert into diag_errors (method, path, message, stack) values ($1,$2,$3,$4)", [req.method, path, String(err?.message || err), String(err?.stack || "")]); } catch (_e) { /* ignore */ }
     return withCors(json(500, { error: "internal error" }));
   } finally {
     console.log(`[freeai] ${req.method} ${path} ${Date.now() - started}ms`);
