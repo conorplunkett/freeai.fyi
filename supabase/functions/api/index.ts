@@ -21,8 +21,7 @@
 //    from the KILLSWITCH env on each cold start.
 import crypto from "node:crypto";
 import { Buffer } from "node:buffer";
-import pkg from "npm:pg@8.12.0";
-const { Pool } = pkg;
+import postgres from "npm:postgres@3.4.4";
 
 // ───────────────────────────── config ──────────────────────────────────────
 const env = (k: string, d = "") => Deno.env.get(k) ?? d;
@@ -70,17 +69,31 @@ const config = loadConfig();
 
 // ─────────────────────────── postgres pool ─────────────────────────────────
 // SUPABASE_DB_URL points at the Supavisor pooler inside the platform network.
-// Force TLS for external DATABASE_URLs (supabase.co/neon) just like boot.js did.
-function pgConfig() {
-  const cs = config.databaseUrl || "";
-  const needsSsl =
-    env("DATABASE_SSL") === "1" ||
-    /[?&]sslmode=(require|verify-ca|verify-full)/.test(cs) ||
-    (/\.supabase\.(co|com)\b/.test(cs) && !/pooler\.supabase\.com|supabase_admin|localhost|127\.0\.0\.1/.test(cs)) ||
-    /\.neon\.tech\b/.test(cs);
-  return { connectionString: cs, ssl: needsSsl ? { rejectUnauthorized: false } : undefined };
-}
-const pool = new Pool(pgConfig());
+// node-postgres (`pg`) cannot load in the Deno edge runtime (it crashes the
+// worker at boot), so we use postgres.js — the same driver web-referrals uses.
+// prepare:false is required under transaction-mode pooling.
+//
+// A thin pg-compatible shim (.query → {rows}, .connect → reservable client)
+// keeps createRepo — written against node-postgres' Pool/Client API — unchanged,
+// including its transaction-scoped advisory locks. Transactions run on a single
+// reserved connection so BEGIN…COMMIT (and pg_advisory_xact_lock) stay pinned.
+const sql = postgres(config.databaseUrl, { prepare: false });
+const pool = {
+  async query(text: string, params: any[] = []) {
+    const rows = await sql.unsafe(text, params);
+    return { rows, rowCount: rows.length };
+  },
+  async connect() {
+    const reserved = await sql.reserve();
+    return {
+      query: async (text: string, params: any[] = []) => {
+        const rows = await reserved.unsafe(text, params);
+        return { rows, rowCount: rows.length };
+      },
+      release: () => reserved.release(),
+    };
+  },
+};
 
 // ───────────────────────────── util.js ─────────────────────────────────────
 function escapeHtml(s: any) {

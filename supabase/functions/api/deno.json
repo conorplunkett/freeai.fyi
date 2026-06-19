@@ -1,5 +1,5 @@
 {
   "imports": {
-    "pg": "npm:pg@8.12.0"
+    "postgres": "npm:postgres@3.4.4"
   }
 }
