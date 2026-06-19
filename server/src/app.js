@@ -267,52 +267,15 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
   });
 
-  // Redeem earned credits for a Claude gift card. Order matters: the
-  // fulfillment email goes out first, then the balance is deducted — the
-  // in-transaction balance re-check keeps concurrent redeems honest.
-  route("POST", "/v1/redemptions", async (req, res, body) => {
-    const device = await authDeviceFrom(body);
-    if (!device) return json(res, 401, { error: "bad device credentials" });
-
-    const plan = GIFT_PLANS[body.plan];
-    const months = parseInt(body.months, 10);
-    const amountCents = plan ? giftPriceCents(plan.id, months) : null;
-    if (!amountCents) return json(res, 400, { error: "plan must be pro/max5x/max20x and months 1/3/6/12" });
-
-    let recipientEmail = body.recipientEmail;
-    if (!recipientEmail) {
-      const user = await repo.userForDevice(device.id);
-      recipientEmail = user?.email;
-    }
-    if (!recipientEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) {
-      return json(res, 400, { error: "valid recipientEmail required" });
-    }
-
-    const balance = await repo.earningsForDevice(device.id);
-    if (balance.balanceMillicents < amountCents * 1000) {
-      return json(res, 403, {
-        error: "insufficient credits",
-        balanceUsd: balance.balanceMillicents / 100000,
-        requiredUsd: amountCents / 100,
-      });
-    }
-
-    const redemptionId = crypto.randomUUID();
-    await mailer.sendGiftRedemptionEmail(config.giftFulfillmentEmail, {
-      redemptionId, planName: plan.name, months, amountUsd: amountCents / 100, recipientEmail,
-    });
-
-    const recorded = await repo.recordGiftRedemption({
-      id: redemptionId, deviceId: device.id, plan: plan.id, months, amountCents, recipientEmail,
-    });
-    if (!recorded) return json(res, 409, { error: "insufficient credits" });
-
-    const after = await repo.earningsForDevice(device.id);
-    json(res, 200, {
-      ok: true, redemptionId, plan: plan.id, months,
-      amountUsd: amountCents / 100,
-      balanceUsd: after.balanceMillicents / 100000,
-      deliveryWindowHours: 48,
+  // Redemption is a website-only, logged-in flow (see AGENTS.md): credits are
+  // cashed out at /v1/web/redemptions behind a web session. The old
+  // device-credential path is retired — a leaked deviceKey must let someone
+  // accrue credits in your name, never cash them out. Old clients get a clear,
+  // safe refusal instead of a money-out they can't be trusted with.
+  route("POST", "/v1/redemptions", async (req, res) => {
+    json(res, 410, {
+      error: "redeem on the website after signing in",
+      redeemUrl: `${config.siteUrl}/redeem.html`,
     });
   });
 

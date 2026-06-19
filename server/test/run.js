@@ -261,28 +261,31 @@ const fakeMailer = {
     await payWebhook(camp.body.campaignId);
     await approve(camp.body.campaignId);
 
-    // earn $24.75 — enough for exactly one $20 Pro month, not two
+    // earn $24.75 — enough for exactly one $20 Pro month, not two — then link
+    // the device to an email and open a web session (redemption is web-only).
     const raceDev = (await api("POST", "/v1/devices/register")).body;
     await api("POST", "/v1/events", { ...raceDev, batchKey: "brace", events: [{ campaignId: camp.body.campaignId, impressions: 250, clicks: 0 }] });
-    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${raceDev.deviceId}&deviceKey=${raceDev.deviceKey}`)).body.balanceUsd, 24.75);
+    await api("POST", "/v1/auth/request-link", { ...raceDev, email: "race@example.com" });
+    await api("GET", mailbox.at(-1).link.replace(base, ""));
+    await api("POST", "/v1/web/login", { email: "race@example.com" });
+    const session = (await api("GET", mailbox.at(-1).link.replace(base, ""))).headers.get("location").match(/session=([^&]+)/)[1];
+    const auth = { Authorization: `Bearer ${session}` };
+    assert.strictEqual((await api("GET", "/v1/web/me", undefined, auth)).body.balanceUsd, 24.75);
 
     // fire two identical redemptions at once: exactly one settles, the ledger never overdraws
     const [a, b] = await Promise.all([
-      api("POST", "/v1/redemptions", { ...raceDev, plan: "pro", months: 1, recipientEmail: "race@example.com" }),
-      api("POST", "/v1/redemptions", { ...raceDev, plan: "pro", months: 1, recipientEmail: "race@example.com" }),
+      api("POST", "/v1/web/redemptions", { plan: "pro", months: 1, recipientEmail: "race@example.com" }, auth),
+      api("POST", "/v1/web/redemptions", { plan: "pro", months: 1, recipientEmail: "race@example.com" }, auth),
     ]);
-    // Exactly one settles (200). The loser is rejected either by the up-front
-    // balance check (403, when the two requests serialize) or by the
-    // in-transaction re-check under the advisory lock (409, when they truly
-    // overlap). Both are correct "no double-spend" outcomes, so accept either
-    // rather than flaking on scheduler timing.
-    const ok = [a.status, b.status].filter((s) => s === 200);
-    const rejected = [a.status, b.status].filter((s) => s === 403 || s === 409);
+    // exactly one settles; the loser is rejected for insufficient credits —
+    // at the pre-check (403) or the in-transaction recheck (409) depending on
+    // scheduling. The invariant that matters: the balance is charged only once.
+    const ok = [a, b].filter((r) => r.status === 200);
+    const failed = [a, b].filter((r) => r.status !== 200);
     assert.strictEqual(ok.length, 1, "exactly one redemption should succeed");
-    assert.strictEqual(rejected.length, 1, "the other redemption must be rejected (403 or 409)");
-    const after = (await api("GET", `/v1/me/earnings?deviceId=${raceDev.deviceId}&deviceKey=${raceDev.deviceKey}`)).body;
-    assert.strictEqual(after.redeemedUsd, 20, "only one $20 gift was charged");
-    assert.strictEqual(after.balanceUsd, 4.75);
+    assert.ok([403, 409].includes(failed[0].status), "the loser is rejected for insufficient credits");
+    const after = (await api("GET", "/v1/web/me", undefined, auth)).body;
+    assert.strictEqual(after.balanceUsd, 4.75, "only one $20 gift was charged");
     assert.ok(after.balanceUsd >= 0, "balance never goes negative");
   });
 
@@ -351,46 +354,27 @@ const fakeMailer = {
     assert.strictEqual((await api("POST", "/v1/admin/payouts", { adminKey: "nope" })).status, 401);
   });
 
-  // ---------- gift card redemptions ----------
-  await check("gift card redemption emails fulfillment and deducts the balance", async () => {
-    const giftDevice = (await api("POST", "/v1/devices/register")).body;
-    // 250 impressions on the $110 block: 250 * 11000mc gross -> 90% = $24.75
-    await api("POST", "/v1/events", { ...giftDevice, batchKey: "bgift", events: [{ campaignId: campFluid, impressions: 250, clicks: 0 }] });
-    const before = (await api("GET", `/v1/me/earnings?deviceId=${giftDevice.deviceId}&deviceKey=${giftDevice.deviceKey}`)).body;
-    assert.strictEqual(before.balanceUsd, 24.75);
-
+  // ---------- gift card catalog + retired device redemption ----------
+  await check("giftcards catalog lists plans; device-credential redemption is retired", async () => {
     const catalog = await api("GET", "/v1/giftcards");
     assert.strictEqual(catalog.body.plans.find((p) => p.id === "pro").monthlyUsd, 20);
     assert.deepStrictEqual(catalog.body.months, [1, 3, 6, 12]);
 
+    // Redemption is a website-only, logged-in flow. The old device-credential
+    // path is retired: even a valid deviceKey with a redeemable balance must not
+    // be able to cash out — it gets a 410 and the balance is left untouched.
+    const giftDevice = (await api("POST", "/v1/devices/register")).body;
+    await api("POST", "/v1/events", { ...giftDevice, batchKey: "bgift", events: [{ campaignId: campFluid, impressions: 250, clicks: 0 }] });
+    const before = (await api("GET", `/v1/me/earnings?deviceId=${giftDevice.deviceId}&deviceKey=${giftDevice.deviceKey}`)).body;
+    assert.strictEqual(before.balanceUsd, 24.75);
+
     const r = await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "dev@example.com" });
-    assert.strictEqual(r.status, 200);
-    assert.strictEqual(r.body.amountUsd, 20);
-    assert.strictEqual(r.body.balanceUsd, 4.75);
+    assert.strictEqual(r.status, 410, "device-credential redemption is retired");
+    assert.match(r.body.redeemUrl, /\/redeem\.html$/);
 
-    const mail = mailbox.at(-1);
-    assert.strictEqual(mail.to, "conor.p43@gmail.com");
-    assert.strictEqual(mail.planName, "Claude Pro");
-    assert.strictEqual(mail.recipientEmail, "dev@example.com");
-    assert.strictEqual(mail.redemptionId, r.body.redemptionId);
-
-    const row = (await poolNs.query("select * from gift_redemptions where id = $1", [r.body.redemptionId])).rows[0];
-    assert.strictEqual(row.amount_cents, 2000);
-    assert.strictEqual(row.status, "pending");
     const after = (await api("GET", `/v1/me/earnings?deviceId=${giftDevice.deviceId}&deviceKey=${giftDevice.deviceKey}`)).body;
-    assert.strictEqual(after.balanceUsd, 4.75);
-    assert.strictEqual(after.redeemedUsd, 20);
-
-    // not enough left for another Pro month
-    const broke = await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "dev@example.com" });
-    assert.strictEqual(broke.status, 403);
-    assert.strictEqual(broke.body.error, "insufficient credits");
-
-    // validation: bad plan/months/email and bad creds
-    assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "ultra", months: 1, recipientEmail: "a@b.co" })).status, 400);
-    assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 2, recipientEmail: "a@b.co" })).status, 400);
-    assert.strictEqual((await api("POST", "/v1/redemptions", { ...giftDevice, plan: "pro", months: 1, recipientEmail: "nope" })).status, 400);
-    assert.strictEqual((await api("POST", "/v1/redemptions", { deviceId: giftDevice.deviceId, deviceKey: "wrong", plan: "pro", months: 1 })).status, 401);
+    assert.strictEqual(after.balanceUsd, 24.75, "balance untouched — no debit");
+    assert.strictEqual(after.redeemedUsd, 0, "nothing redeemed via the retired path");
   });
 
   // ---------- website login + user-scoped redemption ----------
@@ -446,6 +430,11 @@ const fakeMailer = {
       { plan: "max5x", months: 1 }, { Authorization: `Bearer ${session}` });
     assert.strictEqual(broke.status, 403);
     assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1 })).status, 401);
+
+    // validation on the logged-in path: bad plan / months / recipient email
+    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "ultra", months: 1, recipientEmail: "a@b.co" }, { Authorization: `Bearer ${session}` })).status, 400);
+    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 2, recipientEmail: "a@b.co" }, { Authorization: `Bearer ${session}` })).status, 400);
+    assert.strictEqual((await api("POST", "/v1/web/redemptions", { plan: "pro", months: 1, recipientEmail: "nope" }, { Authorization: `Bearer ${session}` })).status, 400);
   });
 
   // ---------- referrals ----------

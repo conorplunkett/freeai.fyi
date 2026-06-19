@@ -661,33 +661,6 @@ function createRepo(pool: any) {
       );
       return rows.map((r: any) => ({ ...r, balance: Number(r.balance) }));
     },
-    async recordGiftRedemption({ id, deviceId, plan, months, amountCents, recipientEmail }: any) {
-      return tx(async (c: any) => {
-        const link = await c.query("select user_id from devices where id = $1", [deviceId]);
-        const lockKey = link.rows[0]?.user_id ? `user:${link.rows[0].user_id}` : `device:${deviceId}`;
-        await c.query("select pg_advisory_xact_lock($1, hashtext($2))", [LOCK_REDEEM, lockKey]);
-        const bal = await c.query(
-          `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
-            where (device_id = $1
-                or user_id = (select user_id from devices where id = $1 and user_id is not null))
-              and entry_type in ('impression_credit','click_credit','referral_credit','payout_debit','gift_redemption_debit')`,
-          [deviceId]
-        );
-        const costMillicents = BigInt(amountCents) * 1000n;
-        if (BigInt(bal.rows[0].balance) < costMillicents) return null;
-        const { rows } = await c.query(
-          `insert into gift_redemptions (id, device_id, plan, months, amount_cents, recipient_email)
-           values (coalesce($1::uuid, gen_random_uuid()),$2,$3,$4,$5,$6) returning id`,
-          [id || null, deviceId, plan, months, amountCents, recipientEmail]
-        );
-        await c.query(
-          `insert into ledger (entry_type, amount_millicents, device_id, meta)
-           values ('gift_redemption_debit', $1, $2, $3)`,
-          [(-costMillicents).toString(), deviceId, JSON.stringify({ redemptionId: rows[0].id, plan, months })]
-        );
-        return rows[0].id;
-      });
-    },
     async upsertUserByOAuth({ email, googleId, appleId, referralCode, emailVerified }: any, sessionTtlMs: number) {
       return tx(async (c: any) => {
         const matchEmail = emailVerified ? (email || null) : null;
@@ -1196,25 +1169,16 @@ route("GET", "/v1/giftcards", async () => json(200, {
   plans: Object.values(GIFT_PLANS).map((p: any) => ({ id: p.id, name: p.name, tagline: p.tagline, monthlyUsd: p.monthlyCents / 100 })),
   months: GIFT_MONTHS, deliveryWindowHours: 48,
 }));
-route("POST", "/v1/redemptions", async (ctx: any) => {
-  const device = await authDeviceFrom(ctx);
-  if (!device) return json(401, { error: "bad device credentials" });
-  const body = ctx.body || {};
-  const plan = GIFT_PLANS[body.plan];
-  const months = parseInt(body.months, 10);
-  const amountCents = plan ? giftPriceCents(plan.id, months) : null;
-  if (!amountCents) return json(400, { error: "plan must be pro/max5x/max20x and months 1/3/6/12" });
-  let recipientEmail = body.recipientEmail;
-  if (!recipientEmail) { const user = await repo.userForDevice(device.id); recipientEmail = user?.email; }
-  if (!recipientEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail)) return json(400, { error: "valid recipientEmail required" });
-  const balance = await repo.earningsForDevice(device.id);
-  if (balance.balanceMillicents < amountCents * 1000) return json(403, { error: "insufficient credits", balanceUsd: balance.balanceMillicents / 100000, requiredUsd: amountCents / 100 });
-  const redemptionId = crypto.randomUUID();
-  await mailer.sendGiftRedemptionEmail(config.giftFulfillmentEmail, { redemptionId, planName: plan.name, months, amountUsd: amountCents / 100, recipientEmail });
-  const recorded = await repo.recordGiftRedemption({ id: redemptionId, deviceId: device.id, plan: plan.id, months, amountCents, recipientEmail });
-  if (!recorded) return json(409, { error: "insufficient credits" });
-  const after = await repo.earningsForDevice(device.id);
-  return json(200, { ok: true, redemptionId, plan: plan.id, months, amountUsd: amountCents / 100, balanceUsd: after.balanceMillicents / 100000, deliveryWindowHours: 48 });
+// Redemption is a website-only, logged-in flow (see AGENTS.md): credits are
+// cashed out at /v1/web/redemptions behind a web session. The old
+// device-credential path is retired — a leaked deviceKey must let someone
+// accrue credits in your name, never cash them out. Old clients get a clear,
+// safe refusal instead of a money-out they can't be trusted with.
+route("POST", "/v1/redemptions", async () => {
+  return json(410, {
+    error: "redeem on the website after signing in",
+    redeemUrl: `${config.siteUrl}/redeem.html`,
+  });
 });
 
 // ── OAuth helpers ──

@@ -549,40 +549,6 @@ function createRepo(pool) {
     // re-checked inside the transaction (with the ledger as source of truth) so
     // concurrent redemptions can't spend the same credits twice. Returns the
     // redemption id, or null if the balance is insufficient.
-    async recordGiftRedemption({ id, deviceId, plan, months, amountCents, recipientEmail }) {
-      return tx(async (c) => {
-        // Serialize concurrent redeems on the same balance: a transaction-scoped
-        // advisory lock keyed on the owning user (or the device when unlinked)
-        // so two requests can't both pass the balance check and overdraw.
-        const link = await c.query("select user_id from devices where id = $1", [deviceId]);
-        const lockKey = link.rows[0]?.user_id ? `user:${link.rows[0].user_id}` : `device:${deviceId}`;
-        await c.query("select pg_advisory_xact_lock($1, hashtext($2))", [LOCK_REDEEM, lockKey]);
-
-        const bal = await c.query(
-          `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
-            where (device_id = $1
-                or user_id = (select user_id from devices where id = $1 and user_id is not null))
-              and entry_type in ('impression_credit','click_credit','referral_credit','payout_debit','gift_redemption_debit')`,
-          [deviceId]
-        );
-        const costMillicents = BigInt(amountCents) * 1000n;
-        if (BigInt(bal.rows[0].balance) < costMillicents) return null;
-
-        const { rows } = await c.query(
-          `insert into gift_redemptions (id, device_id, plan, months, amount_cents, recipient_email)
-           values (coalesce($1::uuid, gen_random_uuid()),$2,$3,$4,$5,$6) returning id`,
-          [id || null, deviceId, plan, months, amountCents, recipientEmail]
-        );
-        await c.query(
-          `insert into ledger (entry_type, amount_millicents, device_id, meta)
-           values ('gift_redemption_debit', $1, $2, $3)`,
-          [(-costMillicents).toString(), deviceId,
-           JSON.stringify({ redemptionId: rows[0].id, plan, months })]
-        );
-        return rows[0].id;
-      });
-    },
-
     // ---------- OAuth sign-in ----------
     // Find or create a user from a Google/Apple OAuth callback, then open a
     // web session. Looks up by provider ID first, then by email. Patches any
