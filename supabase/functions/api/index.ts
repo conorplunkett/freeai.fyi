@@ -111,6 +111,12 @@ function isCleanAdLine(s: any) {
   }
   return true;
 }
+// Guard user-supplied campaign ids before they hit a uuid column: a non-uuid
+// value makes Postgres throw (22P02), which would abort a whole batch tx.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(s: any) {
+  return typeof s === "string" && UUID_RE.test(s);
+}
 
 // ─────────────────────────── giftcards.js ──────────────────────────────────
 const GIFT_PLANS: any = {
@@ -439,6 +445,9 @@ function createRepo(pool: any) {
           const imp = Math.max(0, ev.impressions | 0);
           const billable = imp;
           if (!billable) continue;
+          // Skip demo/preview or otherwise non-uuid campaign ids — querying a
+          // uuid column with them throws and would poison the transaction.
+          if (!isUuid(ev.campaignId)) continue;
           const camp = await c.query(
             `select price_per_block_cents, impressions_remaining from campaigns
               where id = $1 and status = 'active' for update`,
@@ -521,6 +530,7 @@ function createRepo(pool: any) {
       });
     },
     async createClickToken(campaignId: string, deviceId: string, ttlMs: number) {
+      if (!isUuid(campaignId)) return null;
       const camp = await pool.query("select 1 from campaigns where id = $1 and status = 'active'", [campaignId]);
       if (!camp.rows[0]) return null;
       const token = crypto.randomBytes(24).toString("base64url");
@@ -974,6 +984,15 @@ route("GET", "/v1/_diag", async (ctx: any) => {
       ipHash: null, ipDailyCap: 0,
     });
   } catch (e: any) { out.ingestErr = String(e?.stack || e?.message || e); }
+  try {
+    const dev = await repo.registerDevice();
+    out.ingestDemo = await repo.ingestBatch({
+      deviceId: dev.deviceId, batchKey: "_diagdemo-" + crypto.randomBytes(6).toString("hex"),
+      events: [{ campaignId: "demo", impressions: 1 }],
+      revenueShare: config.revenueShare, dailyCap: config.dailyImpressionCap,
+      ipHash: null, ipDailyCap: 0,
+    });
+  } catch (e: any) { out.ingestDemoErr = String(e?.stack || e?.message || e); }
   out.lastError = lastError;
   return json(200, out);
 });
