@@ -887,6 +887,19 @@ function createRepo(pool) {
       return r.rows[0];
     },
 
+    // First-login onboarding gate: true once the user has referred anyone — either
+    // sent at least one invite, or has a friend who joined with their code. Drives
+    // the "refer a friend to start earning" screen the new user must clear before
+    // reaching their dashboard.
+    async hasReferredAnyone(userId) {
+      const r = await pool.query(
+        `select exists(select 1 from referral_invites where referrer_user_id = $1)
+             or exists(select 1 from referrals where referrer_user_id = $1) as referred`,
+        [userId]
+      );
+      return r.rows[0]?.referred === true;
+    },
+
     // Counts + the dashboard list, one row per friend with their email and the
     // stage they're at: 'invited' (email sent, not signed up yet) comes from
     // referral_invites; 'pending'/'rewarded'/'capped'/'cancelled' come from the

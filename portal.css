@@ -19,6 +19,10 @@
 #login-page[hidden] {
   display: none;
 }
+/* Same grid-vs-[hidden] override for the first-login onboarding split. */
+#onboarding-page[hidden] {
+  display: none;
+}
 
 /* ── First-paint auth gate ──
    An inline <head> script adds `auth-pending` to <html> when a session token is
@@ -445,6 +449,17 @@ html.auth-pending #portal-loading { display: flex; }
 /* Stack the email step's input(s) + buttons with consistent spacing. */
 #auth-step-email { display: flex; flex-direction: column; gap: 10px; }
 #auth-step-email[hidden] { display: none; }
+
+/* ── First-login onboarding card ── */
+.onboard-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--ink);
+  text-align: center;
+  margin: 0;
+}
+#onboard-form { display: flex; flex-direction: column; gap: 10px; }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {

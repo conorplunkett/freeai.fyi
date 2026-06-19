@@ -80,18 +80,32 @@ function showLoading() {
   clearAuthGate();
   $("portal-loading").hidden = false;
   $("login-page").hidden = true;
+  $("onboarding-page").hidden = true;
   $("redeem-page").hidden = true;
 }
 function showLoginPage() {
   clearAuthGate();
   $("portal-loading").hidden = true;
   $("login-page").hidden = false;
+  $("onboarding-page").hidden = true;
   $("redeem-page").hidden = true;
+}
+// First-login gate: the user must invite at least one friend before the
+// dashboard unlocks. The friend doesn't have to sign up — a valid email is
+// enough (the server validates it on /v1/web/referrals/invite).
+function showOnboarding(email) {
+  clearAuthGate();
+  $("portal-loading").hidden = true;
+  $("login-page").hidden = true;
+  $("onboarding-page").hidden = false;
+  $("redeem-page").hidden = true;
+  accountEmail = email;
 }
 function showRedeemPage(email) {
   clearAuthGate();
   $("portal-loading").hidden = true;
   $("login-page").hidden = true;
+  $("onboarding-page").hidden = true;
   $("redeem-page").hidden = false;
   $("balance-email").textContent = email;
   // Gift cards always go to the account email; the server ignores any
@@ -299,6 +313,35 @@ $("signout").addEventListener("click", async () => {
   try { await apiPost("/v1/web/logout", {}); } catch {}
   localStorage.removeItem(SESSION_KEY);
   location.reload();
+});
+
+// ---- first-login onboarding: refer a friend to unlock the dashboard ----
+function setOnboardError(msg) {
+  const el = $("onboard-error");
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+$("onboard-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = ($("onboard-email").value || "").trim();
+  if (!email) return;
+  const btn = $("onboard-btn");
+  setOnboardError("");
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  // A valid email is all that's required — the friend never has to sign up for
+  // the user to progress past onboarding. The server validates the address and
+  // rejects the user's own email.
+  const { status, body } = await apiPost("/v1/web/referrals/invite", { email });
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status === 200) {
+    enterDashboard(accountEmail);
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = "Send invite & continue";
+  setOnboardError((body && body.error) || "Couldn't send that invite. Check the email and try again.");
 });
 
 // ---- state ----
@@ -612,9 +655,23 @@ async function boot() {
   if (me.status !== 200) return showLoginPage();
   balanceUsd = me.body.balanceUsd || 0;
   $("balance").textContent = usd(balanceUsd);
-  showRedeemPage(me.body.email);
+  // First login: send them through the "refer a friend" gate before the
+  // dashboard. enterDashboard() runs once they've invited someone (or already
+  // had, for returning users).
+  if (me.body.needsReferral) { showOnboarding(me.body.email); return; }
+  enterDashboard(me.body.email);
+}
+
+// Reveal the dashboard and kick off its data loads. Shared by the returning-user
+// path and the moment a new user clears onboarding.
+function enterDashboard(email) {
+  showRedeemPage(email);
   loadEarnings("7d");
   retrieveActivity(); // auto-load the ledger so it's ready when the tab opens
+  loadGiftCatalog();
+}
+
+async function loadGiftCatalog() {
   const cat = await apiGet("/v1/giftcards");
   if (cat.status === 200) { catalog = cat.body; renderMenu(); updateSummary(); }
 }

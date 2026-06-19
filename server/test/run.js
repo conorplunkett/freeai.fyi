@@ -557,10 +557,21 @@ const fakeMailer = {
   await check("email invites: send, self-refer guard, sent → joined → rewarded indicators", async () => {
     const inviterSess = await loginVia("inviter@example.com");
 
+    // first-login onboarding gate: a brand-new user must refer someone before
+    // the dashboard unlocks, so /v1/web/me reports needsReferral=true
+    assert.strictEqual(
+      (await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${inviterSess}` })).body.needsReferral,
+      true, "new user needs to refer a friend first");
+
     // can't refer your own email
     const self = await api("POST", "/v1/web/referrals/invite", { email: "inviter@example.com" },
       { Authorization: `Bearer ${inviterSess}` });
     assert.strictEqual(self.status, 400);
+
+    // a failed self-refer doesn't clear the gate
+    assert.strictEqual(
+      (await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${inviterSess}` })).body.needsReferral,
+      true, "rejected invite leaves the gate up");
 
     // a malformed address is rejected too
     assert.strictEqual(
@@ -572,6 +583,12 @@ const fakeMailer = {
       { Authorization: `Bearer ${inviterSess}` });
     assert.strictEqual(inv.status, 200);
     assert.strictEqual(inv.body.invite.status, "sent");
+
+    // a valid invite clears the onboarding gate — the friend needn't sign up
+    assert.strictEqual(
+      (await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${inviterSess}` })).body.needsReferral,
+      false, "one valid invite unlocks the dashboard");
+
     const invMail = mailbox.at(-1);
     assert.strictEqual(invMail.to, "invitee@example.com");
     const inviterCode = (await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` })).body.code;
