@@ -144,10 +144,10 @@
   max-width: 400px;
   background: #f8f9fa;
   border-radius: 20px;
-  padding: 28px 24px;
+  padding: 40px 36px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   box-shadow:
     0 0 0 1px rgba(0,0,0,.06),
     0 4px 24px -6px rgba(0,0,0,.12);
