@@ -32,6 +32,14 @@ site:
 	@python3 -m http.server $(SITE_PORT)
 
 # ---------------------------------------------------------------------------
+# Brand assets
+# ---------------------------------------------------------------------------
+
+## icons: Regenerate the "F$" coral app icons (chrome, vscode, macOS) from theme.css.
+icons:
+	python3 tools/gen-icons.py
+
+# ---------------------------------------------------------------------------
 # Server (Node + Postgres backend)
 # ---------------------------------------------------------------------------
 
@@ -145,7 +153,7 @@ mac-open:
 ## test: Run every test suite (server, extension, terminal, mac core).
 test: test-server test-ext test-terminal test-mac
 
-.PHONY: help site db-up db-down migrate seed server server-up server-install \
+.PHONY: help site icons db-up db-down migrate seed server server-up server-install \
 	test-server test-ext lint-ext test-terminal vscode-install build-vscode test-vscode \
 	package-vscode test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test

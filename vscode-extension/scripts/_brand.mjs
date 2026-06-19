@@ -1,7 +1,8 @@
-// Shared FreeAI brand renderer. The mark is the "F$" wordmark in Montserrat
-// 800 (white) on a vertical orange gradient rounded square — a real typeface, so
-// it's rasterized with headless Chromium (Playwright) rather than drawn
-// procedurally. Montserrat is pulled from Google Fonts at render time.
+// Shared FreeAI brand renderer. The mark is the "F$" wordmark in JetBrains Mono
+// (white) on a vertical coral gradient rounded square — the same monospace face
+// as the site logo + favicon. A real webfont, so it's rasterized with headless
+// Chromium (Playwright) rather than drawn procedurally; fonts are pulled from
+// Google Fonts at render time (Inter is the lockup wordmark face).
 //
 // Used by gen-icon.mjs (marketplace icon) and gen-logos.mjs (full asset set).
 import { createRequire } from "node:module";
@@ -14,10 +15,15 @@ export const GRAD_TOP = "#e08a6a";   // --accent-grad-a
 export const GRAD_BOT = "#cf6b4a";   // --accent-grad-b
 export const GREEN = "#d97757";      // --accent (name kept for render-API compat)
 export const INK = "#1f1e1d";        // --ink
-export const RADIUS_RATIO = 0.22;    // rounded-square corner radius
+export const RADIUS_RATIO = 0.26;    // rounded-square corner radius (matches favicon / site logo)
 export const FONT_RATIO = 0.47;      // F$ cap size vs icon size
+// The "F$" mark is monospace — the same face as the site logo chip
+// (.logo = var(--mono) = JetBrains Mono) and the favicon. FONT_STACK (sans,
+// Inter) is the wordmark face, matching the site's .brand-name.
+export const MARK_FONT =
+  "'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace";
 export const FONT_STACK =
-  "Montserrat, -apple-system, 'Segoe UI', Arial, sans-serif";
+  "Inter, -apple-system, 'Segoe UI', Arial, sans-serif";
 
 // Resolve playwright-core from one of the repo's e2e installs (no dedicated dep
 // in extension/). Portable: paths are relative to the repo root.
@@ -46,7 +52,7 @@ export function loadChromium() {
 const FONT_LINKS = `
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">`;
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">`;
 
 function iconHTML(size) {
   const r = Math.round(size * RADIUS_RATIO);
@@ -56,8 +62,8 @@ function iconHTML(size) {
 #mark{width:${size}px;height:${size}px;border-radius:${r}px;
 background:linear-gradient(180deg,${GRAD_TOP} 0%,${GRAD_BOT} 100%);
 display:flex;align-items:center;justify-content:center;color:#fff;
-font-family:${FONT_STACK};font-weight:800;font-size:${fs}px;line-height:1;
-letter-spacing:-.02em}</style></head>
+font-family:${MARK_FONT};font-weight:700;font-size:${fs}px;line-height:1;
+letter-spacing:0}</style></head>
 <body><div id="mark">F$</div></body></html>`;
 }
 
@@ -72,7 +78,7 @@ function lockupHTML(height) {
 #b{width:${badge}px;height:${badge}px;border-radius:${r}px;flex:none;
 background:linear-gradient(180deg,${GRAD_TOP} 0%,${GRAD_BOT} 100%);
 display:flex;align-items:center;justify-content:center;color:#fff;
-font-family:${FONT_STACK};font-weight:800;font-size:${bfs}px;line-height:1;letter-spacing:-.02em}
+font-family:${MARK_FONT};font-weight:700;font-size:${bfs}px;line-height:1;letter-spacing:0}
 #w{font-family:${FONT_STACK};font-weight:700;font-size:${wfs}px;color:${INK};
 letter-spacing:-.02em;line-height:1}</style></head>
 <body><div id="lk"><div id="b">F$</div><div id="w">FreeAI.fyi</div></div></body></html>`;
@@ -120,7 +126,7 @@ export function markSVG({ box = true, fill = "#fff" } = {}) {
     ? `\n  <defs><linearGradient id="kb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${GRAD_TOP}"/><stop offset="1" stop-color="${GRAD_BOT}"/></linearGradient></defs>\n  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#kb)"/>`
     : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="FreeAI.fyi">${rect}
-  <text x="64" y="64" text-anchor="middle" dominant-baseline="central" font-family="${FONT_STACK}" font-weight="800" font-size="62" letter-spacing="-2" fill="${fill}">F$</text>
+  <text x="64" y="64" text-anchor="middle" dominant-baseline="central" font-family="${MARK_FONT}" font-weight="700" font-size="56" letter-spacing="0" fill="${fill}">F$</text>
 </svg>`;
 }
 

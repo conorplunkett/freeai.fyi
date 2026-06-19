@@ -1,8 +1,8 @@
 // Generates media/icon.png — the VS Code Marketplace icon. The mark is the "F$"
-// wordmark (Montserrat 800, white) on a vertical green gradient rounded square,
-// rasterized with headless Chromium (Montserrat is a real typeface, so it can't
-// be drawn procedurally). Requires playwright-core (resolved from the repo's e2e
-// install — see _brand.mjs). Run: `npm run icon`.
+// wordmark (JetBrains Mono, white) on a vertical coral gradient rounded square,
+// rasterized with headless Chromium (a real webfont, so it can't be drawn
+// procedurally). Requires playwright-core (resolved from the repo's e2e install
+// — see _brand.mjs). Run: `npm run icon`.
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

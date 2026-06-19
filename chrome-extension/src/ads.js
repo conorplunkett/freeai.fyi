@@ -21,7 +21,7 @@
   g.BB_MOCK_AD = {
     brand: "FreeAI Test",
     chip: "✓",
-    color: "#34a853",
+    color: "#d97757", // FreeAI brand coral (--accent) — our own test ad, not a sponsor
     ink: "#fff",
     line: "Test ad — this is what advertisers will see here.",
     url: "https://freeai.fyi/?test=1",

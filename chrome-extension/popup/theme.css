@@ -23,6 +23,7 @@
   --accent-d: #c15f3c;
   --accent-grad-a: #e08a6a;
   --accent-grad-b: #cf6b4a;
+  --accent-rgb: 217, 119, 87;   /* --accent as channels, for rgba() shadows/tints */
 
   /* ── Surfaces ── */
   --bg-cream: #faf9f5;
@@ -58,6 +59,15 @@
   --ov-tag-text-test: #f0b59e;
   --ov-test-border: rgba(217, 119, 87, 0.3);
   --ov-demo-line: #e7eaf0;     /* landing-page before/after demo line color */
+
+  /* ── Semantic status — functional state colors (NOT brand). Success stays a
+   * conventional green, error a warm red; centralized so they're consistent. */
+  --ok-bg: #f1f8f2;
+  --ok-fg: #2c6b3f;
+  --ok-line: #cfe6d5;
+  --err-bg: #fbeeea;
+  --err-fg: #9a3b22;
+  --err-line: #f0cdc0;
 
   /* ── Legacy aliases — existing rules recolor to the Claude palette via these.
    * Prefer the semantic names above for new styles. */

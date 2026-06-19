@@ -18,13 +18,17 @@
   // Site-specific "the model is generating" controls. Each is the Stop button
   // that only exists while a response streams. Kept broad + case-insensitive so
   // small UI revisions don't silently break detection.
+  // Each must denote a stop-GENERATION control, never an arbitrary element
+  // whose label merely contains "stop". A bare aria-label*="stop" catch-all
+  // matched ChatGPT sidebar conversation titles ("6 Train Not Stopping"),
+  // pinning the bar on permanently — so we only match generation verbs.
   const STOP_SELECTORS = [
     'button[data-testid="stop-button"]',            // ChatGPT
     'button[data-testid="stop-streaming"]',         // ChatGPT (older)
     'button[aria-label="Stop response"]',           // Claude
     'button[aria-label*="stop generating" i]',      // ChatGPT / generic
     'button[aria-label*="stop streaming" i]',       // generic
-    'button[aria-label*="stop" i]',                 // Gemini + catch-all
+    'button[aria-label*="stop response" i]',        // Claude / Gemini variants
     'button[mattooltip*="stop" i]',                 // Gemini (Angular Material)
   ];
   const BUSY_SELECTORS = [
@@ -69,7 +73,6 @@
   let testMode = false;
   let active = false;
   let demoUntil = 0;
-  let adIdx = 0;
   let lastImpressionAt = 0;
 
   // ---------- safe messaging (service worker may be asleep / context torn down) ----------
@@ -98,10 +101,12 @@
   const elLine = bar.querySelector(".bb-line");
   const elTag = bar.querySelector(".bb-tag");
 
-  // The ad currently on screen — mock while in Test Mode, otherwise live inventory.
+  // The ad currently on screen. We surface ONE ad at a time — the top of the
+  // returned inventory (the auction winner) — and never rotate within a page;
+  // cycling through several ads in one session read as spammy.
   function currentAd() {
     if (testMode) return mockAd || (ads.length ? ads[0] : null);
-    return ads.length ? ads[adIdx % ads.length] : null;
+    return ads.length ? ads[0] : null;
   }
 
   bar.addEventListener("click", async () => {
@@ -231,8 +236,12 @@
       const els = document.querySelectorAll(sel);
       for (const el of els) if (isVisible(el)) return true;
     }
+    // Busy/streaming markers must also be VISIBLE. A persistent-but-hidden
+    // match (e.g. an always-present aria-busy live region) otherwise pins the
+    // bar "on" forever — which is what regressed on ChatGPT.
     for (const sel of BUSY_SELECTORS) {
-      if (document.querySelector(sel)) return true;
+      const els = document.querySelectorAll(sel);
+      for (const el of els) if (isVisible(el)) return true;
     }
     return false;
   }
@@ -242,7 +251,6 @@
   function startActive() {
     if (active) return;
     active = true;
-    adIdx = Math.floor(Math.random() * (ads.length || 1));
     if (mount()) bar.classList.add("bb-show"); // else: tick() shows it once the reply area exists
     render();
     lastImpressionAt = 0;
@@ -255,19 +263,12 @@
     if (spinTimer) clearInterval(spinTimer);
     spinTimer = null;
   }
-  let frameCount = 0;
   function tick() {
     // keep the bar pinned to the streaming reply across re-renders; show only
     // once an anchor exists so it never starts at the bottom of the page
     if (mount()) bar.classList.add("bb-show");
     else bar.classList.remove("bb-show");
     render();
-    frameCount++;
-    // rotate the ad roughly every 2.6s (skip rotation while testing — the
-    // mock ad should stay put so it's easy to inspect)
-    if (!testMode && frameCount % 26 === 0) {
-      adIdx++;
-    }
     // one impression every 5s of serving — only while actually visible
     if (!bar.classList.contains("bb-show")) return;
     const now = Date.now();

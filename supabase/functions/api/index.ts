@@ -4,8 +4,9 @@
 //
 // Faithful port: every route, the exact SQL, the millicent BigInt math, the
 // transaction-scoped advisory locks, Stripe webhook verification, and the
-// Google/Apple OAuth flows are preserved. The data layer uses npm:pg so
-// server/src/repo.js transfers almost verbatim (same Pool/client API).
+// Google/Apple OAuth flows are preserved. The data layer uses postgres.js
+// behind a node-postgres-shaped shim so server/src/repo.js transfers almost
+// verbatim (same Pool/client API).
 //
 // Routing: this function is deployed under the slug `api`, so the public base
 // is https://<ref>.supabase.co/functions/v1/api and requests arrive as
@@ -73,26 +74,25 @@ const config = loadConfig();
 // worker at boot), so we use postgres.js — the same driver web-referrals uses.
 // prepare:false is required under transaction-mode pooling.
 //
-// A thin pg-compatible shim (.query → {rows}, .connect → reservable client)
+// A thin pg-compatible shim (.query → {rows}, .begin(fn) for transactions)
 // keeps createRepo — written against node-postgres' Pool/Client API — unchanged,
-// including its transaction-scoped advisory locks. Transactions run on a single
-// reserved connection so BEGIN…COMMIT (and pg_advisory_xact_lock) stay pinned.
+// including its transaction-scoped advisory locks. Transactions use sql.begin,
+// which pins one connection for BEGIN…COMMIT (and pg_advisory_xact_lock).
 const sql = postgres(config.databaseUrl, { prepare: false });
-const pool = {
-  async query(text: string, params: any[] = []) {
-    const rows = await sql.unsafe(text, params);
+// Wrap a postgres.js handle (the pool, or a transaction handle) in the
+// node-postgres-shaped client createRepo expects: `.query(text, params)` -> {rows}.
+const clientFor = (h: any) => ({
+  query: async (text: string, params: any[] = []) => {
+    const rows = await h.unsafe(text, params);
     return { rows, rowCount: rows.length };
   },
-  async connect() {
-    const reserved = await sql.reserve();
-    return {
-      query: async (text: string, params: any[] = []) => {
-        const rows = await reserved.unsafe(text, params);
-        return { rows, rowCount: rows.length };
-      },
-      release: () => reserved.release(),
-    };
-  },
+});
+const pool = {
+  query: (text: string, params: any[] = []) => clientFor(sql).query(text, params),
+  // Transactions use postgres.js's first-class sql.begin: one pinned connection
+  // with automatic COMMIT / ROLLBACK-on-throw. This is the reliable path under
+  // transaction-mode pooling and keeps our pg_advisory_xact_lock guards correct.
+  begin: (fn: any) => sql.begin((tx: any) => fn(clientFor(tx))),
 };
 
 // ───────────────────────────── util.js ─────────────────────────────────────
@@ -246,18 +246,7 @@ const LOCK_REDEEM = 0x52454431; // "RED1"
 
 function createRepo(pool: any) {
   async function tx(fn: any) {
-    const client = await pool.connect();
-    try {
-      await client.query("begin");
-      const out = await fn(client);
-      await client.query("commit");
-      return out;
-    } catch (err) {
-      await client.query("rollback");
-      throw err;
-    } finally {
-      client.release();
-    }
+    return pool.begin(fn);
   }
 
   async function applyReferral(client: any, newUserId: string, refCode: any) {
@@ -891,6 +880,8 @@ async function runPayouts() {
 
 // ─────────────────────────── http plumbing ─────────────────────────────────
 let serving = !config.killswitch;
+// TEMP: capture the most recent unhandled route error for /v1/_diag.
+let lastError: any = null;
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": config.corsOrigin || "*",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
@@ -944,6 +935,29 @@ function hashIp(ctx: any) {
 
 // ── health & catalog ──
 route("GET", "/healthz", async () => json(200, { ok: true }));
+// TEMP diagnostic (admin-gated): surfaces whether plain queries and
+// transactions work against the pooler, and the exact driver error if not.
+route("GET", "/v1/_diag", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(403, { error: "forbidden" });
+  const out: any = {};
+  try { out.query = (await pool.query("select 1 as n")).rows[0]; }
+  catch (e: any) { out.queryErr = String(e?.stack || e?.message || e); }
+  try { out.tx = await pool.begin(async (c: any) => (await c.query("select 1 as n")).rows[0]); }
+  catch (e: any) { out.txErr = String(e?.stack || e?.message || e); }
+  try {
+    const dev = await repo.registerDevice();
+    const camp = (await pool.query("select id from campaigns where status = 'active' limit 1")).rows[0];
+    out.campId = camp?.id || null;
+    out.ingest = await repo.ingestBatch({
+      deviceId: dev.deviceId, batchKey: "_diag-" + crypto.randomBytes(6).toString("hex"),
+      events: camp ? [{ campaignId: camp.id, impressions: 1 }] : [],
+      revenueShare: config.revenueShare, dailyCap: config.dailyImpressionCap,
+      ipHash: null, ipDailyCap: 0,
+    });
+  } catch (e: any) { out.ingestErr = String(e?.stack || e?.message || e); }
+  out.lastError = lastError;
+  return json(200, out);
+});
 route("GET", "/v1/config", async () => json(200, { serving, revenueShare: config.revenueShare }));
 route("GET", "/v1/ads", async () => {
   const ads = serving ? await repo.activeAds() : [];
@@ -1406,6 +1420,7 @@ Deno.serve(async (req: Request) => {
     return await handler(ctx);
   } catch (err: any) {
     console.error(`[freeai] ${req.method} ${path} failed:`, err?.message);
+    lastError = { at: new Date().toISOString(), method: req.method, path, message: err?.message, stack: err?.stack };
     return json(500, { error: "internal error" });
   } finally {
     console.log(`[freeai] ${req.method} ${path} ${Date.now() - started}ms`);

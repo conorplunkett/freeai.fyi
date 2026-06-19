@@ -170,6 +170,13 @@ function makeChrome(stateRef, sentRef) {
     assert.strictEqual(T.isThinking(), true);
   });
 
+  await check("a sidebar title containing 'stop' does NOT count as thinking", () => {
+    // ChatGPT regression: a conversation titled "6 Train Not Stopping" rendered
+    // a visible button whose aria-label contained "stop", pinning the bar on.
+    page.clear().add("button", { "aria-label": "Open conversation options for 6 Train Not Stopping" });
+    assert.strictEqual(T.isThinking(), false, "matched a non-generation control");
+  });
+
   await check("Test Mode without generation ⇒ bar stays hidden", () => {
     page.clear(); // nothing generating
     T.setState({ enabled: true, testMode: true, ads: sandbox.BB_ADS, mockAd: sandbox.BB_MOCK_AD });
@@ -198,6 +205,22 @@ function makeChrome(stateRef, sentRef) {
     const imp = sent.find((m) => m.type === "BB_IMPRESSION");
     assert.ok(imp, "no impression sent");
     assert.strictEqual(imp.mock, true, "test impression not tagged mock");
+  });
+
+  await check("only one ad is surfaced — the top of inventory, never rotating", () => {
+    page.clear()
+      .add("button", { "data-testid": "stop-button" })
+      .add("div", { "data-message-author-role": "assistant" });
+    const inventory = [
+      { id: "ramp", chip: "R", line: "Ramp" },
+      { id: "fluidstack", chip: "F", line: "FluidStack" },
+      { id: "linear", chip: "L", line: "Linear" },
+    ];
+    T.setState({ enabled: true, testMode: false, ads: inventory });
+    T.evaluate();
+    assert.strictEqual(T.currentAd().id, "ramp", "not pinned to the top ad");
+    for (let i = 0; i < 300; i++) T.tick(); // far past the old 2.6s rotation cadence
+    assert.strictEqual(T.currentAd().id, "ramp", "the ad rotated — should stay put");
   });
 
   // ---------- background.js earnings vs mock ----------

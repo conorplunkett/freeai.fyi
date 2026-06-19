@@ -125,6 +125,39 @@ async function main() {
       assert.strictEqual(shown, null, "bar must not appear before the reply area exists");
     });
 
+    await check("a VISIBLE sidebar item titled '...Not Stopping' does NOT trigger the bar", async () => {
+      // the real ChatGPT regression: a sidebar conversation button whose
+      // aria-label contains "stop" must not be read as a stop-generation control
+      await page.evaluate(() => {
+        window.setGenerating(false);
+        const b = document.createElement("button");
+        b.id = "sidebar-stop";
+        b.setAttribute("aria-label", "Open conversation options for 6 Train Not Stopping");
+        b.textContent = "6 Train Not Stopping";
+        document.body.appendChild(b);
+      });
+      await sleep(1200);
+      const shown = await page.$(".bb-bar.bb-show");
+      assert.strictEqual(shown, null, "a non-generation 'stop' label showed the ad");
+      await page.evaluate(() => document.getElementById("sidebar-stop").remove());
+    });
+
+    await check("a HIDDEN busy/streaming marker does NOT trigger the bar (the ChatGPT regression)", async () => {
+      // a persistent but invisible aria-busy region must not pin the bar "on"
+      await page.evaluate(() => {
+        window.setGenerating(false);
+        const ghost = document.createElement("div");
+        ghost.id = "ghost-busy";
+        ghost.setAttribute("aria-busy", "true");
+        ghost.style.display = "none";
+        document.body.appendChild(ghost);
+      });
+      await sleep(1200);
+      const shown = await page.$(".bb-bar.bb-show");
+      assert.strictEqual(shown, null, "hidden aria-busy must not show the ad");
+      await page.evaluate(() => document.getElementById("ghost-busy").remove());
+    });
+
     await check("Stop button appears ⇒ bar shows (real detection path)", async () => {
       await page.evaluate(() => window.setGenerating(true));
       await page.waitForSelector(".bb-bar.bb-show", { timeout: 10000 });
@@ -308,6 +341,37 @@ async function main() {
     });
 
     await check("Stop button gone ⇒ bar hides", async () => {
+      await page.evaluate(() => window.setGenerating(false));
+      await page.waitForFunction(() => !document.querySelector(".bb-bar.bb-show"), { timeout: 5000 });
+    });
+
+    await check("on hide the box stays mounted + space-reserved and fades over 2s (no reflow)", async () => {
+      const meta = await page.$eval(".bb-bar", (el) => {
+        const s = getComputedStyle(el);
+        return { connected: el.isConnected, display: s.display, opacityDur: s.transitionDuration };
+      });
+      assert.ok(meta.connected, "bar was removed from the DOM on hide");
+      assert.strictEqual(meta.display, "flex", "box collapsed instead of reserving space");
+      assert.ok(/(^|,)\s*2s/.test(meta.opacityDur), `expected a 2s fade, got ${meta.opacityDur}`);
+      // partway through the 2s fade it should be visibly dimming, not snapped off
+      await sleep(700);
+      const mid = await page.$eval(".bb-bar", (el) => parseFloat(getComputedStyle(el).opacity));
+      assert.ok(mid > 0 && mid < 1, `expected a partial fade, got opacity ${mid}`);
+      // and after the full 2s it should be invisible (still mounted)
+      await sleep(1800);
+      const end = await page.$eval(".bb-bar", (el) => {
+        const s = getComputedStyle(el);
+        return { opacity: parseFloat(s.opacity), visibility: s.visibility };
+      });
+      assert.ok(end.opacity < 0.05, `did not finish fading, opacity ${end.opacity}`);
+      assert.strictEqual(end.visibility, "hidden", "faded box should be visibility:hidden");
+    });
+
+    await check("a new generation fades the same box back in (reused, not recreated)", async () => {
+      await page.evaluate(() => window.setGenerating(true));
+      await page.waitForSelector(".bb-bar.bb-show", { timeout: 5000 });
+      const n = await page.$$eval(".bb-bar", (els) => els.length);
+      assert.strictEqual(n, 1, "more than one bar exists — box should be reused");
       await page.evaluate(() => window.setGenerating(false));
       await page.waitForFunction(() => !document.querySelector(".bb-bar.bb-show"), { timeout: 5000 });
     });

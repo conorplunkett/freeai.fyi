@@ -121,10 +121,13 @@ bar), and the macOS app. Always use it.
    `chrome-extension/src/ads.js` / `script.js` (a sponsor's own chip color) —
    that's content, not a design token.
 
-2. **Two tokenized palettes.** The cream/coral **site palette** (`--accent`,
-   `--ink`, `--line`, `--bg-cream`, …) and the dark **overlay/sponsor palette**
-   (`--ov-*`) used by the subtle pill shown while an assistant is thinking. Fonts
-   are tokens too: `--mono`, `--sans`.
+2. **Token groups.** The cream/coral **site palette** (`--accent`, `--ink`,
+   `--line`, `--bg-cream`, …); the dark **overlay/sponsor palette** (`--ov-*`)
+   for the thinking pill; **fonts** (`--mono`, `--sans`); `--accent-rgb` (the
+   accent as bare channels — use `rgba(var(--accent-rgb), …)` for branded
+   shadows/tints instead of hardcoding one); and **semantic status** (`--ok-*`
+   success green, `--err-*` warm red) — functional state colors, the one place
+   green is allowed, kept deliberately separate from the brand.
 
 3. **Three mirrors must move together.** The website and the extension popup read
    `theme.css` directly. Three places can't reach it at runtime and mirror its
@@ -144,7 +147,15 @@ bar), and the macOS app. Always use it.
    `NSFont.monospacedSystemFont` rather than bundling JetBrains Mono — colors are
    unified, the font is intentionally native. Don't "fix" it.
 
-5. **Next token group.** Radius/shadow values are still inline and not yet
+5. **Logo.** The brand mark is the **"F$" coral wordmark** on the accent
+   gradient — the app icon for **every** surface (Chrome `chrome-extension/icons/*`,
+   VS Code `vscode-extension/media/icon.png`, macOS `AppIcon-1024.png`) and the
+   site favicon. Regenerate all icons with `make icons` (`tools/gen-icons.py`,
+   which reads the gradient straight from `theme.css`); the canonical renderer is
+   `vscode-extension/scripts/_brand.mjs`. Never hand-edit icon PNGs or
+   reintroduce the old green/teal marks.
+
+6. **Next token group.** Radius/shadow values are still inline and not yet
    tokenized — when you first need to share one, add a `--radius-*` / `--shadow-*`
    group to `theme.css` rather than hardcoding it.
 

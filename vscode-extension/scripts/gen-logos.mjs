@@ -1,5 +1,5 @@
 // Generates the full FreeAI logo asset set in extension/media/logos/.
-// The mark is the "K$" wordmark (Montserrat 800, white) on a vertical green
+// The mark is the "F$" wordmark (JetBrains Mono, white) on a vertical coral
 // gradient rounded square. Raster sizes are produced with headless Chromium
 // (real typeface — see _brand.mjs); SVG variants are font-based.
 // Run: `node extension/scripts/gen-logos.mjs`.

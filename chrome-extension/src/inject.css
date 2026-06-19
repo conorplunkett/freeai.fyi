@@ -64,9 +64,23 @@
   align-self: flex-start;
   justify-self: start;
   text-align: left;
+
+  /* Once anchored, the box STAYS in the layout and just fades its opacity, so
+     the page never reflows as the ad appears/disappears (no text jumping).
+     Hidden state: invisible + non-interactive, fades out over 2s. */
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 2s ease, visibility 0s linear 2s;
 }
 .bb-bar.bb-inline.bb-show {
   transform: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  /* fade IN quickly; only the fade-out is the slow 2s drift */
+  transition: opacity 0.25s ease, visibility 0s;
 }
 .bb-bar:hover {
   background: var(--ov-bar-bg-hover);
