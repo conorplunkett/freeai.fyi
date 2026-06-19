@@ -4,14 +4,15 @@ import { installShellBlock, restoreShellBlock, shellFromEnv, defaultRcPath } fro
 import { locateRealClaude, readTerminalConfig, writeTerminalConfig } from "./claude.js";
 import { runClaude } from "./run.js";
 import { runStatusLine } from "./statusline.js";
-import { terminalConfigPath } from "./paths.js";
+import { terminalConfigPath, resolveApiBase } from "./paths.js";
+import { defaultBackend, ensureDevice } from "./backend.js";
 
 export async function main(argv) {
   const [product, command, ...rest] = argv;
   if (product !== "claude") return usage(1);
   if (command === "setup") return setup(rest);
   if (command === "restore") return restore(rest);
-  if (command === "doctor") return doctor(rest);
+  if (command === "doctor") return await doctor(rest);
   if (command === "run") {
     process.exitCode = await runClaude(rest);
     return;
@@ -58,21 +59,60 @@ function restore(argv) {
     : `No FreeAI Claude shell block found in ${result.rcPath}`);
 }
 
-function doctor(argv) {
+async function doctor(argv) {
   const flags = parseFlags(argv);
-  const cfg = readTerminalConfig(homedir());
+  const home = homedir();
+  const cfg = readTerminalConfig(home);
   const shell = flags.shell || cfg.shell || shellFromEnv();
   const rcPath = flags.rc || cfg.rcPath || defaultRcPath(shell);
-  const realClaudePath = locateRealClaude({ storedPath: cfg.realClaudePath, home: homedir() });
+  const realClaudePath = locateRealClaude({ storedPath: cfg.realClaudePath, home });
   const report = {
     ok: !!realClaudePath,
     realClaudePath: realClaudePath || null,
-    configPath: terminalConfigPath(homedir()),
+    configPath: terminalConfigPath(home),
     shell,
     rcPath,
     cliPath: fileURLToPath(new URL("../bin/freeai.js", import.meta.url)),
   };
   console.log(JSON.stringify(report, null, 2));
+
+  // The local report above can be green while no ad ever serves, because the ad
+  // path depends on the backend. Probe it end-to-end unless asked to skip.
+  if (flags["no-backend"] === true) return;
+  console.log(JSON.stringify(await probeBackend(home), null, 2));
+}
+
+// Run the same pipeline `freeai claude run` uses to prepare an ad, reporting the
+// outcome and latency of each step so a failure (network, cold start, no
+// inventory) is visible instead of silently degrading to plain `claude`.
+async function probeBackend(home) {
+  const backend = defaultBackend({ home, env: process.env });
+  const result = { backend: resolveApiBase({ home, env: process.env }), steps: {} };
+  const step = async (name, fn) => {
+    const t0 = Date.now();
+    try {
+      const summary = await fn();
+      result.steps[name] = { ok: true, ms: Date.now() - t0, ...(summary || {}) };
+      return true;
+    } catch (err) {
+      result.steps[name] = { ok: false, ms: Date.now() - t0, error: String(err?.message || err) };
+      return false;
+    }
+  };
+
+  let ads = [];
+  let device = null;
+  await step("config", async () => ({ serving: (await backend.config()).serving }));
+  await step("ads", async () => { ads = await backend.ads(); return { count: ads.length, first: ads[0]?.line || null }; });
+  await step("device", async () => { device = await ensureDevice(home, backend); return { deviceId: `${device.deviceId.slice(0, 8)}…` }; });
+  if (device && ads[0]) {
+    await step("clickIntent", async () => ({ trackingUrl: await backend.createClickIntent(device, ads[0].id) }));
+  }
+
+  const s = result.steps;
+  result.adsWillServe = !!(s.config?.ok && s.config.serving && s.ads?.ok && s.ads.count > 0
+    && s.device?.ok && s.clickIntent?.ok);
+  return result;
 }
 
 function usage(code) {
@@ -80,7 +120,7 @@ function usage(code) {
   freeai claude setup [--shell zsh|bash|fish] [--rc PATH] [--real-claude PATH] [--force]
   freeai claude run [...claude args]
   freeai claude restore [--shell zsh|bash|fish] [--rc PATH]
-  freeai claude doctor
+  freeai claude doctor [--no-backend]
 `);
   process.exitCode = code;
 }

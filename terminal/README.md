@@ -15,7 +15,19 @@ node bin/freeai.js claude setup
 | `freeai claude setup` | Locate the real `claude`, store it in `~/.freeai/claude/config.json`, and add a marked shell alias/function. |
 | `freeai claude run [...args]` | Internal wrapper used by the alias. It forwards args, cwd, env, stdio, signals, and Claude's exit code. |
 | `freeai claude restore` | Remove the marked shell block. Safe to run repeatedly. |
-| `freeai claude doctor` | Print the resolved Claude path, config path, shell, rc file, and CLI path as JSON. |
+| `freeai claude doctor` | Print the resolved Claude path, config/shell/rc paths, then probe the backend pipeline (config → ads → device → click-intent) and report an `adsWillServe` verdict. Pass `--no-backend` to skip the network probe. |
+
+### Debugging "no ad shows"
+
+The ad path is silent in normal use, so `doctor` can be green on the local
+machine while no ad serves. Two diagnostics:
+
+- `freeai claude doctor` — the `adsWillServe` field plus per-step `ok`/`error`
+  shows whether the backend pipeline succeeds (network reachable, ad in
+  rotation, device + click-intent created).
+- `FREEAI_DEBUG=1 claude` — traces to stderr whether the wrapper ran and which
+  step, if any, caused it to fall back to plain `claude`. No `freeai[debug]`
+  output means the shell alias isn't active (`type claude` to confirm).
 
 `setup` adds a marked, reversible shell alias/function so `claude ...` becomes
 `freeai claude run ...`. zsh/bash use:

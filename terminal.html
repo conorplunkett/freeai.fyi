@@ -147,6 +147,30 @@ curl -s "$BASE/v1/me/earnings?deviceId=$DID&deviceKey=$DK"</code></pre>
       <li><strong>It reads none of your prompts.</strong> Activity is detected only from the structure of Claude Code’s transcript (is it mid-response?), never its contents.</li>
     </ul>
 
+    <h2><span class="num">Not seeing an ad?</span></h2>
+    <p>The ad path stays silent by design, so use these two checks to see what’s happening:</p>
+    <p><strong>1. Probe the backend</strong> — <code>doctor</code> runs the full ad pipeline and ends with an <code>adsWillServe</code> verdict:</p>
+    <pre><code>freeai claude doctor</code></pre>
+    <pre><code>{
+  "backend": "https://…supabase.co/functions/v1/api",
+  "steps": {
+    "config": { "ok": true, "serving": true },
+    "ads":    { "ok": true, "count": 1, "first": "Plan your next sprint faster" },
+    "device": { "ok": true },
+    "clickIntent": { "ok": true }
+  },
+  <span class="adurl">"adsWillServe"</span>: true
+}</code></pre>
+    <ul>
+      <li><code>"error": "fetch failed"</code> on <code>config</code>/<code>ads</code> → your network can’t reach the API (firewall, proxy, or offline).</li>
+      <li><code>"count": 0</code> → no ad is in rotation right now; nothing to show.</li>
+      <li><code>adsWillServe: false</code> → the failing step above is why no ad serves.</li>
+    </ul>
+    <p><strong>2. Trace a real run</strong> — set <code>FREEAI_DEBUG=1</code> and watch why the wrapper did (or didn’t) inject an ad:</p>
+    <pre><code>FREEAI_DEBUG=1 claude</code></pre>
+    <p>If you see no <code>freeai[debug]</code> lines at all, the alias isn’t active — confirm with <code>type claude</code> (it should say <em>aliased to <code>freeai claude run</code></em>), then re-open your shell.</p>
+    <p class="note">Remember the ad only shows <strong>while Claude Code is actively working</strong> — it is hidden the moment it finishes and waits for you.</p>
+
     <h2><span class="num">Opt out &amp; uninstall</span></h2>
     <p>Skip ads for a single run without uninstalling:</p>
     <pre><code>FREEAI_DISABLE=1 claude</code></pre>

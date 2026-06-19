@@ -62,3 +62,11 @@ test("writeSessionSettings preserves user keys and overwrites statusLine", () =>
   assert.equal(out.statusLine.command, "'/node' '/freeai' claude statusline --state '/state.json' --prev '/prev.json'");
   assert.deepEqual(out.spinnerVerbs, { mode: "replace", verbs: ["Ad"] });
 });
+
+test("buildFreeAiStatusLine sets a refresh interval so the ad re-renders while thinking", () => {
+  const def = buildFreeAiStatusLine({ cliPath: "/freeai", statePath: "/state.json" });
+  assert.equal(def.type, "command");
+  assert.equal(def.refreshInterval, 2);
+  const custom = buildFreeAiStatusLine({ cliPath: "/freeai", statePath: "/state.json", refreshInterval: 5 });
+  assert.equal(custom.refreshInterval, 5);
+});

@@ -95,11 +95,17 @@ export function statusLineCommand({ nodePath = process.execPath, cliPath, stateP
 }
 
 export function buildFreeAiStatusLine(params) {
-  return {
+  const statusLine = {
     type: "command",
     command: statusLineCommand(params),
     padding: 0,
   };
+  // Re-run the status line command on a timer in addition to Claude Code's
+  // event-driven updates. Without this, the ad line is not re-rendered during a
+  // long "thinking" phase that emits no transcript events, so it never appears.
+  const refreshInterval = params.refreshInterval ?? 2;
+  if (refreshInterval) statusLine.refreshInterval = refreshInterval;
+  return statusLine;
 }
 
 export function writeSessionSettings({ path, userSettings = {}, statusLine, spinnerVerbs }) {

@@ -3,7 +3,7 @@ import { devicePath, resolveApiBase } from "./paths.js";
 import { readJson, safeHttpUrl, writeJsonAtomic } from "./util.js";
 
 export class FreeAiBackend {
-  constructor({ base, fetchImpl = fetch, timeoutMs = 3000 } = {}) {
+  constructor({ base, fetchImpl = fetch, timeoutMs = 8000 } = {}) {
     this.base = String(base || "").replace(/\/+$/, "");
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
