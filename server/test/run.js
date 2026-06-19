@@ -547,10 +547,12 @@ const fakeMailer = {
     assert.ok(invMail.link.includes(`ref=${inviterCode}`), "invite link carries the referrer's code");
 
     // dashboard now shows the invite under the 'invited' stage, with the email
+    // masked so the page never leaks the full address
     let dash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` });
     assert.strictEqual(dash.body.invitedCount, 1);
-    const invitedItem = dash.body.referrals.find((r) => r.email === "invitee@example.com");
-    assert.ok(invitedItem && invitedItem.status === "invited", "invitee listed as invited");
+    const invitedItem = dash.body.referrals.find((r) => r.email === "i•••@example.com");
+    assert.ok(invitedItem && invitedItem.status === "invited", "invitee listed as invited (masked)");
+    assert.ok(!JSON.stringify(dash.body.referrals).includes("invitee@example.com"), "full email never leaves the server");
 
     // friend signs up WITH the code → the invite's "code used" indicator flips to 'joined'
     await loginVia("invitee@example.com", inviterCode);
@@ -559,8 +561,8 @@ const fakeMailer = {
       "joined");
     dash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` });
     assert.strictEqual(dash.body.invitedCount, 0, "joined invite no longer counts as merely invited");
-    const joinedItem = dash.body.referrals.find((r) => r.email === "invitee@example.com");
-    assert.ok(joinedItem && joinedItem.status === "pending", "now shows as a pending referral with their email");
+    const joinedItem = dash.body.referrals.find((r) => r.email === "i•••@example.com");
+    assert.ok(joinedItem && joinedItem.status === "pending", "now shows as a pending referral with their (masked) email");
 
     // friend redeems → invite reaches its terminal 'rewarded' stage
     const inviteeId = await userId("invitee@example.com");

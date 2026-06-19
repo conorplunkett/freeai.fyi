@@ -256,6 +256,16 @@ function generateReferralCode(len = 8) {
   for (let i = 0; i < len; i++) out += REFERRAL_ALPHABET[bytes[i] % REFERRAL_ALPHABET.length];
   return out;
 }
+// Mask a referred friend's email for the dashboard (jane@acme.com -> j•••@acme.com)
+// so the page never leaks the full address of someone who signed up via a link.
+function maskEmail(email: string) {
+  const s = String(email || "");
+  const at = s.indexOf("@");
+  if (at < 1) return "•••";
+  const local = s.slice(0, at);
+  const head = local.length > 1 ? local[0] : "";
+  return `${head}•••@${s.slice(at + 1)}`;
+}
 const LOCK_REDEEM = 0x52454431; // "RED1"
 
 function createRepo(pool: any) {
@@ -890,8 +900,8 @@ function createRepo(pool: any) {
       );
       const s = stats.rows[0];
       const referrals = [
-        ...invited.rows.map((r: any) => ({ email: r.email, status: "invited", createdAt: r.created_at })),
-        ...joined.rows.map((r: any) => ({ email: r.email, status: r.status, createdAt: r.created_at })),
+        ...invited.rows.map((r: any) => ({ email: maskEmail(r.email), status: "invited", createdAt: r.created_at })),
+        ...joined.rows.map((r: any) => ({ email: maskEmail(r.email), status: r.status, createdAt: r.created_at })),
       ].sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt));
       return {
         rewardedCount: s.rewarded, pendingCount: s.pending, cappedCount: s.capped,

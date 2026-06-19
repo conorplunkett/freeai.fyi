@@ -15,6 +15,20 @@ function generateReferralCode(len = 8) {
   return out;
 }
 
+// Mask a referred friend's email for the dashboard: keep the first local-part
+// character and the domain, hide the rest (jane@acme.com -> j•••@acme.com). The
+// referrer can recognise who they referred without the page leaking the full
+// address of someone who signed up through their link.
+function maskEmail(email) {
+  const s = String(email || "");
+  const at = s.indexOf("@");
+  if (at < 1) return "•••";
+  const local = s.slice(0, at);
+  const domain = s.slice(at + 1);
+  const head = local.length > 1 ? local[0] : "";
+  return `${head}•••@${domain}`;
+}
+
 // Advisory-lock namespace (classid) for redemption serialization. Concurrent
 // redeems that draw on the same balance take pg_advisory_xact_lock under this
 // class so the in-transaction balance check can't be raced into an overdraft.
@@ -890,8 +904,8 @@ function createRepo(pool) {
       );
       const s = stats.rows[0];
       const referrals = [
-        ...invited.rows.map((r) => ({ email: r.email, status: "invited", createdAt: r.created_at })),
-        ...joined.rows.map((r) => ({ email: r.email, status: r.status, createdAt: r.created_at })),
+        ...invited.rows.map((r) => ({ email: maskEmail(r.email), status: "invited", createdAt: r.created_at })),
+        ...joined.rows.map((r) => ({ email: maskEmail(r.email), status: r.status, createdAt: r.created_at })),
       ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       return {
         rewardedCount: s.rewarded,
