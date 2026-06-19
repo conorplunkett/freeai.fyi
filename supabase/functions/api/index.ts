@@ -933,6 +933,17 @@ function hashIp(ctx: any) {
 
 // ── health & catalog ──
 route("GET", "/healthz", async () => json(200, { ok: true }));
+// TEMP diagnostic (admin-gated): surfaces whether plain queries and
+// transactions work against the pooler, and the exact driver error if not.
+route("GET", "/v1/_diag", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(403, { error: "forbidden" });
+  const out: any = {};
+  try { out.query = (await pool.query("select 1 as n")).rows[0]; }
+  catch (e: any) { out.queryErr = String(e?.stack || e?.message || e); }
+  try { out.tx = await pool.begin(async (c: any) => (await c.query("select 1 as n")).rows[0]); }
+  catch (e: any) { out.txErr = String(e?.stack || e?.message || e); }
+  return json(200, out);
+});
 route("GET", "/v1/config", async () => json(200, { serving, revenueShare: config.revenueShare }));
 route("GET", "/v1/ads", async () => {
   const ads = serving ? await repo.activeAds() : [];
