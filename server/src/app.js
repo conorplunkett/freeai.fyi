@@ -559,6 +559,31 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
   });
 
+  // The user's ad-surface waitlists. GET returns the catalog of surfaces (from
+  // the enum table) annotated with which ones the user has already joined; POST
+  // joins one. Joining is idempotent — a repeat is a no-op.
+  route("GET", "/v1/web/waitlist", async (req, res, body, rawBody, query) => {
+    const user = await repo.userForSession(sessionFrom(req, body, query));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const surfaces = await repo.listWaitlistSurfaces();
+    const joined = new Set((await repo.waitlistsForUser(user.id)).map((w) => w.surface));
+    json(res, 200, {
+      surfaces: surfaces.map((s) => ({ surface: s.surface, label: s.label, joined: joined.has(s.surface) })),
+    });
+  });
+
+  route("POST", "/v1/web/waitlist", async (req, res, body) => {
+    const user = await repo.userForSession(sessionFrom(req, body));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const surface = body?.surface;
+    const known = await repo.listWaitlistSurfaces();
+    if (!surface || !known.some((s) => s.surface === surface)) {
+      return json(res, 400, { error: "unknown surface", surfaces: known.map((s) => s.surface) });
+    }
+    const created = await repo.joinWaitlist(user.id, surface);
+    json(res, 200, { ok: true, surface, joined: true, alreadyJoined: !created });
+  });
+
   route("POST", "/v1/web/redemptions", async (req, res, body) => {
     const user = await repo.userForSession(sessionFrom(req, body));
     if (!user) return json(res, 401, { error: "not signed in" });

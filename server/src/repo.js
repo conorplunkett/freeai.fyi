@@ -861,6 +861,37 @@ function createRepo(pool) {
         );
       });
     },
+
+    // ---------- waitlists ----------
+    // The surfaces a user can join a waitlist for, read from the enum table so a
+    // new surface is a data change, not a deploy. Ordered for display.
+    async listWaitlistSurfaces() {
+      const { rows } = await pool.query(
+        "select surface, label from waitlist_surfaces order by sort_order asc, surface asc"
+      );
+      return rows;
+    },
+
+    // Record a user's interest in one surface. Idempotent: a repeat signup is a
+    // no-op (the unique (user_id, surface) constraint). Returns true when a new
+    // row was created, false when the user was already on this waitlist.
+    async joinWaitlist(userId, surface) {
+      const { rows } = await pool.query(
+        `insert into waitlist_signups (user_id, surface) values ($1, $2)
+         on conflict (user_id, surface) do nothing returning id`,
+        [userId, surface]
+      );
+      return !!rows[0];
+    },
+
+    // The surfaces this user has already joined, oldest first.
+    async waitlistsForUser(userId) {
+      const { rows } = await pool.query(
+        "select surface, created_at from waitlist_signups where user_id = $1 order by created_at asc",
+        [userId]
+      );
+      return rows;
+    },
   };
 }
 

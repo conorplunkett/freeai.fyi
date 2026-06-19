@@ -577,6 +577,41 @@ const fakeMailer = {
     assert.strictEqual((await api("GET", "/v1/web/activity")).status, 401);
   });
 
+  // ---------- ad-surface waitlists ----------
+  await check("web waitlist lets a signed-in user join ad-surface waitlists (idempotent, per-surface)", async () => {
+    const sess = await loginVia("wait@example.com");
+    const uid = await userId("wait@example.com");
+
+    // catalog lists the four seeded surfaces, none joined yet
+    const cat = await api("GET", "/v1/web/waitlist", undefined, { Authorization: `Bearer ${sess}` });
+    assert.strictEqual(cat.status, 200);
+    assert.strictEqual(cat.body.surfaces.length, 4);
+    assert.ok(cat.body.surfaces.every((s) => s.joined === false));
+    assert.strictEqual(cat.body.surfaces[0].surface, "desktop", "sorted by sort_order");
+
+    // join two surfaces
+    const j1 = await api("POST", "/v1/web/waitlist", { surface: "desktop" }, { Authorization: `Bearer ${sess}` });
+    assert.strictEqual(j1.status, 200);
+    assert.strictEqual(j1.body.joined, true);
+    assert.strictEqual(j1.body.alreadyJoined, false);
+    await api("POST", "/v1/web/waitlist", { surface: "vscode_extension" }, { Authorization: `Bearer ${sess}` });
+
+    // re-joining a surface is a no-op (no duplicate row)
+    const dup = await api("POST", "/v1/web/waitlist", { surface: "desktop" }, { Authorization: `Bearer ${sess}` });
+    assert.strictEqual(dup.body.alreadyJoined, true);
+    const rows = (await poolNs.query("select surface from waitlist_signups where user_id = $1 order by surface", [uid])).rows;
+    assert.deepStrictEqual(rows.map((r) => r.surface), ["desktop", "vscode_extension"]);
+
+    // catalog now reflects the joined state
+    const cat2 = await api("GET", "/v1/web/waitlist", undefined, { Authorization: `Bearer ${sess}` });
+    assert.strictEqual(cat2.body.surfaces.filter((s) => s.joined).length, 2);
+
+    // unknown surface is rejected; missing session is 401
+    assert.strictEqual((await api("POST", "/v1/web/waitlist", { surface: "smoke-signals" }, { Authorization: `Bearer ${sess}` })).status, 400);
+    assert.strictEqual((await api("GET", "/v1/web/waitlist")).status, 401);
+    assert.strictEqual((await api("POST", "/v1/web/waitlist", { surface: "desktop" })).status, 401);
+  });
+
   // ---------- rejection + refund ----------
   await check("rejecting a reviewed campaign refunds via Stripe and posts a refund entry", async () => {
     const r = await api("POST", "/v1/checkout", { email: "spam@x.io", adLine: "questionable ad copy here", url: "https://x.io/", brand: "X", pricePerBlock: 3, blocks: 1 });
