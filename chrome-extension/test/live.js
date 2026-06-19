@@ -125,6 +125,39 @@ async function main() {
       assert.strictEqual(shown, null, "bar must not appear before the reply area exists");
     });
 
+    await check("a VISIBLE sidebar item titled '...Not Stopping' does NOT trigger the bar", async () => {
+      // the real ChatGPT regression: a sidebar conversation button whose
+      // aria-label contains "stop" must not be read as a stop-generation control
+      await page.evaluate(() => {
+        window.setGenerating(false);
+        const b = document.createElement("button");
+        b.id = "sidebar-stop";
+        b.setAttribute("aria-label", "Open conversation options for 6 Train Not Stopping");
+        b.textContent = "6 Train Not Stopping";
+        document.body.appendChild(b);
+      });
+      await sleep(1200);
+      const shown = await page.$(".bb-bar.bb-show");
+      assert.strictEqual(shown, null, "a non-generation 'stop' label showed the ad");
+      await page.evaluate(() => document.getElementById("sidebar-stop").remove());
+    });
+
+    await check("a HIDDEN busy/streaming marker does NOT trigger the bar (the ChatGPT regression)", async () => {
+      // a persistent but invisible aria-busy region must not pin the bar "on"
+      await page.evaluate(() => {
+        window.setGenerating(false);
+        const ghost = document.createElement("div");
+        ghost.id = "ghost-busy";
+        ghost.setAttribute("aria-busy", "true");
+        ghost.style.display = "none";
+        document.body.appendChild(ghost);
+      });
+      await sleep(1200);
+      const shown = await page.$(".bb-bar.bb-show");
+      assert.strictEqual(shown, null, "hidden aria-busy must not show the ad");
+      await page.evaluate(() => document.getElementById("ghost-busy").remove());
+    });
+
     await check("Stop button appears ⇒ bar shows (real detection path)", async () => {
       await page.evaluate(() => window.setGenerating(true));
       await page.waitForSelector(".bb-bar.bb-show", { timeout: 10000 });
