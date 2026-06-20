@@ -155,6 +155,13 @@ bar), and the macOS app. Always use it.
    `vscode-extension/scripts/_brand.mjs`. Never hand-edit icon PNGs or
    reintroduce the old green/teal marks.
 
+   The **social link-preview card** — `og.png` at the repo root, the image every
+   chat app and social platform shows when a `freeai.fyi` link is shared, wired
+   up via the OpenGraph/Twitter `<meta>` block in every page's `<head>` — is
+   generated the same way: `make og` (`tools/gen-og.mjs`) reads the palette
+   straight from `theme.css`. Regenerate it (and bump the `og.png?v=` cache-bust
+   in the `<meta>` tags) after any palette or pitch change; never hand-edit it.
+
 6. **Next token group.** Radius/shadow values are still inline and not yet
    tokenized — when you first need to share one, add a `--radius-*` / `--shadow-*`
    group to `theme.css` rather than hardcoding it.

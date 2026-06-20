@@ -43,6 +43,10 @@ landers:
 icons:
 	python3 tools/gen-icons.py
 
+## og: Regenerate the social share / link-preview image (og.png) from theme.css.
+og:
+	node tools/gen-og.mjs
+
 # ---------------------------------------------------------------------------
 # Server (Node + Postgres backend)
 # ---------------------------------------------------------------------------
@@ -161,7 +165,7 @@ mac-open:
 ## test: Run every test suite (server, extension, terminal, mac core).
 test: test-server test-ext test-terminal test-mac
 
-.PHONY: help site landers icons db-up db-down migrate seed server server-up server-install \
+.PHONY: help site landers icons og db-up db-down migrate seed server server-up server-install \
 	test-server test-ext lint-ext package-ext test-terminal vscode-install build-vscode test-vscode \
 	package-vscode test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test
