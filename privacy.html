@@ -31,41 +31,44 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="upd">Last updated: June 11, 2026</p>
+    <p class="upd">Last updated: June 20, 2026</p>
 
     <p>
-      FreeAI turns the loading spinner in ChatGPT, Claude, and Gemini into a tiny ad
-      marketplace and returns <strong>50% of the revenue</strong> to you as credits redeemable
-      for Claude. This policy explains the little bit of data we need to do that, and
+      FreeAI shows one subtle sponsored line while ChatGPT, Claude, and Gemini are
+      thinking, and returns <strong>50% of the revenue</strong> to you as credits redeemable
+      for Claude. This policy covers our <strong>Chrome extension</strong>, the Claude Code
+      terminal client, and the macOS app — the little bit of data we need to do that, and
       what we deliberately never touch.
     </p>
 
     <h2>What we never collect</h2>
     <ul>
-      <li><strong>Your code.</strong> The extension does not read, transmit, or store the contents of your files, prompts, or agent output.</li>
-      <li><strong>Your keystrokes.</strong> We don't log what you type into your editor or terminal.</li>
-      <li><strong>Your projects.</strong> Repository names, paths, and contents stay on your machine.</li>
+      <li><strong>Your prompts and the model's answers.</strong> FreeAI only detects the on/off "is it generating right now?" state of the page — never the content of what you ask or what the assistant replies.</li>
+      <li><strong>Your keystrokes.</strong> We don't log what you type into your browser, editor, or terminal.</li>
+      <li><strong>Your code and projects.</strong> File contents, repository names, and paths stay on your machine.</li>
     </ul>
 
     <h2>What we collect</h2>
     <ul>
-      <li><strong>Aggregate impression &amp; click counts</strong> — to know which sponsored line served, when, and how much you earned.</li>
-      <li><strong>Payout details</strong> — handled by Stripe so we can pay you. We never see your full bank details.</li>
-      <li><strong>Basic device info</strong> — editor type and version, to render the ad line correctly.</li>
+      <li><strong>An anonymous device ID</strong> — a random identifier created on first run so we can attribute impressions and earnings. It is not tied to your name, and there is no account until you choose to sign in to redeem.</li>
+      <li><strong>Aggregate impression &amp; click counts</strong> — which sponsored line served, when, and how much you earned, recorded in an append-only ledger.</li>
+      <li><strong>Your email address</strong> — only if you sign in on freeai.fyi to redeem credits. We use it to send the magic-link login and to confirm your gift-card redemption.</li>
+      <li><strong>Basic client info</strong> — the extension/app version and which supported site served the ad, to render the sponsored line correctly.</li>
     </ul>
 
     <h2>Who we share with</h2>
     <ul>
-      <li><strong>Stripe</strong> — payment and payout processing.</li>
-      <li><strong>Google Cloud</strong> — hosting, authentication, and storage of the counts above.</li>
+      <li><strong>Supabase</strong> — hosting, database, authentication, and storage of the counts above.</li>
+      <li><strong>Resend</strong> — sends the login magic link and the gift-card redemption confirmation, only when you sign in to redeem.</li>
+      <li><strong>Stripe</strong> — processes advertisers' payments into the ad auction. It does not receive your data, and we never see anyone's full card details.</li>
     </ul>
     <p>That's it. We don't sell your data, because the only data we have is "a spinner showed an ad."</p>
 
     <h2>Your choices</h2>
     <p>
-      You can opt out of any ad category, pause FreeAI, or uninstall at any time —
-      your earnings to date are still paid out. Questions? Email
-      <a href="mailto:privacy@freeai.fyi">privacy@freeai.fyi</a>.
+      You can opt out of any ad category, pause FreeAI, or uninstall at any time. Credits
+      you've already earned stay redeemable for Claude gift cards on freeai.fyi. Questions?
+      Email <a href="mailto:privacy@freeai.fyi">privacy@freeai.fyi</a>.
     </p>
 
     <a class="back" href="/">← Back to FreeAI</a>

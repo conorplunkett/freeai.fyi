@@ -136,7 +136,6 @@ specific justifications keep review fast:
 | --- | --- |
 | `storage` | Stores the user's earnings counters, settings (enabled, test mode, blocked categories), and the anonymous device ID locally via `chrome.storage`. |
 | `alarms` | Schedules periodic background tasks: refreshing the ad inventory/config and flushing batched impression events to the ledger (`chrome.alarms`, every 1–10 min). |
-| `tabs` | Sends a message to the content script in the user's **active** AI tab to refresh the earnings display and to run the opt-in 30-second demo. Only the active tab's ID is used; no browsing history or tab URLs are read. |
 | **Host permissions** (claude.ai, chatgpt.com, chat.openai.com, gemini.google.com, aistudio.google.com, perplexity.ai, v0.dev, bolt.new) | The content script must run on these AI chat sites to detect the "generating" state and inject the single sponsored line at the reply. |
 | Host permission: `wpjfhezklpczxzocgxsb.supabase.co` | The backend API: registers the anonymous device, pulls live ad inventory/config, and reports impression/click counts to compute earnings. |
 
@@ -204,27 +203,16 @@ you'll get an email on approval or rejection (with the reason).
 Things worth resolving before (or shortly after) the first submission — none
 block packaging, but they affect review and trust:
 
-1. **Privacy policy wording vs. the extension.** `privacy.html` currently reads
-   like the *terminal/editor* product — it mentions "your files", "your editor or
-   terminal", "editor type and version", **Stripe payouts**, and **Google
-   Cloud** hosting. For the Chrome extension the truthful story is: no
-   prompts/output, anonymous device ID, impression/click counts to the
-   **Supabase** backend, credits redeemed as gift cards (Stripe payouts are
-   *parked* per AGENTS.md). Reviewers cross-check the listing's data answers
-   against this page — align them to avoid a rejection.
-2. **The open Gemini placement bug.** `GEMINI_BUG_HANDOFF.md` documents an
+1. **The open Gemini placement bug.** `GEMINI_BUG_HANDOFF.md` documents an
    unfixed ad-bar placement bug in Gemini's dots-only stage. Not a blocker, but
    ship-quality-wise it's the most visible defect on a supported site — consider
    fixing it (or temporarily dropping `gemini.google.com` from the listed
    "supported sites") before a big launch.
-3. **`tabs` permission may be removable.** The popup only uses `tab.id` from
-   `chrome.tabs.query({active,currentWindow})` + `sendMessage` — neither strictly
-   needs the broad `tabs` permission. Dropping it (relying on `activeTab` /
-   messaging) would shrink the permission warning and speed review. Verify before
-   removing.
-4. **Single-file content-script confirmation.** The store reviews the zip as-is;
-   `make package-ext` already excludes the Puppeteer dev dep and tests, so no
-   action needed — just don't hand-zip the folder (that would include
-   `node_modules/`).
-5. **Screenshots/promo tiles** ([§4](#4-graphic-assets-to-upload)) are the only
+2. **Screenshots/promo tiles** ([§4](#4-graphic-assets-to-upload)) are the only
    hard *missing* artifacts — everything else is in the repo.
+
+Already handled: the privacy policy (`privacy.html`) now describes the
+extension's real data flows (anonymous device ID, impression/click counts to the
+**Supabase** backend, email only on website redeem), and the unneeded `tabs`
+permission was removed from the manifest (`chrome.tabs.query`/`sendMessage` only
+use `tab.id`, which works without it).
