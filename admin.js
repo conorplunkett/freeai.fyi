@@ -120,6 +120,7 @@ const TABS = [
   { id: "emails", label: "Emails", render: renderEmails },
   { id: "payouts", label: "Payouts", render: renderPayouts },
   { id: "referrals", label: "Referrals", render: renderReferrals },
+  { id: "affiliates", label: "Affiliates", render: renderAffiliates },
   { id: "waitlist", label: "Waitlist", render: renderWaitlist },
   { id: "devices", label: "Devices & Fraud", render: renderDevices },
   { id: "schema", label: "Schema", render: renderSchema },
@@ -361,6 +362,7 @@ async function renderIncome(view) {
     { k: "Platform fees", v: usd(sum(["platform_fee"])), s: "your revenue" },
     { k: "Developer credit", v: usd(sum(["impression_credit", "click_credit"])) },
     { k: "Referral credit", v: usd(sum(["referral_credit"])) },
+    { k: "Affiliate credit", v: usd(sum(["affiliate_credit"])) },
     { k: "Paid out", v: usd(-sum(["payout_debit"])) },
     { k: "Redeemed", v: usd(-sum(["gift_redemption_debit"])) },
     { k: "Admin adjustments", v: usd(sum(["admin_credit", "admin_debit"])) },
@@ -483,6 +485,55 @@ async function renderReferrals(view) {
       ])));
 }
 
+async function renderAffiliates(view) {
+  const d = await tryApi("/v1/admin/affiliates");
+  view.innerHTML = "";
+  if (!d) { view.append(soonCard("Affiliates")); return; }
+  const pending = d.affiliates.filter((a) => a.status === "pending").length;
+  navDot("affiliates", pending || null);
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Affiliate applications"),
+      h("p", { class: "hint" }, "Approve to mint a shareable code. Approved affiliates earn 10% of their referred users’ ad revenue as credits, up to a per-affiliate cap.")),
+    table([
+      { label: "Applicant" }, { label: "Status" }, { label: "Code" }, { label: "Socials" },
+      { label: "Referred", num: true }, { label: "Credited", num: true }, { label: "Applied" }, { label: "" },
+    ], d.affiliates, (a) => [
+      td(h("span", { class: "mono" }, a.email || "—")),
+      td(badge(a.status)),
+      td(h("span", { class: "mono" }, a.code || "—")),
+      td(affiliateSocials(a), "wrap"),
+      num(a.attributed_count),
+      usd((a.credited_millicents || 0) / 100000),
+      dShort(a.created_at),
+      td(affiliateActions(a, () => route(true))),
+    ])));
+}
+function affiliateSocials(a) {
+  const wrap = h("div", { class: "actions" });
+  const add = (label, handle, followers) => {
+    if (!handle) return;
+    wrap.append(h("span", { class: "muted" }, `${label}: ${handle} (${num(followers)})`));
+  };
+  add("IG", a.instagram_handle, a.instagram_followers);
+  add("LI", a.linkedin_handle, a.linkedin_followers);
+  add("X", a.twitter_handle, a.twitter_followers);
+  return wrap.children.length ? wrap : h("span", { class: "muted" }, "—");
+}
+function affiliateActions(a, reload) {
+  const wrap = h("div", { class: "actions" });
+  if (a.status !== "approved") wrap.append(h("button", { class: "btn btn-sm btn-accent", onclick: async () => {
+    try { const r = await api("/v1/admin/affiliates/approve", { method: "POST", body: { affiliateId: a.id } }); toast("Approved — code " + r.code); reload(); }
+    catch (e) { toast(e.message, true); }
+  } }, "Approve"));
+  if (a.status !== "rejected") wrap.append(h("button", { class: "btn btn-sm btn-danger", onclick: async () => {
+    const note = prompt("Reject reason (optional):");
+    if (note === null) return;
+    try { await api("/v1/admin/affiliates/reject", { method: "POST", body: { affiliateId: a.id, note } }); toast("Rejected"); reload(); }
+    catch (e) { toast(e.message, true); }
+  } }, "Reject"));
+  return wrap;
+}
+
 async function renderWaitlist(view) {
   const d = await tryApi("/v1/admin/waitlist");
   view.innerHTML = "";
@@ -530,6 +581,8 @@ const TABLE_DESC = {
   processed_webhook_events: "Idempotency guard so Stripe webhooks process exactly once.",
   click_tokens: "Single-use server-side click verification tokens.",
   referrals: "One row per referred user; pays the referrer $20 once on first redemption.",
+  affiliates: "Affiliate-program applications. Approval mints a code; approved affiliates earn 10% of referred users’ ad revenue as credits.",
+  affiliate_attributions: "One row per user attributed to an affiliate (mutually exclusive with a referrer).",
   settings: "Persistent key/value config (e.g. the ad-serving killswitch).",
   diag_errors: "Captured unhandled route errors for diagnostics.",
 };
@@ -579,6 +632,8 @@ async function renderSettings(view) {
       { k: "Payout threshold", v: usd(cfg.payoutThresholdUsd) },
       { k: "Referral reward", v: usd(cfg.referralRewardUsd) },
       { k: "Referral cap / user", v: num(cfg.referralCap) },
+      { k: "Affiliate reward share", v: (cfg.affiliateRewardPct ?? 10) + "%" },
+      { k: "Affiliate cap / affiliate", v: usd(cfg.affiliateCapUsd ?? 1000) },
       { k: "Gift fulfillment inbox", v: cfg.giftFulfillmentEmail },
     ], (r) => [r.k, r.v]),
     h("p", { class: "hint", style: "margin-top:14px" }, "Claude gift catalog"),

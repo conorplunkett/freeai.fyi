@@ -653,3 +653,17 @@ a { color: inherit; text-decoration: none; }
   .ref-item { grid-template-columns: auto 1fr; }
   .ref-when { grid-column: 2; justify-self: start; }
 }
+
+/* Affiliate codes — a separate, application-gated program below referrals. */
+.aff-sep { border: none; border-top: 1px solid var(--line); margin: 34px 0 22px; }
+.aff-row { display: flex; gap: 10px; margin: 0 0 10px; }
+.aff-row .auth-input { margin: 0; flex: 1; min-width: 0; }
+.aff-row .aff-followers { flex: 0 0 140px; }
+.aff-hint { font-size: 13px; color: var(--gray-2); margin: 2px 0 14px; }
+.aff-apply .btn-green { border: none; cursor: pointer; font-family: var(--sans); }
+.aff-status .redeem-lead { margin: 4px 0 0; }
+.aff-have-code { margin: 0 0 22px; }
+@media (max-width: 640px) {
+  .aff-row { flex-direction: column; }
+  .aff-row .aff-followers { flex: 1; }
+}
