@@ -80,7 +80,6 @@ const C = {
   ovText: tok("--ov-text"),
   ovChipBg: tok("--ov-chip-bg"),
   ovChipInk: tok("--ov-chip-ink"),
-  okFg: tok("--ok-fg"),
 };
 
 // ── The card markup. Fixed at exactly the OpenGraph canonical size, 1200×630
@@ -144,16 +143,6 @@ const html = `<!doctype html><html><head><meta charset="utf-8">
     font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 18px;
   }
   .arrow { font-size: 40px; color: ${C.accent}; font-weight: 800; align-self: center; margin-top: 18px; }
-
-  .badge {
-    margin-left: auto; align-self: center; margin-top: 18px; white-space: nowrap;
-    display: inline-flex; align-items: center; gap: 11px;
-    background: #fff; border: 1px solid ${C.line}; border-radius: 999px;
-    padding: 14px 22px; font-size: 19px; font-weight: 800; color: ${C.ink};
-    box-shadow: 0 10px 26px rgba(${C.accentRGB}, 0.12);
-  }
-  .badge .pct { color: ${C.accentD}; font-size: 23px; }
-  .badge .dot { width: 11px; height: 11px; border-radius: 50%; background: ${C.okFg}; }
 </style></head>
 <body>
   <div class="frame"></div>
@@ -180,7 +169,6 @@ const html = `<!doctype html><html><head><meta charset="utf-8">
         <div class="label">With FreeAI</div>
         <div class="pill"><span class="chip">R</span> <span class="line">Ramp · Spend smarter</span></div>
       </div>
-      <div class="badge"><span class="dot"></span> <span class="pct">50%</span> back as Claude credits</div>
     </div>
   </div>
 </body></html>`;
