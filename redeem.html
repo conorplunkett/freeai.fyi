@@ -128,6 +128,92 @@
 
 
   <!-- ══════════════════════════════════════════════════
+       ONBOARDING SURVEY (first login — two questions, each
+       its own screen, shown before the refer-a-friend step).
+       Both questions are multi-select.
+  ══════════════════════════════════════════════════ -->
+  <div class="portal-split" id="survey-page" hidden>
+
+    <!-- LEFT — hero / brand -->
+    <div class="portal-left">
+      <header class="portal-nav">
+        <a class="brand" href="/">
+          <span class="logo">F$</span>
+          <span class="brand-name">FreeAI.fyi</span>
+        </a>
+        <nav class="portal-nav-links">
+          <a href="/">Home</a>
+          <a href="/privacy">Privacy</a>
+        </nav>
+      </header>
+
+      <div class="portal-hero">
+        <h1 class="portal-h1">Tell us how you use AI.</h1>
+        <p class="portal-lead">
+          A couple of quick questions so we can tailor FreeAI to where you work.
+          This takes ten seconds.
+        </p>
+      </div>
+
+      <footer class="portal-footer">
+        <span>FreeAI user portal</span>
+        <span><a href="/terms">Terms</a> / <a href="/privacy">Privacy</a></span>
+      </footer>
+    </div>
+
+    <!-- RIGHT — survey card (two steps, one visible at a time) -->
+    <div class="portal-right">
+      <div class="auth-card">
+
+        <!-- Step 1: which models -->
+        <div id="survey-step-models">
+          <span class="onboard-step">Step 1 of 2</span>
+          <h2 class="onboard-title">What models do you use?</h2>
+          <p class="auth-sent-msg">Select all that apply.</p>
+          <div class="survey-options" id="survey-models" role="group" aria-label="AI models you use">
+            <button class="survey-opt" type="button" data-value="claude">Claude</button>
+            <button class="survey-opt" type="button" data-value="chatgpt">ChatGPT</button>
+            <button class="survey-opt" type="button" data-value="gemini">Gemini</button>
+            <button class="survey-opt" type="button" data-value="other">Other</button>
+          </div>
+          <button class="auth-btn-primary" id="survey-models-next" type="button">Continue</button>
+          <p class="auth-error" id="survey-models-error" hidden></p>
+        </div>
+
+        <!-- Step 2: where -->
+        <div id="survey-step-surfaces" hidden>
+          <span class="onboard-step">Step 2 of 2</span>
+          <h2 class="onboard-title">Where do you use them?</h2>
+          <p class="auth-sent-msg">Select all that apply.</p>
+          <div class="survey-options" id="survey-surfaces" role="group" aria-label="Where you use AI">
+            <button class="survey-opt" type="button" data-value="browser_chrome">Browser — Chrome</button>
+            <button class="survey-opt" type="button" data-value="browser_other">Browser — other</button>
+            <button class="survey-opt" type="button" data-value="desktop_app">Desktop app</button>
+            <button class="survey-opt" type="button" data-value="cursor">Cursor extension</button>
+            <button class="survey-opt" type="button" data-value="terminal">Terminal</button>
+            <button class="survey-opt" type="button" data-value="other">Other</button>
+          </div>
+          <input
+            class="auth-input"
+            type="text"
+            id="survey-surface-other"
+            placeholder="Tell us where (optional)"
+            autocomplete="off"
+            maxlength="200"
+            hidden
+          />
+          <button class="auth-btn-primary" id="survey-surfaces-next" type="button">Continue</button>
+          <button class="auth-link-btn" id="survey-back" type="button">← back</button>
+          <p class="auth-error" id="survey-surfaces-error" hidden></p>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /survey-page -->
+
+
+  <!-- ══════════════════════════════════════════════════
        ONBOARDING PAGE (first login — refer a friend before
        reaching the dashboard). The friend doesn't have to
        sign up; a valid email is all it takes to continue.

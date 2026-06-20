@@ -12,7 +12,7 @@
 > **Status: incubating (not shipped).** This is the editor-side sibling of the
 > FreeAI Chrome extension, vendored from a mature upstream codebase and rebranded
 > to FreeAI. It **builds, type-checks, and passes its full test suite today**, and
-> its backend URL points at `https://api.freeai.fyi` and it talks to the existing
+> its backend URL points at the production Supabase Edge Function and it talks to the existing
 > FreeAI server endpoints via the adapter in `src/freeaiApi/` (see
 > [`INTEGRATION.md`](INTEGRATION.md)). **No existing FreeAI functionality (Chrome
 > extension, server, site, macOS app) is touched by this directory.**
@@ -54,7 +54,9 @@ npm run package      # produce the .vsix (requires @vscode/vsce)
 
 Brand/config knobs:
 
-- **Backend:** `src/config.ts` → `DEFAULT_BACKEND_BASE` (`https://api.freeai.fyi`).
+- **Backend:** `src/config.ts` → `DEFAULT_BACKEND_BASE`
+  (`https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api`, the production
+  Supabase Edge Function; the `api.freeai.fyi` hostname rewrites onto it).
   Overridable per-machine via `~/.freeai/config.json` (`backendBaseUrl`) or the
   `FREEAI_BASE` env var.
 - **Brand assets:** `npm run icon` regenerates `media/icon.png` from

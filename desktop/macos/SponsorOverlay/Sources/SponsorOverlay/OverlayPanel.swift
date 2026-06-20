@@ -1,8 +1,9 @@
 // The sponsor card: a small, non-activating floating panel that sits exactly
 // on Claude's thinking-star row while it generates (composer, then window
 // bottom, as fallbacks) — the native twin of the Chrome extension's inline
-// `.bb-bar` (same palette, same pill, same chip/line).
-// It never takes key focus, so typing in Claude is unaffected.
+// `.bb-bar` (same palette, same pill, same chip/line). On ChatGPT, which has
+// no thinking star, it anchors above the composer (then the window bottom).
+// It never takes key focus, so typing in the assistant is unaffected.
 
 import AppKit
 
@@ -19,7 +20,7 @@ final class OverlayPanelController {
     /// Gap between the card's bottom edge and the composer's top edge.
     static let anchorGap: CGFloat = 14
     /// Fallback when no composer geometry is available: distance from the
-    /// bottom of the Claude window (the extension's fixed pill uses 96px too).
+    /// bottom of the assistant window (the extension's fixed pill uses 96px too).
     static let bottomInset: CGFloat = 96
 
     // Overlay palette — mirror of the --ov-* design tokens in the repo-root
@@ -67,7 +68,7 @@ final class OverlayPanelController {
     /// exactly on the star row and tracks it. Without a star it anchors
     /// left-aligned with the composer, `anchorGap` above it; without composer
     /// geometry it falls back to bottom-center of the window.
-    func show(over claudeBounds: CGRect, composer: CGRect? = nil, star: CGRect? = nil) {
+    func show(over appBounds: CGRect, composer: CGRect? = nil, star: CGRect? = nil) {
         guard card != nil else { return }
         let panel = self.panel ?? makePanel()
         self.panel = panel
@@ -75,19 +76,19 @@ final class OverlayPanelController {
         let width = panelWidth
         var x: CGFloat
         let axTop: CGFloat // card's top edge in AX (top-left-origin) coordinates
-        if let star, claudeBounds.intersects(star) {
+        if let star, appBounds.intersects(star) {
             x = star.minX
             axTop = star.midY - Self.height / 2
-        } else if let composer, composer.minY > claudeBounds.minY {
+        } else if let composer, composer.minY > appBounds.minY {
             x = composer.minX
             axTop = composer.minY - Self.anchorGap - Self.height
         } else {
-            x = claudeBounds.midX - width / 2
-            axTop = claudeBounds.maxY - Self.bottomInset - Self.height
+            x = appBounds.midX - width / 2
+            axTop = appBounds.maxY - Self.bottomInset - Self.height
         }
-        // Keep the pill inside the Claude window horizontally.
-        let lower = claudeBounds.minX + 16
-        let upper = max(lower, claudeBounds.maxX - width - 16)
+        // Keep the pill inside the assistant window horizontally.
+        let lower = appBounds.minX + 16
+        let upper = max(lower, appBounds.maxX - width - 16)
         x = min(max(x, lower), upper)
 
         // AX coordinates are top-left-origin; AppKit is bottom-left. Convert.

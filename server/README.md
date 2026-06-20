@@ -12,7 +12,7 @@ an append-only ledger, Stripe Checkout for money **in**, and Claude gift-card
 redemption for credits **out**.
 
 ```
-  ADVERTISER                          DEVELOPER (VS Code extension)
+  ADVERTISER                          USER (extension · terminal · macOS)
       │                                        │
       │ POST /v1/checkout                      │ POST /v1/devices/register
       ▼                                        │ GET  /v1/ads  (auction-ranked)
@@ -148,10 +148,12 @@ curl -X POST localhost:8787/v1/checkout -H 'content-type: application/json' \
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/freeai npm test
 ```
 
-15 end-to-end checks drive the real routes against a real Postgres (isolated
-schema per run) with only the Stripe transport faked: checkout → webhook
-activation → auction ranking → 50% impression/click credits → idempotency →
-caps → budget exhaustion → Connect onboarding → payout sweep.
+30 end-to-end checks drive the real routes against a real Postgres (isolated
+schema per run) with only the Stripe + mail transports faked: checkout → webhook
+activation → moderation → auction ranking → 50% impression/click credits →
+idempotency → caps → budget exhaustion → Connect onboarding → payout sweep →
+gift-card catalog → website login → balance redemption → referral rewards →
+earnings/activity dashboards → killswitch.
 
 ## Wiring the extension
 
@@ -195,27 +197,58 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 
 ## Endpoints
 
+### Core API (devices, ads, billing)
+
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | GET | `/healthz` | — | liveness |
 | GET | `/v1/config` | — | serving flag (killswitch) + revenue share |
 | GET | `/v1/ads` | — | auction-ranked active ads |
 | GET | `/v1/leaderboard` | — | public bid market |
+| GET | `/v1/giftcards` | — | Claude gift-card catalog (plans, term lengths, 48h delivery window) |
 | POST | `/v1/devices/register` | — | mint device credentials |
 | POST | `/v1/events` | device | batched impressions → ledger credits |
 | POST | `/v1/clicks/intent` | device | mint a single-use click-tracking URL |
 | GET | `/v1/go/:token` | token | record a verified click, 302 to the advertiser |
+| GET | `/v1/me/earnings` | device | earned / paid out / balance |
+| POST | `/v1/redemptions` | — | **retired** → `410`; cash-out moved to the website flow below |
 | POST | `/v1/checkout` | — | create campaign + Stripe Checkout URL |
 | POST | `/v1/webhooks/stripe` | signature | payment + Connect events (deduped) |
-| POST | `/v1/auth/request-link` | device | email a magic-link |
+
+### Identity (device link + web sign-in)
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| POST | `/v1/auth/request-link` | device | email a magic-link (link a device to an email) |
 | GET | `/v1/auth/verify` | token | verify email, link device |
-| POST | `/v1/connect/onboard` | device + verified | Stripe Express onboarding URL |
-| GET | `/v1/me/earnings` | device | earned / paid out / balance |
+| GET | `/v1/auth/google` · `/v1/auth/apple` | — | start OAuth sign-in |
+| GET | `/v1/auth/google/callback` · `/v1/auth/apple/callback` | provider code | finish OAuth, open a web session |
+| POST | `/v1/connect/onboard` | device + verified | Stripe Express onboarding URL (payouts **parked** — gift cards are the path) |
+
+### Website login, earnings & redemption (the only place users cash out — see `AGENTS.md`)
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| POST | `/v1/web/login` | — | email a sign-in magic-link |
+| GET | `/v1/web/session` | token | exchange magic-link token → web session |
+| GET | `/v1/web/me` | web session | email + redeemable balance |
+| POST | `/v1/web/logout` | web session | revoke the session server-side |
+| GET | `/v1/web/earnings` | web session | today / month / lifetime totals + chart series |
+| GET | `/v1/web/activity` | web session | credited-events ledger, newest first |
+| GET | `/v1/web/referrals` | web session | referral code/link, reward terms, progress |
+| POST | `/v1/web/referrals/invite` | web session | email a friend your referral link |
+| GET·POST | `/v1/web/waitlist` | web session | list / join ad-surface waitlists (idempotent) |
+| POST | `/v1/web/redemptions` | web session | redeem balance → Claude gift card (delivered to the account email) |
+
+### Admin (admin key)
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
 | GET | `/v1/admin/campaigns` | admin key | moderation queue |
 | POST | `/v1/admin/campaigns/approve` | admin key | approve → active |
 | POST | `/v1/admin/campaigns/reject` | admin key | reject + refund |
 | GET | `/admin` | admin key | minimal moderation UI |
-| POST | `/v1/admin/payouts` | admin key | run the payout sweep |
+| POST | `/v1/admin/payouts` | admin key | run the payout sweep (Connect; parked) |
 | POST | `/v1/admin/killswitch` | admin key | `{ "serving": false }` halts all ad serving instantly |
 
 ## Hardening that's now built in
@@ -244,9 +277,9 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 ## CI
 
 - **`.github/workflows/ci.yml`** — the `server` job spins up a Postgres 16
-  service and runs these 15+ end-to-end API checks (`npm install` → `npm test`)
-  on every push/PR. (Separate jobs cover the extension, terminal, desktop, and
-  the site.)
+  service and runs these 30 end-to-end API checks (`npm install` → `npm test`)
+  on every push/PR. (Separate `chrome-extension`, `terminal`, `desktop-core`,
+  `desktop-macos`, and `site` jobs cover the other surfaces.)
 - **Production deploy** is the Edge Function, not this tree:
   `.github/workflows/deploy-functions.yml`. The `Dockerfile` and `fly.toml` that
   once shipped this server were removed in the migration.

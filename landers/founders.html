@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Production API. Points the leaderboard + advertiser checkout at the live
+       backend. Append ?dev=1 to the URL to flip the lander into mock-data mode. -->
+  <meta name="freeai-api" content="https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api" />
+  <title>FreeAI.fyi — Cut your startup's AI bill to $0</title>
+  <meta name="description" content="Your team runs on Claude, ChatGPT and Gemini. A subtle sponsored line shows while they think, and 50% of the revenue comes back as Claude credits — turning AI spend into runway." />
+  <meta property="og:title" content="FreeAI.fyi — Cut your startup's AI bill to $0" />
+  <meta property="og:description" content="Turn your team's AI spend into runway. 50% of the revenue comes back as Claude credits." />
+  <link rel="canonical" href="https://freeai.fyi/founders" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/theme.css?v=20260619a" />
+  <link rel="stylesheet" href="/styles.css?v=20260619a" />
+  <link rel="stylesheet" href="/landers/landers.css?v=20260620a" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
+</head>
+<body data-lander="founders">
+  <!-- LIVE TICKER -->
+  <div class="ticker" aria-label="Live sponsored lines">
+    <div class="ticker-track" id="ticker-track"></div>
+  </div>
+
+  <!-- NAV -->
+  <header class="nav">
+    <a class="brand" href="#top">
+      <span class="logo">F$</span>
+      <span class="brand-name">FreeAI.fyi</span>
+    </a>
+    <nav class="nav-btns">
+      <a href="#advertisers" class="navbtn"><span class="nav-long">Advertisers Portal</span><span class="nav-short">Advertise</span></a>
+      <a href="/redeem" class="navbtn">User Login</a>
+      <a href="#install" class="navbtn navbtn-cta">Install</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- HERO -->
+    <section class="hero">
+      <h1>Turn AI spend into runway.</h1>
+      <p class="sub">
+        Your team already runs on <strong>Claude, ChatGPT &amp; Gemini</strong>. A subtle sponsored line shows while they think — and <strong>50%</strong> of the revenue comes back as <span class="hl">Claude credits</span>, turning AI spend into runway.
+      </p>
+
+      <!-- BEFORE / AFTER DEMO -->
+      <div class="demo">
+        <div class="claude-guy" id="claude-guy" aria-hidden="true">
+          <svg class="cg-sprite" width="42" height="36" viewBox="0 0 14 12" shape-rendering="crispEdges">
+            <!-- checkered sparkle over his head -->
+            <g class="cg-spark">
+              <rect x="10" y="0" width="1" height="1" fill="#15181d" />
+              <rect x="11" y="0" width="1" height="1" fill="#f3f5f8" />
+              <rect x="10" y="1" width="1" height="1" fill="#f3f5f8" />
+              <rect x="11" y="1" width="1" height="1" fill="#15181d" />
+            </g>
+            <!-- ear -->
+            <rect x="3" y="2" width="1" height="1" fill="#d97757" />
+            <!-- body + snout -->
+            <rect x="2" y="3" width="10" height="5" fill="#d97757" />
+            <rect x="1" y="4" width="1" height="3" fill="#d97757" />
+            <!-- tail nub -->
+            <rect x="12" y="4" width="1" height="2" fill="#b85c3e" />
+            <!-- eye -->
+            <g class="cg-eye">
+              <rect x="3" y="4" width="2" height="2" fill="#f3f5f8" />
+              <rect x="4" y="4" width="1" height="1" fill="#15181d" />
+            </g>
+            <!-- belly stripes -->
+            <rect x="6" y="6" width="1" height="2" fill="#b85c3e" />
+            <rect x="8" y="6" width="1" height="2" fill="#b85c3e" />
+            <rect x="10" y="6" width="1" height="2" fill="#b85c3e" />
+            <!-- legs -->
+            <rect x="3" y="8" width="1" height="2" fill="#b85c3e" />
+            <rect x="5" y="8" width="1" height="2" fill="#b85c3e" />
+            <rect x="8" y="8" width="1" height="2" fill="#b85c3e" />
+            <rect x="10" y="8" width="1" height="2" fill="#b85c3e" />
+          </svg>
+        </div>
+        <div class="demo-card">
+          <span class="demo-label">Stock Claude</span>
+          <div class="demo-line"><span class="ast">✳</span> <span id="word-stock">Thinking</span>…</div>
+        </div>
+        <div class="demo-chevs">»</div>
+        <div class="demo-card">
+          <span class="demo-label">With FreeAI</span>
+          <!-- Static first frame mirrors ADS[0] in script.js so the line is never
+               blank, even before/without JS; the rotator then cycles sponsors.
+               NB: classed/id'd "brand-*", NOT "ad-*", so ad blockers don't hide
+               our own sponsored-line demo. -->
+          <div class="demo-line">
+            <span class="brandchip">R</span>
+            <span class="brand-line" id="brand-line">Ramp · Spend smarter</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSTALL CARD -->
+      <a href="#install" class="install-card">
+        <span class="install-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+            <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="install-text">
+          <span class="install-title">Add the Chrome extension</span>
+          <span class="install-sub">Free · installs in seconds</span>
+        </span>
+        <span class="install-pill">
+          <span class="install-pill-label">Earn up to</span>
+          <span class="install-pill-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
+        </span>
+        <span class="install-arrow">→</span>
+      </a>
+
+      <p class="hero-note">
+        Works inside <strong>Claude, ChatGPT &amp; Gemini</strong> in your browser. A subtle sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns becomes credits your team redeems for Claude Pro or Max.
+      </p>
+
+      <a href="#advertisers" class="jump">
+        <span class="jump-dot"></span> FOR ADVERTISERS · BID ON THIS LINE
+        <div class="jump-chev">⌄</div>
+      </a>
+    </section>
+
+    <!-- ADVERTISERS -->
+    <section id="advertisers" class="advertisers">
+      <div class="adv-card">
+        <span class="eyebrow">Advertisers</span>
+        <h2>Bid live for the most-watched spinner on Earth.</h2>
+        <p class="adv-intro">
+          Each block buys 1,000 five-second impressions while ChatGPT, Claude &amp; Gemini think.
+          Clicks are billed at 50× the impression rate. Highest bid serves first; bid
+          any amount from $0.50 — outbid the top to take #1, or queue up behind it.
+          <strong>50% of every dollar becomes Claude credits for the user whose machine showed the ad.</strong>
+        </p>
+
+        <form class="adform" onsubmit="return false;">
+          <label class="field">
+            <span class="flabel">Email <em>(required)</em></span>
+            <input type="email" placeholder="you@example.com" required />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Ad line · 3–60 char <em class="count" id="adline-count">0 / 60</em></span>
+            <input type="text" id="adline" maxlength="60" placeholder="Try Linear — issue tracking built for speed" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Destination URL (https://)</span>
+            <input type="url" placeholder="https://linear.app/" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Brand name <em>(optional, shown on leaderboard)</em></span>
+            <input type="text" placeholder="Linear" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">Ad color <em>(optional, #hex — your accent in the terminal &amp; spinner)</em></span>
+            <div class="colorfield">
+              <input type="color" id="adcolor-swatch" value="#5b5bd6" aria-label="Pick ad color" />
+              <input type="text" id="adcolor" maxlength="7" placeholder="#5b5bd6" pattern="#?[0-9a-fA-F]{6}" />
+            </div>
+          </label>
+
+          <label class="field">
+            <span class="flabel">Brand icon <em>(optional, PNG/JPG/WebP ≤ 64 KB)</em></span>
+            <div class="dropzone">Drop an image here or click to browse</div>
+          </label>
+
+          <label class="checkrow">
+            <input type="checkbox" checked />
+            <span>Show me on the public leaderboard</span>
+          </label>
+
+          <div class="grid2">
+            <label class="field">
+              <span class="flabel">Price per block <em>(min $0.50)</em></span>
+              <input type="number" id="price" min="0.50" step="0.01" value="5.00" />
+            </label>
+            <label class="field">
+              <span class="flabel">Number of blocks</span>
+              <input type="number" id="blocks" min="1" step="1" value="1" />
+            </label>
+          </div>
+
+          <!-- ESTIMATED TOTAL -->
+          <div class="estimate">
+            <span class="est-head">Estimated total</span>
+            <span class="est-sub" id="est-sub">1 block at $5.00</span>
+            <span class="est-total" id="est-total">$5.00</span>
+            <div class="est-rows">
+              <div class="est-row"><strong id="est-per">$5.00</strong><span>per block</span></div>
+              <div class="est-row"><strong id="est-blocks">1</strong><span>block</span></div>
+              <div class="est-row"><strong id="est-imp">1,000</strong><span>impressions</span></div>
+            </div>
+            <p class="est-note">
+              Top bid is <strong>$110.00 per 1,000 impressions</strong> — bid above it to
+              take #1, or any amount from $0.50 to join the queue.
+            </p>
+          </div>
+
+          <button class="stripe-btn" type="submit">
+            <span class="stripe-btn-label">Pay with</span>
+            <svg class="stripe-logo" viewBox="54 36 360.02 149.84" role="img" aria-label="Stripe" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd">
+              <path d="M414,113.4c0-25.6-12.4-45.8-36.1-45.8c-23.8,0-38.2,20.2-38.2,45.6c0,30.1,17,45.3,41.4,45.3c11.9,0,20.9-2.7,27.7-6.5v-20c-6.8,3.4-14.6,5.5-24.5,5.5c-9.7,0-18.3-3.4-19.4-15.2h48.9C413.8,121,414,115.8,414,113.4z M364.6,103.9c0-11.3,6.9-16,13.2-16c6.1,0,12.6,4.7,12.6,16H364.6z" />
+              <path d="M301.1,67.6c-9.8,0-16.1,4.6-19.6,7.8l-1.3-6.2h-22v116.6l25-5.3l0.1-28.3c3.6,2.6,8.9,6.3,17.7,6.3c17.9,0,34.2-14.4,34.2-46.1C335.1,83.4,318.6,67.6,301.1,67.6z M295.1,136.5c-5.9,0-9.4-2.1-11.8-4.7l-0.1-37.1c2.6-2.9,6.2-4.9,11.9-4.9c9.1,0,15.4,10.2,15.4,23.3C310.5,126.5,304.3,136.5,295.1,136.5z" />
+              <polygon points="223.8,61.7 248.9,56.3 248.9,36 223.8,41.3" />
+              <rect x="223.8" y="69.3" width="25.1" height="87.5" />
+              <path d="M196.9,76.7l-1.6-7.4h-21.6v87.5h25V97.5c5.9-7.7,15.9-6.3,19-5.2v-23C214.5,68.1,202.8,65.9,196.9,76.7z" />
+              <path d="M146.9,47.6l-24.4,5.2l-0.1,80.1c0,14.8,11.1,25.7,25.9,25.7c8.2,0,14.2-1.5,17.5-3.3V135c-3.2,1.3-19,5.9-19-8.9V90.6h19V69.3h-19L146.9,47.6z" />
+              <path d="M79.3,94.7c0-3.9,3.2-5.4,8.5-5.4c7.6,0,17.2,2.3,24.8,6.4V72.2c-8.3-3.3-16.5-4.6-24.8-4.6C67.5,67.6,54,78.2,54,95.9c0,27.6,38,23.2,38,35.1c0,4.6-4,6.1-9.6,6.1c-8.3,0-18.9-3.4-27.3-8v23.8c9.3,4,18.7,5.7,27.3,5.7c20.8,0,35.1-10.3,35.1-28.2C117.4,100.6,79.3,105.9,79.3,94.7z" />
+            </svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section id="leaderboard" class="leaderboard">
+      <span class="bidmarket">Live bid market</span>
+      <ol class="board" id="board">
+        <li><span class="rk">1</span> Fluidstack — building 10GW of compute. Join us.</li>
+        <li><span class="rk">2</span> Tell your agent: “publish this to here.now” for free</li>
+        <li><span class="rk">3</span> Incredible engineer in NYC? Come build with us :)</li>
+        <li><span class="rk">4</span> you spend enough on tokens. don't spend on legal</li>
+        <li><span class="rk">5</span> Pair with Tuple — how developers build taste</li>
+        <li><span class="rk">6</span> Try Tuple: because calling someone is faster than typing</li>
+        <li><span class="rk">7</span> Stop wasting tokens. Save $ direct from your codebase</li>
+        <li><span class="rk">8</span> Meet Francesco; Italian lifestyle and AI rants</li>
+        <li><span class="rk">9</span> Build an AI business</li>
+        <li><span class="rk">10</span> querybear.com — Talk to your database with MCP.</li>
+        <li><span class="rk">11</span> Build an AI business</li>
+        <li><span class="rk">12</span> Solo — a better place to run your agents</li>
+        <li><span class="rk">13</span> Liner Search — The most performant &amp; affordable</li>
+        <li><span class="rk">14</span> eth.zig — the best Ethereum client for Zig</li>
+        <li><span class="rk">15</span> waitcoin</li>
+      </ol>
+    </section>
+
+    <!-- TRUST / TRANSPARENCY -->
+    <section id="trust" class="trust">
+      <span class="eyebrow">Why trust the 50%?</span>
+      <h2>Because you can audit it.</h2>
+      <p class="trust-intro">
+        Our backend is open source — the auction, the ledger, the credit sweep, all of it.
+        We publish the exact code that computes your cut and converts it into Claude credits.
+      </p>
+      <ul class="trust-list">
+        <li><strong>Append-only ledger.</strong> Your balance is never a number we edit — it's the sum of every credit and debit, recomputed from the ledger on every read. Balances can't drift.</li>
+        <li><strong>Millicent math.</strong> Amounts are stored in 1/1000ths of a cent so the 50/50 split is exact, not rounded in our favor.</li>
+        <li><strong>Server-side clicks.</strong> Clicks settle through single-use tracking tokens — advertisers aren't billed for forged clicks, and your click credits are provable.</li>
+        <li><strong>Anonymous from day one.</strong> No sign-in to start earning. Email is only needed when you redeem your credits for a Claude gift card — we never touch your bank details.</li>
+      </ul>
+      <a class="trust-link" href="https://github.com/conorplunkett/freeai.fyi" rel="noopener" target="_blank">
+        Read the ledger schema &amp; credit code on GitHub →
+      </a>
+    </section>
+
+    <!-- INSTALL -->
+    <section id="install" class="install-section">
+      <h2>The AI is already thinking.<br />Might as well earn Claude.</h2>
+      <p class="install-lead">
+        Add the Chrome extension, then open <strong>ChatGPT</strong>, <strong>Claude</strong>,
+        or <strong>Gemini</strong> and ask anything. A sponsored line appears while it thinks —
+        and 50% of the revenue becomes Claude credits, redeemable for Claude Pro or Max.
+      </p>
+      <div class="install-actions">
+        <a href="https://chromewebstore.google.com/" class="btn-green">
+          <svg class="btn-chrome" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+            <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Add to Chrome
+        </a>
+        <a href="#advertisers" class="btn-outline">I want to advertise</a>
+      </div>
+      <p class="install-fine">Free forever. <strong>50% back as Claude credits.</strong> Reads none of your prompts. Opt out any time.</p>
+      <p class="install-fine" style="margin-top:8px">Live in the terminal too — <a href="/terminal">install FreeAI for <strong>Claude Code</strong> →</a></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 FreeAI.fyi · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+    <p class="fdim">An open marketplace for the time you already spend waiting on AI.</p>
+    <p class="fdim tiny">Not affiliated with Anthropic, OpenAI, or Google.</p>
+  </footer>
+
+  <!-- This is the live public page. By default the bid form + leaderboard hit
+       the production API (set above via <meta name="freeai-api">). Keep the
+       user-facing copy production-only — no test/demo wording. The one developer
+       affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
+       handled in script.js, which never shows unless explicitly requested. -->
+  <script src="/script.js?v=20260619a"></script>
+</body>
+</html>

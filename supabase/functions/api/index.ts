@@ -1016,6 +1016,26 @@ function createRepo(pool: any) {
       );
       return r.rows[0]?.referred === true;
     },
+
+    // First-login survey: true once the user has answered the "what models /
+    // where do you use them" questions. Drives the needsSurvey gate on
+    // /v1/web/me, shown before the refer-a-friend step.
+    async hasOnboardingSurvey(userId: string) {
+      const r = await pool.query("select 1 from onboarding_surveys where user_id = $1", [userId]);
+      return r.rowCount > 0;
+    },
+    // Upsert the survey answers (idempotent — re-answering overwrites). Arrays
+    // are stored as jsonb; surfaceOther is the free text for the "other" surface.
+    async saveOnboardingSurvey(userId: string, { models, surfaces, surfaceOther }: any) {
+      await pool.query(
+        `insert into onboarding_surveys (user_id, models, surfaces, surface_other)
+           values ($1, $2::jsonb, $3::jsonb, $4)
+         on conflict (user_id) do update
+           set models = excluded.models, surfaces = excluded.surfaces,
+               surface_other = excluded.surface_other, updated_at = now()`,
+        [userId, JSON.stringify(models), JSON.stringify(surfaces), surfaceOther]
+      );
+    },
     async referralStats(userId: string) {
       const stats = await pool.query(
         `select
@@ -1977,8 +1997,14 @@ route("GET", "/v1/web/me", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));
   if (!user) return json(401, { error: "not signed in" });
   const bal = await repo.balanceForUser(user.id);
-  const referred = await repo.hasReferredAnyone(user.id);
-  return json(200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000, needsReferral: !referred });
+  const [hasSurvey, referred] = await Promise.all([
+    repo.hasOnboardingSurvey(user.id),
+    repo.hasReferredAnyone(user.id),
+  ]);
+  return json(200, {
+    email: user.email, balanceUsd: bal.balanceMillicents / 100000,
+    needsSurvey: !hasSurvey, needsReferral: !referred,
+  });
 });
 // Sign out: revoke the session server-side so the bearer token is dead even if
 // it lingers in a browser/localStorage. Always 200 (idempotent).
@@ -2105,6 +2131,21 @@ route("POST", "/v1/web/affiliate-code", async (ctx: any) => {
     invalid_code: "that affiliate code isn't valid",
   } as any)[result.reason] || "couldn't apply that code";
   return json(400, { error: msg, reason: result.reason });
+});
+// First-login onboarding survey: which AI models the user uses and where, both
+// multi-select. Saved before the refer-a-friend step; clears the needsSurvey gate.
+route("POST", "/v1/web/onboarding/survey", async (ctx: any) => {
+  const user = await repo.userForSession(sessionFrom(ctx));
+  if (!user) return json(401, { error: "not signed in" });
+  const MODELS = ["claude", "chatgpt", "gemini", "other"];
+  const SURFACES = ["browser_chrome", "browser_other", "desktop_app", "cursor", "terminal", "other"];
+  const body = ctx.body || {};
+  const models = [...new Set((Array.isArray(body.models) ? body.models : []).filter((m: any) => MODELS.includes(m)))];
+  const surfaces = [...new Set((Array.isArray(body.surfaces) ? body.surfaces : []).filter((s: any) => SURFACES.includes(s)))];
+  if (!models.length || !surfaces.length) return json(400, { error: "select at least one model and one surface" });
+  const surfaceOther = surfaces.includes("other") ? (String(body.surfaceOther || "").trim().slice(0, 200) || null) : null;
+  await repo.saveOnboardingSurvey(user.id, { models, surfaces, surfaceOther });
+  return json(200, { ok: true });
 });
 route("POST", "/v1/web/redemptions", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));

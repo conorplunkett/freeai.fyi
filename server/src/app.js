@@ -503,8 +503,14 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     const user = await repo.userForSession(sessionFrom(req, body, query));
     if (!user) return json(res, 401, { error: "not signed in" });
     const bal = await repo.balanceForUser(user.id);
-    const referred = await repo.hasReferredAnyone(user.id);
-    json(res, 200, { email: user.email, balanceUsd: bal.balanceMillicents / 100000, needsReferral: !referred });
+    const [hasSurvey, referred] = await Promise.all([
+      repo.hasOnboardingSurvey(user.id),
+      repo.hasReferredAnyone(user.id),
+    ]);
+    json(res, 200, {
+      email: user.email, balanceUsd: bal.balanceMillicents / 100000,
+      needsSurvey: !hasSurvey, needsReferral: !referred,
+    });
   });
 
   // Sign out: revoke the session server-side so the bearer token is dead even
@@ -689,6 +695,25 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       invalid_code: "that affiliate code isn't valid",
     }[result.reason] || "couldn't apply that code";
     json(res, 400, { error: msg, reason: result.reason });
+  });
+
+  // First-login onboarding survey: which AI models the user uses and where, both
+  // multi-select. Saved before the refer-a-friend step; clears the needsSurvey gate.
+  route("POST", "/v1/web/onboarding/survey", async (req, res, body) => {
+    const user = await repo.userForSession(sessionFrom(req, body));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const MODELS = ["claude", "chatgpt", "gemini", "other"];
+    const SURFACES = ["browser_chrome", "browser_other", "desktop_app", "cursor", "terminal", "other"];
+    const models = [...new Set((Array.isArray(body?.models) ? body.models : []).filter((m) => MODELS.includes(m)))];
+    const surfaces = [...new Set((Array.isArray(body?.surfaces) ? body.surfaces : []).filter((s) => SURFACES.includes(s)))];
+    if (!models.length || !surfaces.length) {
+      return json(res, 400, { error: "select at least one model and one surface" });
+    }
+    const surfaceOther = surfaces.includes("other")
+      ? (String(body?.surfaceOther || "").trim().slice(0, 200) || null)
+      : null;
+    await repo.saveOnboardingSurvey(user.id, { models, surfaces, surfaceOther });
+    json(res, 200, { ok: true });
   });
 
   route("POST", "/v1/web/redemptions", async (req, res, body) => {

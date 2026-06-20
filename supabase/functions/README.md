@@ -39,8 +39,10 @@ JWTs.
 
 ## External console changes that go with this migration
 
-The API host moved off `api.freeai.fyi`, so update these to the new base
-(`https://<ref>.supabase.co/functions/v1/api`):
+The API's origin moved to Supabase (off the old Fly host). `api.freeai.fyi` still
+resolves — `vercel.json` rewrites it onto the Edge Function — but pin OAuth and
+Stripe to the **canonical** function base, which is what the function emits in its
+own redirect URIs (`https://<ref>.supabase.co/functions/v1/api`):
 
 - **Google / Apple OAuth** redirect URIs →
   `…/v1/auth/google/callback` and `…/v1/auth/apple/callback`.

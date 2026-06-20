@@ -1,5 +1,13 @@
 # FreeAI.fyi — Get paid for waiting 🤑
 
+> ⚠️ **ARCHIVED — not the current product.** This is the original VS Code spinner
+> extension, kept only for reference. The live FreeAI product is the Chrome
+> extension, the Claude Code terminal client, and the macOS app; the editor
+> extension is being rebuilt under [`vscode-extension/`](../../vscode-extension/).
+> The figures below — a **90%** share and weekly **Stripe cash** payouts —
+> describe the old model; today's split is **50%, paid as Claude credits** and
+> redeemed on the website. See the [repo README](../../README.md) for what's current.
+
 > Like [kickbacks.ai](https://kickbacks.ai), but **you keep 90%**.
 
 Your agent spends half its life thinking. Claude Code spins. Codex spins. You sit

@@ -12,11 +12,11 @@
 import Foundation
 
 struct Signals {
-    var signedIn, claudeFocused, claudeGenerating, overlayVisible: Bool
+    var signedIn, assistantFocused, assistantGenerating, overlayVisible: Bool
     var overlayCovered, screenLocked, displayAsleep, adsPaused: Bool
 
     var qualifies: Bool {
-        signedIn && claudeFocused && overlayVisible
+        signedIn && assistantFocused && overlayVisible
             && !overlayCovered && !screenLocked && !displayAsleep && !adsPaused
     }
 }

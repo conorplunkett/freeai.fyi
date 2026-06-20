@@ -4,8 +4,49 @@
   "rewrites": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "api.freeai.fyi" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "api.freeai.fyi"
+        }
+      ],
       "destination": "https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api/:path*"
+    },
+    {
+      "source": "/developers",
+      "destination": "/landers/developers.html"
+    },
+    {
+      "source": "/chatgpt",
+      "destination": "/landers/chatgpt.html"
+    },
+    {
+      "source": "/gemini",
+      "destination": "/landers/gemini.html"
+    },
+    {
+      "source": "/students",
+      "destination": "/landers/students.html"
+    },
+    {
+      "source": "/writers",
+      "destination": "/landers/writers.html"
+    },
+    {
+      "source": "/researchers",
+      "destination": "/landers/researchers.html"
+    },
+    {
+      "source": "/founders",
+      "destination": "/landers/founders.html"
+    },
+    {
+      "source": "/marketers",
+      "destination": "/landers/marketers.html"
+    },
+    {
+      "source": "/advertisers",
+      "destination": "/landers/advertisers.html"
     }
   ]
 }

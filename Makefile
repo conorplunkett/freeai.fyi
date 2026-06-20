@@ -31,6 +31,10 @@ site:
 	@echo "Serving site at http://localhost:$(SITE_PORT) (Ctrl-C to stop)"
 	@python3 -m http.server $(SITE_PORT)
 
+## landers: Regenerate the per-audience landing pages from index.html.
+landers:
+	node tools/gen-landers.mjs
+
 # ---------------------------------------------------------------------------
 # Brand assets
 # ---------------------------------------------------------------------------
@@ -86,6 +90,10 @@ test-ext:
 lint-ext:
 	cd chrome-extension && npm run lint
 
+## package-ext: Build a clean Web Store-ready .zip (chrome-extension/dist/).
+package-ext:
+	tools/package-extension.sh
+
 # ---------------------------------------------------------------------------
 # Terminal client (Claude Code CLI)
 # ---------------------------------------------------------------------------
@@ -130,7 +138,7 @@ mac-build:
 mac-run:
 	cd $(MAC_DIR) && swift run SponsorOverlay
 
-## mac-demo: Run the macOS app in demo mode — no server or Claude needed.
+## mac-demo: Run the macOS app in demo mode — no server or assistant needed.
 mac-demo:
 	cd $(MAC_DIR) && FREEAI_DEMO=1 swift run SponsorOverlay
 
@@ -153,7 +161,7 @@ mac-open:
 ## test: Run every test suite (server, extension, terminal, mac core).
 test: test-server test-ext test-terminal test-mac
 
-.PHONY: help site icons db-up db-down migrate seed server server-up server-install \
-	test-server test-ext lint-ext test-terminal vscode-install build-vscode test-vscode \
+.PHONY: help site landers icons db-up db-down migrate seed server server-up server-install \
+	test-server test-ext lint-ext package-ext test-terminal vscode-install build-vscode test-vscode \
 	package-vscode test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test

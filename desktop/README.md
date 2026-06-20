@@ -1,25 +1,32 @@
-# FreeAI Desktop — Sponsor Overlay for Claude Desktop (macOS)
+# FreeAI Desktop — Sponsor Overlay for Claude & ChatGPT Desktop (macOS)
 
 Rough-out of the PRD: a menu bar companion app that floats a small sponsor
-card over Claude Desktop while it's generating, and credits the user for
-qualified impressions. It never injects code into Claude, never modifies
-Claude's files, and never reads prompts/responses.
+card over a supported AI desktop app — **Claude Desktop** or the **ChatGPT
+(OpenAI) desktop app** — while it's generating, and credits the user for
+qualified impressions. It never injects code into the app, never modifies its
+files, and never reads prompts/responses.
+
+Both apps are Electron/Chromium shells, so the same Accessibility-tree walk
+drives detection for either; the small per-app differences (bundle id,
+composer placeholder, whether the app shows a "thinking star") live in
+`AssistantTarget` in `macos/SponsorOverlay/Sources/SponsorOverlay/AssistantDetector.swift`.
+The overlay tracks whichever supported app is **frontmost**.
 
 ## Layout
 
 | Path | What | Status |
 |---|---|---|
 | `core/` | `overlay-core` Rust crate — all decision logic: 5s continuous-visibility impression state machine, frequency caps + fraud throttles, campaign eligibility/selection, retry event queue, privacy-locked event schema | ✅ Built & tested here (`cargo test`, 10 tests) |
-| `macos/SponsorOverlay/` | SwiftPM menu bar shell — Claude detection via Accessibility API, non-activating overlay `NSPanel`, permission onboarding, pause/quit menu | 🚧 Skeleton; build on a Mac with `swift build` |
+| `macos/SponsorOverlay/` | SwiftPM menu bar shell — Claude & ChatGPT detection via Accessibility API, non-activating overlay `NSPanel`, permission onboarding, pause/quit menu | 🚧 Skeleton; build on a Mac with `swift build` |
 
 ## Architecture
 
 The Swift shell is intentionally dumb: every 500ms it reads platform signals
-(Claude focused? window bounds? thinking star or "Stop" button present →
-generating? screen locked? overlay occluded?) and feeds them to the core, which
-decides whether an impression qualifies and what events to queue. The core is
-pure Rust with no platform deps, so all the money-adjacent rules are
-unit-tested on any OS.
+(supported assistant focused? window bounds? thinking star or "Stop" button
+present → generating? screen locked? overlay occluded?) and feeds them to the
+core, which decides whether an impression qualifies and what events to queue.
+The core is pure Rust with no platform deps, so all the money-adjacent rules
+are unit-tested on any OS.
 
 Between full polls, a 100ms fast-follow pass re-reads just the cached AX
 frames of the window and the thinking star (two AX calls, no tree walk) and
@@ -30,20 +37,31 @@ Planned wiring: build `overlay-core` as a staticlib (`crate-type` already set),
 generate a C header with cbindgen, link from SwiftPM. Until then,
 `ImpressionEngine.swift` is a faithful interim port of the tracker.
 
-### Generation detection + star anchoring (the risky bit)
-1. **Primary:** one AX tree scan of the focused Claude window finds the
-   animated thinking star (matched by Chromium's `AXDOMClassList` attribute
-   against the same `.epitaxy-spark-working` class the Chrome extension keys
-   on) and a "Stop response" button. Either one → generating; the star's
-   frame is also what the card anchors to (composer, then window bottom, as
-   fallbacks). Structural attributes only — no message text read.
-2. **Fallback (PRD):** Claude focused + recent user action, with conservative
+### Generation detection + anchoring (the risky bit)
+1. **Primary:** one AX tree scan of the focused assistant window finds a "Stop"
+   button (matched loosely on a button whose title/description/help contains
+   the verb "stop" — "Stop response", "Stop generating", "Stop streaming") and,
+   on Claude, the animated thinking star (matched by Chromium's `AXDOMClassList`
+   attribute against the same `.epitaxy-spark-working` class the Chrome
+   extension keys on). Either signal → generating.
+   - **Claude:** the star's frame is what the card anchors to (composer, then
+     window bottom, as fallbacks).
+   - **ChatGPT:** there is no thinking star, so generation rests on the Stop
+     button and the card anchors above the composer (then window bottom). The
+     composer is the AXTextArea whose placeholder reads "Ask anything" /
+     "Message ChatGPT".
+
+   Structural attributes only — no message text read.
+2. **Fallback (PRD):** assistant focused + recent user action, with conservative
    frequency caps.
 3. **Last resort:** local-only visual heuristics behind Screen Recording
    permission. Not implemented; avoid if (1) holds up.
 
-The bundle id is assumed to be `com.anthropic.claudefordesktop` — verify on a
-Mac with `osascript -e 'id of app "Claude"'` before trusting detection.
+Bundle ids: Claude `com.anthropic.claudefordesktop`, ChatGPT `com.openai.chat`
+— verify on a Mac with `osascript -e 'id of app "Claude"'` /
+`osascript -e 'id of app "ChatGPT"'` before trusting detection. Per-app
+selectors live in `AssistantTarget` (`AssistantDetector.swift`); adding a third
+assistant is a new entry there.
 
 ## Privacy contract (enforced in code)
 
@@ -89,20 +107,23 @@ the console after the 5-second timer. Watch with
 `log stream --predicate 'eventMessage CONTAINS "freeai"'` or just the
 terminal output.
 
-**Probe mode — verify generation detection against your Claude build:**
+**Probe mode — verify generation detection against your Claude/ChatGPT build:**
 ```sh
 FREEAI_PROBE=1 swift run SponsorOverlay
 ```
-Claude Desktop is Electron, so its web contents are invisible to the AX API
+Both apps are Electron, so their web contents are invisible to the AX API
 until a client sets `AXManualAccessibility` — probe mode (and the real
 detector) set it, then dump every labeled element/button (plus any element
-whose DOM classes look star-like) in Claude's focused window every 2s, with a
-`generating=true/false star=<frame|not found>` verdict. Focus Claude, start a
-generation, and watch the terminal: a "Stop …" button or a
-`class="…epitaxy-spark-working…"` element appearing while streaming means
-detection works, and the star frame is what the card anchors to. If Claude
-ships a redesign that renames the class, the probe dump shows the new
-star-like classes to put in `isThinkingStar`.
+whose DOM classes look star-like) in the **frontmost** supported assistant's
+focused window every 2s, with an
+`app=<name> generating=true/false stopButton=… composer=… star=<frame|n/a>`
+verdict. Focus Claude or ChatGPT, start a generation, and watch the terminal:
+a "Stop …" button appearing while streaming means detection works for either
+app; on Claude a `class="…epitaxy-spark-working…"` element also appears and its
+frame is what the card anchors to. If Claude ships a redesign that renames the
+class, the probe dump shows the new star-like classes to put in
+`isThinkingStar`; if ChatGPT renames its composer placeholder, update
+`AssistantTarget.chatgpt.composerHints`.
 
 **Window-tracking gates — manual checks (demo mode or real Claude):**
 ```sh
@@ -117,10 +138,10 @@ FREEAI_DEMO=1 swift run SponsorOverlay    # or plain `swift run` with Claude ope
 ```sh
 swift run SponsorOverlay                  # uses FREEAI_API_URL or the default API
 ```
-Grant Accessibility when prompted, open Claude Desktop, start a generation.
-The card should appear while Claude streams; 5 visible seconds → one
-impression batch lands in the server ledger; clicking routes through
-`/v1/go/:token` and credits the click.
+Grant Accessibility when prompted, open Claude or ChatGPT Desktop, start a
+generation. The card should appear while the assistant streams; 5 visible
+seconds → one impression batch lands in the server ledger; clicking routes
+through `/v1/go/:token` and credits the click.
 
 **CI** builds the Swift app on a `macos-14` runner on every push/PR, packages
 it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` + `.dmg` as the
@@ -187,9 +208,10 @@ them, but verify with `codesign --verify --deep --strict` before notarizing.
 
 ## Still to do
 
-1. Validate Claude's real bundle id + whether its Electron AX tree exposes
-   the Stop button and the thinking star's `AXDOMClassList` (the riskiest
-   assumptions — run probe mode, see ClaudeDetector.swift).
+1. Validate each app's real bundle id + whether its Electron AX tree exposes
+   the Stop button (both apps), the thinking star's `AXDOMClassList` (Claude),
+   and the composer placeholder (ChatGPT `composerHints`) — the riskiest
+   assumptions. Run probe mode against both, see `AssistantDetector.swift`.
 2. Keychain for device credentials (UserDefaults in the rough-out).
 3. cbindgen FFI so the shell links `overlay-core` instead of the Swift port.
 4. Real sign-in (email verify exists server-side) and local frequency caps in

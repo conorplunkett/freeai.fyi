@@ -1,14 +1,15 @@
 // FreeAI Sponsor Overlay — menu bar shell.
 //
-// The shell is intentionally dumb: read platform signals (Claude focused?
-// generating? screen locked?), let the decision logic (a port of
-// ../../core's tested rules) decide when an impression qualifies, render the
-// card, queue events. It never injects code into Claude, never modifies
-// Claude's files, never reads conversation content.
+// The shell is intentionally dumb: read platform signals (a supported
+// assistant — Claude or ChatGPT Desktop — focused? generating? screen
+// locked?), let the decision logic (a port of ../../core's tested rules)
+// decide when an impression qualifies, render the card, queue events. It never
+// injects code into the assistant, never modifies its files, never reads
+// conversation content.
 //
-// Demo mode for local testing without a server or Claude Desktop:
+// Demo mode for local testing without a server or a supported assistant:
 //   FREEAI_DEMO=1 swift run SponsorOverlay
-// In demo mode any frontmost app counts as "Claude generating", a seeded
+// In demo mode any frontmost app counts as "assistant generating", a seeded
 // campaign is shown, and qualified impressions/clicks are logged to the
 // console instead of POSTed.
 
@@ -22,12 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     private let demoMode = ProcessInfo.processInfo.environment["FREEAI_DEMO"] == "1"
-    // FREEAI_PROBE=1: every 2s, dump the labeled elements of Claude's focused
-    // window and the generating verdict. Run it, trigger a generation in
-    // Claude, and read the terminal. Diagnostic only; nothing leaves the Mac.
+    // FREEAI_PROBE=1: every 2s, dump the labeled elements of the focused
+    // assistant's window and the generating verdict. Run it, trigger a
+    // generation in Claude or ChatGPT, and read the terminal. Diagnostic only;
+    // nothing leaves the Mac.
     private let probeMode = ProcessInfo.processInfo.environment["FREEAI_PROBE"] == "1"
 
-    private let detector = ClaudeDetector()
+    private let detector = AssistantDetector()
     private let overlay = OverlayPanelController()
     private let engine = ImpressionEngine()
     private let store = EventStore()
@@ -38,8 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var accessibilityItem: NSMenuItem!
     private var pollTimer: Timer?
     private var adsPaused = false
-    /// Last Claude bounds the overlay was positioned over, for move/resize
-    /// deduplication (spec `lastBounds`).
+    /// Last assistant-window bounds the overlay was positioned over, for
+    /// move/resize deduplication (spec `lastBounds`).
     private var lastShownBounds: CGRect?
     /// Composer frame at last positioning — the card re-anchors when the
     /// composer moves within an unchanged window (e.g. sidebar resize).
@@ -59,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         requestAccessibilityIfNeeded()
 
         if probeMode {
-            print("probe: dumping Claude's AX tree every 2s — focus Claude and start a generation (Ctrl+C to quit)")
+            print("probe: dumping the focused assistant's AX tree every 2s — focus Claude or ChatGPT and start a generation (Ctrl+C to quit)")
             Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
                 self?.detector.probeDump()
             }
@@ -162,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshAccessibilityState()
         var state = detector.currentState()
         if demoMode {
-            // Pretend the frontmost window is Claude mid-generation.
+            // Pretend the frontmost window is an assistant mid-generation.
             state.running = true
             state.focused = NSApp.isActive || NSWorkspace.shared.frontmostApplication != nil
             state.generating = true
@@ -175,8 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let signedIn = demoMode || credentials != nil
         let signals = Signals(
             signedIn: signedIn,
-            claudeFocused: state.focused,
-            claudeGenerating: state.generating,
+            assistantFocused: state.focused,
+            assistantGenerating: state.generating,
             overlayVisible: overlay.isShown,
             overlayCovered: overlay.isCovered,
             screenLocked: SystemState.isScreenLocked,
@@ -184,8 +186,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             adsPaused: adsPaused
         )
 
-        // Spec trackability gates: Claude must be focused, not minimized, and
-        // its window large enough to be worth following.
+        // Spec trackability gates: the assistant must be focused, not
+        // minimized, and its window large enough to be worth following.
         let usableBounds = state.windowBounds.map(Self.isUsableBounds) ?? false
         let shouldShow = state.focused && state.generating && !state.minimized
             && usableBounds && !adsPaused && currentAd != nil
@@ -233,8 +235,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: spec window-trackability gates
 
-    /// Spec `isUsableBounds`: a Claude window smaller than this is treated as
-    /// not trackable, so the overlay hides rather than clinging to a sliver.
+    /// Spec `isUsableBounds`: an assistant window smaller than this is treated
+    /// as not trackable, so the overlay hides rather than clinging to a sliver.
     static func isUsableBounds(_ b: CGRect) -> Bool {
         b.width >= 360 && b.height >= 300
     }
@@ -282,7 +284,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         balanceItem = NSMenuItem(title: demoMode ? "Demo mode" : "Balance: —", action: nil, keyEquivalent: "")
         menu.addItem(balanceItem)
         // Shown only while Accessibility is not granted — the overlay can't see
-        // Claude's window without it, so this is the #1 "nothing happens" fix.
+        // the assistant's window without it, so this is the #1 "nothing
+        // happens" fix.
         accessibilityItem = NSMenuItem(title: "⚠ Enable Accessibility access…",
                                        action: #selector(openAccessibilitySettings), keyEquivalent: "")
         accessibilityItem.target = self
