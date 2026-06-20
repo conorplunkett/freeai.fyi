@@ -1,0 +1,65 @@
+[
+  {
+    "slug": "developers",
+    "url": "/developers",
+    "headline": "Make money while you build.",
+    "title": "FreeAI.fyi — Get Claude for free while you ship code",
+    "tool": "Claude"
+  },
+  {
+    "slug": "chatgpt",
+    "url": "/chatgpt",
+    "headline": "Get paid to use ChatGPT.",
+    "title": "FreeAI.fyi — Earn Claude credits while you use ChatGPT",
+    "tool": "ChatGPT"
+  },
+  {
+    "slug": "gemini",
+    "url": "/gemini",
+    "headline": "Get paid to use Gemini.",
+    "title": "FreeAI.fyi — Earn Claude credits while you use Gemini",
+    "tool": "Gemini"
+  },
+  {
+    "slug": "students",
+    "url": "/students",
+    "headline": "Free AI for students.",
+    "title": "FreeAI.fyi — Free AI for students",
+    "tool": "ChatGPT"
+  },
+  {
+    "slug": "writers",
+    "url": "/writers",
+    "headline": "Get paid while you write.",
+    "title": "FreeAI.fyi — Earn Claude credits while you write with AI",
+    "tool": "ChatGPT"
+  },
+  {
+    "slug": "researchers",
+    "url": "/researchers",
+    "headline": "Get paid while you research.",
+    "title": "FreeAI.fyi — Earn Claude credits while you research with AI",
+    "tool": "Gemini"
+  },
+  {
+    "slug": "founders",
+    "url": "/founders",
+    "headline": "Turn AI spend into runway.",
+    "title": "FreeAI.fyi — Cut your startup's AI bill to $0",
+    "tool": "Claude"
+  },
+  {
+    "slug": "marketers",
+    "url": "/marketers",
+    "headline": "Get paid for every prompt.",
+    "title": "FreeAI.fyi — Earn Claude credits while you make content with AI",
+    "tool": "ChatGPT"
+  },
+  {
+    "slug": "advertisers",
+    "url": "/advertisers",
+    "headline": "Bid on the most-watched spinner on Earth.",
+    "title": "FreeAI.fyi — Advertise on the most-watched spinner on Earth",
+    "tool": "Claude"
+  }
+]

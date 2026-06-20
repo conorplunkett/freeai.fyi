@@ -242,6 +242,10 @@ function sub(html, label, re, value) {
 
 mkdirSync(outDir, { recursive: true });
 
+// Collected for landers/landers.json — the manifest the admin "Landers" tab
+// reads so the list there always matches what's actually generated here.
+const manifest = [];
+
 let written = 0;
 for (const l of LANDERS) {
   let out = src;
@@ -326,8 +330,19 @@ for (const l of LANDERS) {
 
   writeFileSync(join(outDir, `${l.slug}.html`), out);
   written++;
+  manifest.push({
+    slug: l.slug,
+    url: `/${l.slug}`,
+    headline: l.h1,
+    title: l.title,
+    // The "Stock <tool>" the before/after demo mimics; Claude is the default.
+    tool: l.demo ? l.demo.label.replace(/^Stock\s+/, "") : "Claude",
+  });
   console.log(`  wrote landers/${l.slug}.html`);
 }
+
+// Manifest for the admin "Landers" tab (and anything else that wants the list).
+writeFileSync(join(outDir, "landers.json"), JSON.stringify(manifest, null, 2) + "\n");
 
 // Keep vercel.json's lander rewrites in sync with the LANDERS list above, so
 // each campaign is served at a clean short URL (`/chatgpt`). Non-lander

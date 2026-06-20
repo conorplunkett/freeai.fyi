@@ -122,6 +122,7 @@ const TABS = [
   { id: "referrals", label: "Referrals", render: renderReferrals },
   { id: "affiliates", label: "Affiliates", render: renderAffiliates },
   { id: "waitlist", label: "Waitlist", render: renderWaitlist },
+  { id: "landers", label: "Landers", render: renderLanders },
   { id: "devices", label: "Devices & Fraud", render: renderDevices },
   { id: "schema", label: "Schema", render: renderSchema },
   { id: "settings", label: "Settings", render: renderSettings },
@@ -544,6 +545,41 @@ async function renderWaitlist(view) {
       h("p", { class: "hint" }, "People who asked to be notified when a surface ships.")),
     table([{ label: "Email" }, { label: "Surface" }, { label: "When" }], d.signups,
       (s) => [h("span", { class: "mono" }, s.email || "—"), s.surface, dt(s.createdAt)])));
+}
+
+// Audience landing pages. Reads the static manifest written by
+// tools/gen-landers.mjs (landers/landers.json) so this list always matches what
+// was generated — no API or admin key needed, it's a same-origin static file.
+async function renderLanders(view) {
+  view.innerHTML = "";
+  let landers = [];
+  try {
+    const res = await fetch("/landers/landers.json", { cache: "no-store" });
+    if (res.ok) landers = await res.json();
+  } catch { /* fall through to the empty state below */ }
+
+  const card = h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Landing pages"),
+      h("p", { class: "hint" }, "Per-audience landers. Edit copy in tools/gen-landers.mjs, then run `make landers`.")));
+
+  if (!landers.length) {
+    card.append(h("p", { class: "empty" }, "No landers manifest found (landers/landers.json). Run `make landers`."));
+    view.append(card);
+    return;
+  }
+
+  view.append(tiles([{ k: "Live landers", v: num(landers.length) }]));
+  card.append(table(
+    [{ label: "Audience" }, { label: "URL" }, { label: "Headline" }, { label: "Demo" }],
+    landers,
+    (l) => [
+      h("span", { class: "mono" }, l.slug),
+      td(h("a", { href: l.url, target: "_blank", rel: "noopener" }, l.url)),
+      l.headline,
+      h("span", { class: "badge tool" }, l.tool),
+    ],
+  ));
+  view.append(card);
 }
 
 async function renderDevices(view) {
