@@ -900,6 +900,26 @@ function createRepo(pool) {
       return r.rows[0]?.referred === true;
     },
 
+    // First-login survey: true once the user has answered the "what models /
+    // where do you use them" questions. Drives the needsSurvey gate on
+    // /v1/web/me, shown before the refer-a-friend step.
+    async hasOnboardingSurvey(userId) {
+      const r = await pool.query("select 1 from onboarding_surveys where user_id = $1", [userId]);
+      return r.rowCount > 0;
+    },
+    // Upsert the survey answers (idempotent — re-answering overwrites). Arrays
+    // are stored as jsonb; surfaceOther is the free text for the "other" surface.
+    async saveOnboardingSurvey(userId, { models, surfaces, surfaceOther }) {
+      await pool.query(
+        `insert into onboarding_surveys (user_id, models, surfaces, surface_other)
+           values ($1, $2::jsonb, $3::jsonb, $4)
+         on conflict (user_id) do update
+           set models = excluded.models, surfaces = excluded.surfaces,
+               surface_other = excluded.surface_other, updated_at = now()`,
+        [userId, JSON.stringify(models), JSON.stringify(surfaces), surfaceOther]
+      );
+    },
+
     // Counts + the dashboard list, one row per friend with their email and the
     // stage they're at: 'invited' (email sent, not signed up yet) comes from
     // referral_invites; 'pending'/'rewarded'/'capped'/'cancelled' come from the

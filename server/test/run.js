@@ -624,6 +624,44 @@ const fakeMailer = {
       "rewarded");
   });
 
+  await check("first-login survey: gates the dashboard, validates input, persists answers", async () => {
+    const sess = await loginVia("survey@example.com");
+    const auth = { Authorization: `Bearer ${sess}` };
+
+    // a brand-new user must complete the survey before anything else
+    assert.strictEqual((await api("GET", "/v1/web/me", undefined, auth)).body.needsSurvey, true);
+
+    // empty / unknown-only selections are rejected, and the gate stays up
+    assert.strictEqual((await api("POST", "/v1/web/onboarding/survey", {}, auth)).status, 400);
+    assert.strictEqual(
+      (await api("POST", "/v1/web/onboarding/survey", { models: ["bogus"], surfaces: ["nope"] }, auth)).status, 400);
+    assert.strictEqual(
+      (await api("POST", "/v1/web/onboarding/survey", { models: ["claude"], surfaces: [] }, auth)).status, 400);
+    assert.strictEqual((await api("GET", "/v1/web/me", undefined, auth)).body.needsSurvey, true);
+
+    // a valid multi-select submission clears the gate and stores the answers,
+    // filtering unknown values and keeping the free-text "other" surface
+    const ok = await api("POST", "/v1/web/onboarding/survey",
+      { models: ["claude", "chatgpt", "bogus"], surfaces: ["browser_chrome", "other"], surfaceOther: "Raycast" }, auth);
+    assert.strictEqual(ok.status, 200);
+    assert.strictEqual((await api("GET", "/v1/web/me", undefined, auth)).body.needsSurvey, false);
+
+    const uid = await userId("survey@example.com");
+    const row = (await poolNs.query("select models, surfaces, surface_other from onboarding_surveys where user_id = $1", [uid])).rows[0];
+    assert.deepStrictEqual(row.models, ["claude", "chatgpt"], "unknown model filtered out");
+    assert.deepStrictEqual(row.surfaces, ["browser_chrome", "other"]);
+    assert.strictEqual(row.surface_other, "Raycast");
+
+    // re-answering overwrites (idempotent upsert) and drops the now-irrelevant
+    // free text when "other" is no longer selected
+    assert.strictEqual(
+      (await api("POST", "/v1/web/onboarding/survey", { models: ["gemini"], surfaces: ["terminal"], surfaceOther: "ignored" }, auth)).status, 200);
+    const row2 = (await poolNs.query("select models, surfaces, surface_other from onboarding_surveys where user_id = $1", [uid])).rows[0];
+    assert.deepStrictEqual(row2.models, ["gemini"]);
+    assert.deepStrictEqual(row2.surfaces, ["terminal"]);
+    assert.strictEqual(row2.surface_other, null, "surface_other cleared when 'other' not selected");
+  });
+
   // ---------- earnings dashboard + activity ledger ----------
   await check("web earnings endpoint reports today / month / lifetime and a chart series", async () => {
     const sess = await loginVia("earn@example.com");

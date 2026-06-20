@@ -20,7 +20,7 @@
   "background": {
     "service_worker": "src/background.js"
   },
-  "permissions": ["storage", "tabs", "alarms"],
+  "permissions": ["storage", "alarms"],
   "host_permissions": [
     "https://wpjfhezklpczxzocgxsb.supabase.co/*",
     "https://claude.ai/*",

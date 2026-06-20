@@ -78,6 +78,6 @@
   --green-a: var(--accent-grad-a);
   --green-b: var(--accent-grad-b);
   --blue: var(--accent-d);
-  --stripe: var(--accent-d);
+  --stripe: #635bff;   /* Stripe brand purple — intentionally off-palette; only the "Pay with Stripe" checkout button uses it */
   --orange: var(--accent);
 }
