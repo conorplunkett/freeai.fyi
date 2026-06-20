@@ -6,18 +6,20 @@
   <!-- Production API. Points the leaderboard + advertiser checkout at the live
        backend. Append ?dev=1 to the URL to flip the lander into mock-data mode. -->
   <meta name="freeai-api" content="https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api" />
-  <title>FreeAI.fyi — Free AI for students</title>
-  <meta name="description" content="Cut your AI spend to $0. Earn Claude credits while you use ChatGPT, Claude and Gemini for class — a subtle sponsored line shows while the AI thinks and 50% comes back to you." />
-  <meta property="og:title" content="FreeAI.fyi — Free AI for students" />
-  <meta property="og:description" content="Stop paying for AI. 50% of the revenue comes back to you as Claude credits — share it with your class." />
+  <title>FreeAI.fyi — Earn Claude credits while you make content with AI</title>
+  <meta name="description" content="Generate campaigns, captions and briefs with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A subtle sponsored line shows while the AI thinks; 50% comes back." />
+  <meta property="og:title" content="FreeAI.fyi — Earn Claude credits while you make content with AI" />
+  <meta property="og:description" content="Get paid for every AI prompt. 50% of the revenue comes back as Claude credits." />
+  <link rel="canonical" href="https://freeai.fyi/marketers" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="theme.css?v=20260619a" />
-  <link rel="stylesheet" href="styles.css?v=20260619a" />
+  <link rel="stylesheet" href="/theme.css?v=20260619a" />
+  <link rel="stylesheet" href="/styles.css?v=20260619a" />
+  <link rel="stylesheet" href="/landers/landers.css?v=20260620a" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
 </head>
-<body data-lander="students">
+<body data-lander="marketers">
   <!-- LIVE TICKER -->
   <div class="ticker" aria-label="Live sponsored lines">
     <div class="ticker-track" id="ticker-track"></div>
@@ -39,9 +41,9 @@
   <main id="top">
     <!-- HERO -->
     <section class="hero">
-      <h1>Free AI for students.</h1>
+      <h1>Get paid for every prompt.</h1>
       <p class="sub">
-        Stop paying for AI. A subtle sponsored line shows while <strong>ChatGPT, Claude &amp; Gemini</strong> think — and <strong>50%</strong> of the revenue comes back to you as <span class="hl">Claude credits</span>, reducing your and your classmates’ AI spend to $0.
+        Every campaign, caption and brief you generate with <strong>ChatGPT, Claude &amp; Gemini</strong> shows one subtle sponsored line while it thinks — and <strong>50%</strong> of the revenue comes back to you as <span class="hl">free Claude credits</span>.
       </p>
 
       <!-- BEFORE / AFTER DEMO -->
@@ -79,8 +81,8 @@
           </svg>
         </div>
         <div class="demo-card">
-          <span class="demo-label">Stock Claude</span>
-          <div class="demo-line"><span class="ast">✳</span> <span id="word-stock">Thinking</span>…</div>
+          <span class="demo-label">Stock ChatGPT</span>
+          <div class="demo-line"><span class="think think-gpt"></span> <span id="word-stock">Thinking</span>…</div>
         </div>
         <div class="demo-chevs">»</div>
         <div class="demo-card">
@@ -117,7 +119,7 @@
       </a>
 
       <p class="hero-note">
-        Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser — free to install. A subtle sponsored line appears while the model thinks, and <strong>50%</strong> of what it earns becomes credits you redeem for Claude Pro or Max.
+        Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns becomes credits you redeem for Claude Pro or Max.
       </p>
 
       <a href="#advertisers" class="jump">
@@ -296,6 +298,6 @@
        user-facing copy production-only — no test/demo wording. The one developer
        affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
        handled in script.js, which never shows unless explicitly requested. -->
-  <script src="script.js?v=20260619a"></script>
+  <script src="/script.js?v=20260619a"></script>
 </body>
 </html>
