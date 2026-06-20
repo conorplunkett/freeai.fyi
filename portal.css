@@ -19,8 +19,9 @@
 #login-page[hidden] {
   display: none;
 }
-/* Same grid-vs-[hidden] override for the first-login onboarding split. */
-#onboarding-page[hidden] {
+/* Same grid-vs-[hidden] override for the first-login onboarding splits. */
+#onboarding-page[hidden],
+#survey-page[hidden] {
   display: none;
 }
 
@@ -460,6 +461,75 @@ html.auth-pending #portal-loading { display: flex; }
   margin: 0;
 }
 #onboard-form { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── First-login survey (models / surfaces) ── */
+/* display overrides so the hidden attribute still wins on the step containers. */
+#survey-step-models,
+#survey-step-surfaces { display: flex; flex-direction: column; gap: 14px; }
+#survey-step-models[hidden],
+#survey-step-surfaces[hidden] { display: none; }
+
+.onboard-step {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent-d);
+  text-align: center;
+}
+
+/* Multi-select option chips — toggle to .sel on click. */
+.survey-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.survey-opt {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+  -webkit-appearance: none;
+}
+.survey-opt::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+  border-radius: 5px;
+  border: 1.5px solid #c4c4c4;
+  background: #fff;
+  transition: border-color .15s, background .15s;
+}
+.survey-opt:hover {
+  border-color: #c0c0c0;
+  background: #fafafa;
+}
+.survey-opt.sel {
+  border-color: var(--accent);
+  background: #fbf0ea;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.survey-opt.sel::before {
+  border-color: var(--accent);
+  background: var(--accent);
+  /* white check mark */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 6'/%3E%3C/svg%3E");
+  background-size: 13px 13px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
 
 /* ── Responsive ── */
 @media (max-width: 768px) {

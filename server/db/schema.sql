@@ -272,3 +272,20 @@ create table if not exists waitlist_signups (
 );
 create index if not exists waitlist_signups_user_idx on waitlist_signups (user_id);
 create index if not exists waitlist_signups_surface_idx on waitlist_signups (surface);
+
+-- ── First-login onboarding survey ───────────────────────────────────────────
+-- Captured the first time a user signs in, before the refer-a-friend step:
+-- which AI models they use and on which surfaces (both multi-select), plus an
+-- optional free-text "other" surface. Stored as jsonb arrays so the same param
+-- binding works across the Node (pg) and edge (postgres.js) drivers. One row per
+-- user; the row's existence is the "survey done" signal /v1/web/me reports as
+-- needsSurvey, gating the dashboard behind onboarding.
+create table if not exists onboarding_surveys (
+  user_id uuid primary key references users(id) on delete cascade,
+  models jsonb not null default '[]'::jsonb,         -- e.g. ["claude","chatgpt"]
+  surfaces jsonb not null default '[]'::jsonb,        -- e.g. ["browser_chrome","terminal"]
+  surface_other text,                                 -- free text when "other" picked
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+

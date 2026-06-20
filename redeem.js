@@ -76,36 +76,45 @@ async function apiPost(path, payload) {
 function clearAuthGate() {
   document.documentElement.classList.remove("auth-pending");
 }
-function showLoading() {
-  clearAuthGate();
-  $("portal-loading").hidden = false;
+// Top-level views are mutually exclusive; hide them all, then reveal one.
+function hideAllPages() {
+  $("portal-loading").hidden = true;
   $("login-page").hidden = true;
+  $("survey-page").hidden = true;
   $("onboarding-page").hidden = true;
   $("redeem-page").hidden = true;
 }
+function showLoading() {
+  clearAuthGate();
+  hideAllPages();
+  $("portal-loading").hidden = false;
+}
 function showLoginPage() {
   clearAuthGate();
-  $("portal-loading").hidden = true;
+  hideAllPages();
   $("login-page").hidden = false;
-  $("onboarding-page").hidden = true;
-  $("redeem-page").hidden = true;
+}
+// First-login survey gate: two multi-select questions (models, surfaces) shown
+// before the refer-a-friend step. Cleared once /v1/web/onboarding/survey saves.
+function showSurvey(email) {
+  clearAuthGate();
+  hideAllPages();
+  $("survey-page").hidden = false;
+  accountEmail = email;
+  surveyStep("models");
 }
 // First-login gate: the user must invite at least one friend before the
 // dashboard unlocks. The friend doesn't have to sign up — a valid email is
 // enough (the server validates it on /v1/web/referrals/invite).
 function showOnboarding(email) {
   clearAuthGate();
-  $("portal-loading").hidden = true;
-  $("login-page").hidden = true;
+  hideAllPages();
   $("onboarding-page").hidden = false;
-  $("redeem-page").hidden = true;
   accountEmail = email;
 }
 function showRedeemPage(email) {
   clearAuthGate();
-  $("portal-loading").hidden = true;
-  $("login-page").hidden = true;
-  $("onboarding-page").hidden = true;
+  hideAllPages();
   $("redeem-page").hidden = false;
   $("balance-email").textContent = email;
   // Gift cards always go to the account email; the server ignores any
@@ -315,6 +324,73 @@ $("signout").addEventListener("click", async () => {
   location.reload();
 });
 
+// ---- first-login survey: "what models" then "where do you use them" ----
+// Two screens, multi-select. Selections live in these sets; the chips toggle
+// `.sel` to mirror them. Clearing the gate just needs the POST to succeed.
+const surveyModels = new Set();
+const surveySurfaces = new Set();
+
+function surveyStep(name) {
+  $("survey-step-models").hidden = name !== "models";
+  $("survey-step-surfaces").hidden = name !== "surfaces";
+}
+function setSurveyError(id, msg) {
+  const el = $(id);
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+// Toggle a multi-select chip and keep the backing set in sync.
+function wireSurveyOptions(containerId, set, onChange) {
+  $(containerId).addEventListener("click", (e) => {
+    const opt = e.target.closest(".survey-opt");
+    if (!opt) return;
+    const v = opt.dataset.value;
+    if (set.has(v)) { set.delete(v); opt.classList.remove("sel"); }
+    else { set.add(v); opt.classList.add("sel"); }
+    if (onChange) onChange();
+  });
+}
+wireSurveyOptions("survey-models", surveyModels);
+wireSurveyOptions("survey-surfaces", surveySurfaces, () => {
+  // Reveal the free-text box only when "Other" is among the selected surfaces.
+  $("survey-surface-other").hidden = !surveySurfaces.has("other");
+});
+
+// Step 1 → Step 2
+$("survey-models-next").addEventListener("click", () => {
+  if (!surveyModels.size) return setSurveyError("survey-models-error", "Pick at least one.");
+  setSurveyError("survey-models-error", "");
+  surveyStep("surfaces");
+});
+// Step 2 → back
+$("survey-back").addEventListener("click", () => surveyStep("models"));
+
+// Step 2 → submit the survey, then continue to the refer-a-friend step (or
+// straight to the dashboard if this user has somehow already referred).
+$("survey-surfaces-next").addEventListener("click", async () => {
+  if (!surveySurfaces.size) return setSurveyError("survey-surfaces-error", "Pick at least one.");
+  const btn = $("survey-surfaces-next");
+  setSurveyError("survey-surfaces-error", "");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  const payload = {
+    models: [...surveyModels],
+    surfaces: [...surveySurfaces],
+    surfaceOther: surveySurfaces.has("other") ? ($("survey-surface-other").value || "").trim() : "",
+  };
+  const { status, body } = await apiPost("/v1/web/onboarding/survey", payload);
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status === 200) {
+    if (onboardNeedsReferral) showOnboarding(accountEmail);
+    else enterDashboard(accountEmail);
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = "Continue";
+  setSurveyError("survey-surfaces-error", (body && body.error) || "Couldn't save that. Try again.");
+});
+
 // ---- first-login onboarding: refer a friend to unlock the dashboard ----
 function setOnboardError(msg) {
   const el = $("onboard-error");
@@ -349,6 +425,9 @@ let balanceUsd = 0;
 let catalog = null;
 let selected = null;
 let accountEmail = "";
+// Captured from /v1/web/me so the survey step knows whether the refer-a-friend
+// gate still stands once the survey is submitted.
+let onboardNeedsReferral = false;
 
 // ---- gift menu ----
 function renderMenu() {
@@ -655,9 +734,10 @@ async function boot() {
   if (me.status !== 200) return showLoginPage();
   balanceUsd = me.body.balanceUsd || 0;
   $("balance").textContent = usd(balanceUsd);
-  // First login: send them through the "refer a friend" gate before the
-  // dashboard. enterDashboard() runs once they've invited someone (or already
-  // had, for returning users).
+  onboardNeedsReferral = !!me.body.needsReferral;
+  // First-login onboarding runs in order: survey questions, then refer a friend,
+  // then the dashboard. Each gate is skipped if already cleared (returning user).
+  if (me.body.needsSurvey) { showSurvey(me.body.email); return; }
   if (me.body.needsReferral) { showOnboarding(me.body.email); return; }
   enterDashboard(me.body.email);
 }
