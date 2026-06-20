@@ -128,6 +128,82 @@ function createRepo(pool) {
     }
   }
 
+  // Attribute a user to an approved affiliate by code. Unlike referrals this can
+  // run at signup OR retroactively, but only when the user has no prior
+  // attribution (no referrer and no affiliate) — the two are mutually exclusive.
+  // Self-attribution and unknown/unapproved codes are ignored. Returns true when
+  // the user was attributed.
+  async function applyAffiliateCode(client, userId, code) {
+    if (!code) return false;
+    const norm = String(code).trim().toUpperCase();
+    if (!norm) return false;
+    const a = await client.query(
+      "select id, user_id from affiliates where upper(code) = $1 and status = 'approved'",
+      [norm]
+    );
+    const aff = a.rows[0];
+    if (!aff || aff.user_id === userId) return false;
+    const upd = await client.query(
+      `update users set affiliate_id = $2
+        where id = $1 and affiliate_id is null and referred_by is null
+        returning id`,
+      [userId, aff.id]
+    );
+    if (!upd.rows[0]) return false;
+    await client.query(
+      `insert into affiliate_attributions (affiliate_id, affiliated_user_id)
+       values ($1, $2) on conflict (affiliated_user_id) do nothing`,
+      [aff.id, userId]
+    );
+    return true;
+  }
+
+  // Resolve a code entered at signup against both namespaces. Affiliate codes win
+  // (they're the application-gated program); anything else falls through to the
+  // referral path. Keeps a single signup field working for either kind of code.
+  async function applyCode(client, userId, code) {
+    if (!code) return;
+    const attributed = await applyAffiliateCode(client, userId, code);
+    if (!attributed) await applyReferral(client, userId, code);
+  }
+
+  // Pay an affiliate their cut of an affiliated user's just-earned credits. The
+  // affiliate row is locked FOR UPDATE so the running total (credited_millicents)
+  // can't be raced past the cap. The credit is a platform-funded bonus — the
+  // affiliated user keeps 100% of their own earnings. `baseMillicents` is the
+  // user's earning the cut is computed from. No-op when the user has no approved
+  // affiliate or the cap is already reached.
+  async function creditAffiliate(client, affiliatedUserId, baseMillicents) {
+    if (!affiliatedUserId) return;
+    const base = BigInt(baseMillicents);
+    if (base <= 0n) return;
+    const a = await client.query(
+      `select a.id, a.user_id, a.reward_bps, a.cap_millicents, a.credited_millicents
+         from affiliates a
+         join users u on u.affiliate_id = a.id
+        where u.id = $1 and a.status = 'approved'
+        for update of a`,
+      [affiliatedUserId]
+    );
+    const aff = a.rows[0];
+    if (!aff) return;
+    const remaining = BigInt(aff.cap_millicents) - BigInt(aff.credited_millicents);
+    if (remaining <= 0n) return;
+    let share = (base * BigInt(aff.reward_bps)) / 10000n;
+    if (share > remaining) share = remaining;
+    if (share <= 0n) return;
+    await client.query(
+      `insert into ledger (entry_type, amount_millicents, user_id, meta)
+       values ('affiliate_credit', $1, $2, $3)`,
+      [share.toString(), aff.user_id,
+       JSON.stringify({ affiliateId: aff.id, affiliatedUserId })]
+    );
+    await client.query(
+      "update affiliates set credited_millicents = credited_millicents + $2 where id = $1",
+      [aff.id, share.toString()]
+    );
+  }
+
   return {
     // ---------- devices ----------
     async registerDevice() {
@@ -397,6 +473,12 @@ function createRepo(pool) {
             [fee.toString(), ev.campaignId]
           );
         }
+        // If this device's user was attributed to an affiliate, accrue the
+        // affiliate's cut (platform-funded, on top) on the batch's net credit.
+        if (credited > 0n) {
+          const dev = await c.query("select user_id from devices where id = $1", [deviceId]);
+          await creditAffiliate(c, dev.rows[0]?.user_id, credited);
+        }
         return { duplicate: false, creditedMillicents: Number(credited) };
       });
     },
@@ -405,7 +487,7 @@ function createRepo(pool) {
     async earningsForDevice(deviceId) {
       const { rows } = await pool.query(
         `select
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit')), 0)::bigint as earned,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit')), 0)::bigint as earned,
            coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
            coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
          from ledger
@@ -557,6 +639,9 @@ function createRepo(pool) {
              values ('platform_fee', $1, $2, '{}')`,
             [fee.toString(), campaign_id]
           );
+          // Accrue the affiliate's cut on this click credit, if any.
+          const dev2 = await c.query("select user_id from devices where id = $1", [device_id]);
+          await creditAffiliate(c, dev2.rows[0]?.user_id, dev);
         }
         return { url: camp.rows[0].url };
       });
@@ -643,7 +728,7 @@ function createRepo(pool) {
             [matchEmail || null, googleId || null, appleId || null]
           );
           userId = r.rows[0].id;
-          await applyReferral(c, userId, referralCode); // first sign-in only
+          await applyCode(c, userId, referralCode); // first sign-in only; affiliate or referral
         }
 
         const sessionToken = crypto.randomBytes(32).toString("base64url");
@@ -677,7 +762,7 @@ function createRepo(pool) {
            returning id, email, (xmax = 0) as is_new`,
           [t.rows[0].email]
         );
-        if (u.rows[0].is_new) await applyReferral(c, u.rows[0].id, t.rows[0].referral_code);
+        if (u.rows[0].is_new) await applyCode(c, u.rows[0].id, t.rows[0].referral_code);
         const sessionToken = crypto.randomBytes(32).toString("base64url");
         await c.query(
           `insert into web_sessions (token, user_id, expires_at)
@@ -710,7 +795,7 @@ function createRepo(pool) {
     async balanceForUser(userId) {
       const { rows } = await pool.query(
         `select
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit')), 0)::bigint as earned,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit')), 0)::bigint as earned,
            coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
            coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
          from ledger
@@ -735,9 +820,9 @@ function createRepo(pool) {
     async earningsForUser(userId) {
       const { rows } = await pool.query(
         `select
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit')), 0)::bigint as earned,
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit') and created_at >= date_trunc('day', now())), 0)::bigint as today,
-           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit') and created_at >= date_trunc('month', now())), 0)::bigint as month,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit')), 0)::bigint as earned,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit') and created_at >= date_trunc('day', now())), 0)::bigint as today,
+           coalesce(sum(amount_millicents) filter (where entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit') and created_at >= date_trunc('month', now())), 0)::bigint as month,
            coalesce(sum(amount_millicents) filter (where entry_type = 'payout_debit'), 0)::bigint as paid_out,
            coalesce(sum(amount_millicents) filter (where entry_type = 'gift_redemption_debit'), 0)::bigint as redeemed
          from ledger
@@ -772,7 +857,7 @@ function createRepo(pool) {
            count(*)::int as count
          from ledger
          where (user_id = $1 or device_id in (select id from devices where user_id = $1))
-           and entry_type in ('impression_credit','click_credit','referral_credit')
+           and entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit')
            and created_at >= $3
          group by 1
          order by 1 asc`,
@@ -794,7 +879,7 @@ function createRepo(pool) {
            from ledger l
            left join campaigns c on c.id = l.campaign_id
           where (l.user_id = $1 or l.device_id in (select id from devices where user_id = $1))
-            and l.entry_type in ('impression_credit','click_credit','referral_credit')
+            and l.entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit')
           order by l.created_at desc
           limit $2`,
         [userId, n]
@@ -821,7 +906,7 @@ function createRepo(pool) {
         const bal = await c.query(
           `select coalesce(sum(amount_millicents), 0)::bigint as balance from ledger
             where (user_id = $1 or device_id in (select id from devices where user_id = $1))
-              and entry_type in ('impression_credit','click_credit','referral_credit','payout_debit','gift_redemption_debit')`,
+              and entry_type in ('impression_credit','click_credit','referral_credit','affiliate_credit','payout_debit','gift_redemption_debit')`,
           [userId]
         );
         const costMillicents = BigInt(amountCents) * 1000n;
@@ -943,6 +1028,153 @@ function createRepo(pool) {
         creditsEarnedMillicents: Number(s.earned_millicents),
         referrals,
       };
+    },
+
+    // ---------- affiliates ----------
+    // Submit an application to join the affiliate program. One per user — a
+    // repeat while an application already exists is a no-op that returns null
+    // (the route turns that into a 409). Socials are validated/normalized by the
+    // route before this is called.
+    async submitAffiliateApplication(userId, socials) {
+      const s = socials || {};
+      const { rows } = await pool.query(
+        `insert into affiliates
+           (user_id, instagram_handle, instagram_followers,
+            linkedin_handle, linkedin_followers, twitter_handle, twitter_followers)
+         values ($1,$2,$3,$4,$5,$6,$7)
+         on conflict (user_id) do nothing
+         returning id, status`,
+        [userId, s.instagram || null, s.instagramFollowers ?? null,
+         s.linkedin || null, s.linkedinFollowers ?? null,
+         s.twitter || null, s.twitterFollowers ?? null]
+      );
+      return rows[0] || null;
+    },
+
+    // The caller's affiliate state: their application (if any) and whether
+    // they're already attributed to an affiliate / have a referrer (which blocks
+    // applying an affiliate code). Approved affiliates also get live stats.
+    async affiliateForUser(userId) {
+      const u = await pool.query("select affiliate_id, referred_by from users where id = $1", [userId]);
+      const attributed = !!u.rows[0]?.affiliate_id;
+      const hasReferrer = !!u.rows[0]?.referred_by;
+      const a = await pool.query(
+        `select id, status, code, instagram_handle, instagram_followers,
+                linkedin_handle, linkedin_followers, twitter_handle, twitter_followers,
+                reward_bps, cap_millicents, credited_millicents, created_at, approved_at
+           from affiliates where user_id = $1`,
+        [userId]
+      );
+      if (!a.rows[0]) return { application: null, attributed, hasReferrer };
+      const aff = a.rows[0];
+      let attributedCount = 0;
+      if (aff.status === "approved") {
+        const cnt = await pool.query(
+          "select count(*)::int as n from affiliate_attributions where affiliate_id = $1",
+          [aff.id]
+        );
+        attributedCount = cnt.rows[0].n;
+      }
+      return {
+        attributed,
+        hasReferrer,
+        application: {
+          status: aff.status,
+          code: aff.code,
+          socials: {
+            instagram: aff.instagram_handle, instagramFollowers: aff.instagram_followers,
+            linkedin: aff.linkedin_handle, linkedinFollowers: aff.linkedin_followers,
+            twitter: aff.twitter_handle, twitterFollowers: aff.twitter_followers,
+          },
+          rewardBps: aff.reward_bps,
+          capMillicents: Number(aff.cap_millicents),
+          creditedMillicents: Number(aff.credited_millicents),
+          attributedCount,
+          createdAt: aff.created_at,
+          approvedAt: aff.approved_at,
+        },
+      };
+    },
+
+    // Retroactively attach an affiliate code to the caller's own account. Only
+    // works when they have no existing attribution (no affiliate, no referrer) —
+    // referral codes, by contrast, can't be applied retroactively. Returns
+    // { ok, reason }.
+    async applyAffiliateCodeForUser(userId, code) {
+      return tx(async (c) => {
+        const u = await c.query("select affiliate_id, referred_by from users where id = $1 for update", [userId]);
+        if (u.rows[0]?.affiliate_id) return { ok: false, reason: "already_affiliated" };
+        if (u.rows[0]?.referred_by) return { ok: false, reason: "has_referrer" };
+        const ok = await applyAffiliateCode(c, userId, code);
+        return { ok, reason: ok ? null : "invalid_code" };
+      });
+    },
+
+    // Admin: every application, pending first, with the applicant's email and
+    // live attributed/credited stats.
+    async listAffiliateApplications() {
+      const { rows } = await pool.query(
+        `select a.id, a.status, a.code, u.email,
+                a.instagram_handle, a.instagram_followers,
+                a.linkedin_handle, a.linkedin_followers,
+                a.twitter_handle, a.twitter_followers,
+                a.reward_bps, a.cap_millicents, a.credited_millicents,
+                a.review_note, a.created_at, a.approved_at,
+                (select count(*)::int from affiliate_attributions aa where aa.affiliate_id = a.id) as attributed_count
+           from affiliates a join users u on u.id = a.user_id
+          order by case a.status when 'pending' then 0 when 'approved' then 1 else 2 end,
+                   a.created_at desc`
+      );
+      return rows;
+    },
+
+    // Admin: approve an application, minting a shareable code on first approval.
+    // The code shares the referral alphabet but must not collide with an
+    // existing referral or affiliate code (so signup resolution stays
+    // unambiguous). Idempotent — re-approving keeps the same code.
+    async approveAffiliate(affiliateId) {
+      const existing = await pool.query("select code from affiliates where id = $1", [affiliateId]);
+      if (!existing.rows[0]) return null;
+      let code = existing.rows[0].code;
+      if (!code) {
+        for (let i = 0; i < 8; i++) {
+          const cand = generateReferralCode();
+          const clash = await pool.query(
+            `select 1 from users where upper(referral_code) = $1
+             union all select 1 from affiliates where upper(code) = $1`,
+            [cand]
+          );
+          if (clash.rows[0]) continue;
+          try {
+            const r = await pool.query(
+              "update affiliates set code = $2 where id = $1 and code is null returning code",
+              [affiliateId, cand]
+            );
+            if (r.rows[0]) { code = r.rows[0].code; break; }
+            const re = await pool.query("select code from affiliates where id = $1", [affiliateId]);
+            if (re.rows[0]?.code) { code = re.rows[0].code; break; }
+          } catch (err) {
+            if (err.code === "23505") continue;
+            throw err;
+          }
+        }
+        if (!code) throw new Error("could not allocate affiliate code");
+      }
+      const upd = await pool.query(
+        `update affiliates set status = 'approved', approved_at = coalesce(approved_at, now()),
+            review_note = null where id = $1 returning id`,
+        [affiliateId]
+      );
+      return upd.rows[0] ? { id: affiliateId, code } : null;
+    },
+
+    // Admin: reject an application with an optional note.
+    async rejectAffiliate(affiliateId, note) {
+      const { rows } = await pool.query(
+        "update affiliates set status = 'rejected', review_note = $2 where id = $1 returning id",
+        [affiliateId, note || null]
+      );
+      return rows[0] || null;
     },
 
     async recordPayout(userId, amountCents, transferId) {

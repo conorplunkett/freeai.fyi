@@ -135,7 +135,7 @@ function showSection(name) {
     tab.classList.toggle("active", on);
     tab.setAttribute("aria-selected", on ? "true" : "false");
   });
-  if (name === "referrals") loadReferrals();
+  if (name === "referrals") { loadReferrals(); loadAffiliate(); }
   if (name === "ledger" && activityRows === null) retrieveActivity();
 }
 
@@ -220,20 +220,99 @@ $("ref-invite-form").addEventListener("submit", async (e) => {
   }
 });
 
-$("ref-copy").addEventListener("click", async () => {
-  const link = $("ref-link").value;
+$("ref-copy").addEventListener("click", () => copyFrom("ref-link", "ref-copy"));
+
+// ---- affiliate codes (a separate, application-gated program) ----
+// One block, four states driven by the application status: not-applied (the
+// apply form), pending, rejected, approved (code + link + stats). The "have an
+// affiliate code?" form is shown only while the account has no attribution.
+async function loadAffiliate() {
+  const { status, body } = await apiGet("/v1/web/affiliate");
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status !== 200) return;
+  $("affiliate-block").hidden = false;
+  $("aff-have-code").hidden = !body.canApplyCode;
+  const app = body.application;
+  const show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
+  show("aff-apply-form", !app);
+  show("aff-pending", !!app && app.status === "pending");
+  show("aff-rejected", !!app && app.status === "rejected");
+  show("aff-approved", !!app && app.status === "approved");
+  $("aff-cap").textContent = usdWhole(app?.capUsd ?? 1000);
+  if (app && app.status === "approved") {
+    $("aff-link").value = app.link || "";
+    $("aff-users").textContent = app.attributedCount || 0;
+    $("aff-earned").textContent = usd(app.creditedUsd || 0);
+    const remaining = Math.max(0, (app.capUsd || 0) - (app.creditedUsd || 0));
+    $("aff-remaining").textContent = usd(remaining);
+  }
+}
+
+function setMsg(id, text, kind) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text || "";
+  el.hidden = !text;
+  el.className = "ref-invite-msg" + (kind ? ` ${kind}` : "");
+}
+
+// Submit an affiliate application. Mirror the server rule client-side: at least
+// one handle, and a follower count for every handle filled in.
+$("aff-apply-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const v = (id) => ($(id).value || "").trim();
+  const payload = {
+    instagram: v("aff-ig"), instagramFollowers: v("aff-ig-f"),
+    linkedin: v("aff-li"), linkedinFollowers: v("aff-li-f"),
+    twitter: v("aff-tw"), twitterFollowers: v("aff-tw-f"),
+  };
+  const pairs = [["aff-ig", "aff-ig-f"], ["aff-li", "aff-li-f"], ["aff-tw", "aff-tw-f"]];
+  const filled = pairs.filter(([h]) => v(h));
+  if (!filled.length) { setMsg("aff-apply-msg", "Add at least one social handle.", "err"); return; }
+  if (filled.some(([, f]) => !v(f))) { setMsg("aff-apply-msg", "Add a follower count for each handle.", "err"); return; }
+  const btn = $("aff-apply-btn");
+  btn.disabled = true;
+  setMsg("aff-apply-msg", "Submitting…", "");
+  const { status, body } = await apiPost("/v1/web/affiliate/apply", payload);
+  btn.disabled = false;
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status === 200) { setMsg("aff-apply-msg", "Application submitted — we'll be in touch.", "ok"); loadAffiliate(); }
+  else setMsg("aff-apply-msg", (body && body.error) || "Couldn't submit that. Try again.", "err");
+});
+
+// Retroactively attach an affiliate code to your account.
+$("aff-code-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const code = ($("aff-code-input").value || "").trim();
+  if (!code) return;
+  const btn = $("aff-code-btn");
+  btn.disabled = true;
+  setMsg("aff-code-msg", "Applying…", "");
+  const { status, body } = await apiPost("/v1/web/affiliate-code", { code });
+  btn.disabled = false;
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status === 200) { setMsg("aff-code-msg", "Affiliate code applied to your account.", "ok"); $("aff-code-input").value = ""; loadAffiliate(); }
+  else setMsg("aff-code-msg", (body && body.error) || "Couldn't apply that code.", "err");
+});
+
+$("aff-copy").addEventListener("click", () => copyFrom("aff-link", "aff-copy"));
+
+// Copy a readonly input's value to the clipboard, flashing the button label.
+async function copyFrom(inputId, btnId) {
+  const input = $(inputId);
+  const link = input && input.value;
   if (!link) return;
   try {
     await navigator.clipboard.writeText(link);
   } catch {
-    $("ref-link").select();
+    input.select();
     try { document.execCommand("copy"); } catch {}
   }
-  const btn = $("ref-copy");
+  const btn = $(btnId);
   const old = btn.textContent;
   btn.textContent = "Copied!";
   setTimeout(() => (btn.textContent = old), 1500);
-});
+}
 
 // ---- auth card steps ----
 function showError(msg) {

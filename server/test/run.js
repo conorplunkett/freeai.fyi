@@ -624,6 +624,121 @@ const fakeMailer = {
       "rewarded");
   });
 
+  // ---------- affiliates ----------
+  await check("affiliate program: apply → admin approve → 10% of an affiliated user's earnings, capped", async () => {
+    // application validation: at least one handle, a follower count per handle
+    const affSess = await loginVia("affiliate@example.com");
+    assert.strictEqual(
+      (await api("POST", "/v1/web/affiliate/apply", {}, { Authorization: `Bearer ${affSess}` })).status,
+      400, "no handles rejected");
+    assert.strictEqual(
+      (await api("POST", "/v1/web/affiliate/apply", { instagram: "creator" }, { Authorization: `Bearer ${affSess}` })).status,
+      400, "handle without a follower count rejected");
+
+    const applied = await api("POST", "/v1/web/affiliate/apply",
+      { instagram: "@creator", instagramFollowers: "120,000", twitter: "creator", twitterFollowers: 8000 },
+      { Authorization: `Bearer ${affSess}` });
+    assert.strictEqual(applied.status, 200);
+    assert.strictEqual(applied.body.status, "pending");
+    // one application per user
+    assert.strictEqual(
+      (await api("POST", "/v1/web/affiliate/apply", { instagram: "creator", instagramFollowers: 1 }, { Authorization: `Bearer ${affSess}` })).status,
+      409, "duplicate application rejected");
+
+    let dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` });
+    assert.strictEqual(dash.body.application.status, "pending");
+    assert.strictEqual(dash.body.application.code, null);
+
+    // admin sees it pending and approves → a code is minted
+    const list = await api("GET", "/v1/admin/affiliates", undefined, { "X-Admin-Key": "test-admin" });
+    const appRow = list.body.affiliates.find((a) => a.email === "affiliate@example.com");
+    assert.ok(appRow && appRow.status === "pending");
+    assert.strictEqual(appRow.instagram_followers, 120000, "comma-formatted follower count parsed");
+    const approved = await api("POST", "/v1/admin/affiliates/approve", { adminKey: "test-admin", affiliateId: appRow.id });
+    assert.strictEqual(approved.status, 200);
+    const code = approved.body.code;
+    assert.ok(/^[A-Z0-9]{8}$/.test(code), "affiliate code is 8 chars");
+    const affId = appRow.id;
+
+    dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` });
+    assert.strictEqual(dash.body.application.status, "approved");
+    assert.strictEqual(dash.body.application.code, code);
+    assert.strictEqual(dash.body.application.link, `https://freeai.fyi/redeem.html?ref=${code}`);
+
+    // a new user signs up WITH the affiliate code → attributed to the affiliate,
+    // and that attribution is mutually exclusive with referrals (no referred_by)
+    const userSess = await loginVia("affuser@example.com", code);
+    const affUserId = await userId("affuser@example.com");
+    const urow = (await poolNs.query("select affiliate_id, referred_by from users where id = $1", [affUserId])).rows[0];
+    assert.strictEqual(urow.affiliate_id, affId);
+    assert.strictEqual(urow.referred_by, null, "affiliate and referral attribution are mutually exclusive");
+    assert.strictEqual(
+      (await poolNs.query("select count(*)::int n from affiliate_attributions where affiliated_user_id = $1", [affUserId])).rows[0].n,
+      1);
+
+    // the affiliated user earns on a linked device → the affiliate accrues 10%.
+    // The device must be linked before earning, since accrual happens at ingest.
+    const camp = await api("POST", "/v1/checkout", {
+      email: "adv@aff.co", adLine: "affiliate funded campaign", url: "https://example.com/",
+      brand: "AffCo", pricePerBlock: 5, blocks: 5,
+    });
+    await payWebhook(camp.body.campaignId);
+    await approve(camp.body.campaignId);
+    const dev = (await api("POST", "/v1/devices/register")).body;
+    await api("POST", "/v1/auth/request-link", { ...dev, email: "affuser@example.com" });
+    await api("GET", mailbox.at(-1).link.replace(base, ""));
+    await api("POST", "/v1/events", { ...dev, batchKey: "baff", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+
+    // dev keeps 90% ($4.50); affiliate earns 10% of that dev credit ($0.45)
+    assert.strictEqual((await repo.balanceForUser(affUserId)).balanceMillicents, 450000, "affiliated user keeps 100% of their earnings");
+    assert.strictEqual(
+      (await repo.balanceForUser(await userId("affiliate@example.com"))).balanceMillicents, 45000,
+      "affiliate earns 10% as a platform-funded bonus");
+
+    // cap: lower the cap just above the current total; further earnings clamp
+    await poolNs.query("update affiliates set cap_millicents = 50000 where id = $1", [affId]);
+    await api("POST", "/v1/events", { ...dev, batchKey: "baff2", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    assert.strictEqual(
+      (await repo.balanceForUser(await userId("affiliate@example.com"))).balanceMillicents, 50000,
+      "affiliate credit clamps to the cap");
+  });
+
+  await check("affiliate codes apply retroactively; referred users can't; self/unknown codes rejected", async () => {
+    const affSess = await loginVia("aff2@example.com");
+    await api("POST", "/v1/web/affiliate/apply", { linkedin: "aff-two", linkedinFollowers: 5000 }, { Authorization: `Bearer ${affSess}` });
+    const row = (await api("GET", "/v1/admin/affiliates", undefined, { "X-Admin-Key": "test-admin" }))
+      .body.affiliates.find((a) => a.email === "aff2@example.com");
+    const code = (await api("POST", "/v1/admin/affiliates/approve", { adminKey: "test-admin", affiliateId: row.id })).body.code;
+
+    // an existing user with no attribution attaches the code retroactively
+    const lateSess = await loginVia("late@example.com");
+    assert.strictEqual((await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${lateSess}` })).status, 200);
+    assert.strictEqual(
+      (await poolNs.query("select affiliate_id from users where id = $1", [await userId("late@example.com")])).rows[0].affiliate_id,
+      row.id);
+    // re-applying once attributed is rejected
+    assert.strictEqual(
+      (await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${lateSess}` })).body.reason,
+      "already_affiliated");
+
+    // a referred user can't add an affiliate code (referral attribution is one-way)
+    const refSess = await loginVia("refholder@example.com");
+    const refCode = (await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${refSess}` })).body.code;
+    const referredSess = await loginVia("referred-then-aff@example.com", refCode);
+    const blocked = await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${referredSess}` });
+    assert.strictEqual(blocked.status, 400);
+    assert.strictEqual(blocked.body.reason, "has_referrer");
+
+    // an affiliate can't self-apply their own code, and unknown codes are rejected
+    assert.strictEqual(
+      (await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${affSess}` })).body.reason,
+      "invalid_code", "can't self-apply your own affiliate code");
+    const freshSess = await loginVia("fresh-aff@example.com");
+    assert.strictEqual(
+      (await api("POST", "/v1/web/affiliate-code", { code: "ZZZZZZZZ" }, { Authorization: `Bearer ${freshSess}` })).body.reason,
+      "invalid_code");
+  });
+
   // ---------- earnings dashboard + activity ledger ----------
   await check("web earnings endpoint reports today / month / lifetime and a chart series", async () => {
     const sess = await loginVia("earn@example.com");

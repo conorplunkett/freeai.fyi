@@ -9,6 +9,38 @@ const { GIFT_PLANS, GIFT_MONTHS, giftPriceCents } = require("./giftcards");
 const { runPayouts } = require("./payouts");
 const { escapeHtml, isCleanAdLine, normalizeHexColor } = require("./util");
 
+// Validate + normalize an affiliate application's socials. At least one of
+// Instagram / LinkedIn / Twitter is required, and every handle provided must
+// carry a non-negative follower count. Handles are trimmed, '@'-stripped, and
+// length-bounded. Returns { socials } or { error }.
+function parseAffiliateSocials(body) {
+  const b = body || {};
+  const handle = (v) => {
+    const s = String(v ?? "").trim().replace(/^@+/, "").slice(0, 60);
+    return s || null;
+  };
+  const platforms = [
+    ["instagram", "instagramFollowers", "Instagram"],
+    ["linkedin", "linkedinFollowers", "LinkedIn"],
+    ["twitter", "twitterFollowers", "Twitter"],
+  ];
+  const socials = {};
+  let any = false;
+  for (const [hKey, fKey, label] of platforms) {
+    const h = handle(b[hKey]);
+    socials[hKey] = h;
+    socials[fKey] = null;
+    if (!h) continue;
+    any = true;
+    const raw = b[fKey];
+    const n = typeof raw === "number" ? raw : parseInt(String(raw ?? "").replace(/[,\s]/g, ""), 10);
+    if (!Number.isFinite(n) || n < 0) return { error: `${label} follower count is required` };
+    socials[fKey] = Math.floor(n);
+  }
+  if (!any) return { error: "add at least one social handle (Instagram, LinkedIn, or Twitter)" };
+  return { socials };
+}
+
 function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   // Killswitch: when off, /v1/config tells extensions to stop serving and
   // /v1/ads returns an empty list (covers older extensions that never check
@@ -605,6 +637,60 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
   });
 
+  // ---------- affiliate program ----------
+  // The caller's affiliate state: their application + program terms (if any),
+  // and whether they can still attach an affiliate code to their account.
+  route("GET", "/v1/web/affiliate", async (req, res, body, rawBody, query) => {
+    const user = await repo.userForSession(sessionFrom(req, body, query));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const data = await repo.affiliateForUser(user.id);
+    const app = data.application;
+    json(res, 200, {
+      application: app ? {
+        status: app.status,
+        code: app.code,
+        link: app.code ? `${config.siteUrl}/redeem.html?ref=${app.code}` : null,
+        socials: app.socials,
+        rewardPct: app.rewardBps / 100,
+        capUsd: app.capMillicents / 100000,
+        creditedUsd: app.creditedMillicents / 100000,
+        attributedCount: app.attributedCount,
+        createdAt: app.createdAt,
+      } : null,
+      attributed: data.attributed,
+      hasReferrer: data.hasReferrer,
+      canApplyCode: !data.attributed && !data.hasReferrer,
+    });
+  });
+
+  // Apply to join the affiliate program (social handles + follower counts).
+  route("POST", "/v1/web/affiliate/apply", async (req, res, body) => {
+    const user = await repo.userForSession(sessionFrom(req, body));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const parsed = parseAffiliateSocials(body);
+    if (parsed.error) return json(res, 400, { error: parsed.error });
+    const created = await repo.submitAffiliateApplication(user.id, parsed.socials);
+    if (!created) return json(res, 409, { error: "you've already applied" });
+    json(res, 200, { ok: true, status: created.status });
+  });
+
+  // Retroactively attach an affiliate code to your own account. Allowed only
+  // when you have no existing attribution; referral codes can't be applied here.
+  route("POST", "/v1/web/affiliate-code", async (req, res, body) => {
+    const user = await repo.userForSession(sessionFrom(req, body));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const code = String(body?.code || "").trim();
+    if (!code) return json(res, 400, { error: "code required" });
+    const result = await repo.applyAffiliateCodeForUser(user.id, code);
+    if (result.ok) return json(res, 200, { ok: true });
+    const msg = {
+      already_affiliated: "your account already has an affiliate code",
+      has_referrer: "your account was referred, so an affiliate code can't be added",
+      invalid_code: "that affiliate code isn't valid",
+    }[result.reason] || "couldn't apply that code";
+    json(res, 400, { error: msg, reason: result.reason });
+  });
+
   route("POST", "/v1/web/redemptions", async (req, res, body) => {
     const user = await repo.userForSession(sessionFrom(req, body));
     if (!user) return json(res, 401, { error: "not signed in" });
@@ -688,6 +774,24 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       console.error("[freeai] rejection email failed:", err.message);
     }
     json(res, 200, { ok: true, refunded: !!result.paymentIntentId });
+  });
+
+  // ---------- affiliate review ----------
+  route("GET", "/v1/admin/affiliates", async (req, res, body, rawBody, query) => {
+    if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
+    json(res, 200, { affiliates: await repo.listAffiliateApplications() });
+  });
+
+  route("POST", "/v1/admin/affiliates/approve", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    const result = await repo.approveAffiliate(body.affiliateId);
+    json(res, result ? 200 : 404, result ? { ok: true, code: result.code } : { ok: false });
+  });
+
+  route("POST", "/v1/admin/affiliates/reject", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    const result = await repo.rejectAffiliate(body.affiliateId, body.note);
+    json(res, result ? 200 : 404, { ok: !!result });
   });
 
   // Minimal moderation UI. Admin key passed in the query; ad lines are escaped.

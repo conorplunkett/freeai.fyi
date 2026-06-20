@@ -239,8 +239,62 @@ alter table ledger add constraint ledger_entry_type_check check (entry_type in (
   'platform_fee',        -- our 10%                                  (+ platform)
   'payout_debit',        -- transferred to developer's bank          (- user)
   'gift_redemption_debit', -- redeemed for a Claude gift card        (- device)
-  'referral_credit'      -- $20 bonus for a qualified referral        (+ user)
+  'referral_credit',     -- $20 bonus for a qualified referral        (+ user)
+  'affiliate_credit'     -- 10% of an affiliated user's earnings      (+ user)
 ));
+
+-- ── Affiliates ───────────────────────────────────────────────────────────────
+-- A separate, application-gated program (distinct from referrals). A user
+-- applies to become an affiliate by submitting their social handles + follower
+-- counts; an admin reviews and approves, which mints a shareable affiliate code.
+-- When a user signs up with — or retroactively applies — an affiliate code, the
+-- affiliate earns 10% of that user's ad earnings as platform-funded bonus credits
+-- (affiliate_credit), accrued continuously up to a per-affiliate cap. Affiliate
+-- and referral attribution are mutually exclusive on a given user.
+create table if not exists affiliates (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) unique,   -- the applicant
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')),
+  code text unique,                                     -- minted on approval, null until then
+  instagram_handle text,
+  instagram_followers integer check (instagram_followers is null or instagram_followers >= 0),
+  linkedin_handle text,
+  linkedin_followers integer check (linkedin_followers is null or linkedin_followers >= 0),
+  twitter_handle text,
+  twitter_followers integer check (twitter_followers is null or twitter_followers >= 0),
+  reward_bps integer not null default 1000,             -- the affiliate's cut, basis points (1000 = 10%)
+  cap_millicents bigint not null default 100000000,     -- $1,000 total credits per affiliate
+  credited_millicents bigint not null default 0,        -- running total, the cheap/atomic cap check
+  review_note text,
+  created_at timestamptz not null default now(),
+  approved_at timestamptz,
+  -- at least one social handle, and any handle provided carries a follower count
+  constraint affiliates_handle_present check (
+    instagram_handle is not null or linkedin_handle is not null or twitter_handle is not null
+  ),
+  constraint affiliates_followers_present check (
+    (instagram_handle is null or instagram_followers is not null) and
+    (linkedin_handle  is null or linkedin_followers  is not null) and
+    (twitter_handle   is null or twitter_followers   is not null)
+  )
+);
+create index if not exists affiliates_status_idx on affiliates (status);
+
+-- The affiliate this user is attributed to. Lives on users like referred_by, and
+-- is mutually exclusive with it — a signup resolves to one or the other. Set at
+-- signup or applied retroactively (referral codes can't be applied retroactively).
+alter table users add column if not exists affiliate_id uuid references affiliates(id);
+
+-- One row per attributed user (parallel to referrals); powers the affiliate's
+-- "users referred" count. Unique on the user so attribution is one-time.
+create table if not exists affiliate_attributions (
+  id uuid primary key default gen_random_uuid(),
+  affiliate_id uuid not null references affiliates(id),
+  affiliated_user_id uuid not null references users(id) unique,
+  created_at timestamptz not null default now()
+);
+create index if not exists affiliate_attributions_affiliate_idx on affiliate_attributions (affiliate_id);
 
 -- ── Waitlists ────────────────────────────────────────────────────────────────
 -- Users can join a waitlist to be notified when ads launch on a surface that
