@@ -101,6 +101,7 @@ td.wrap { white-space: normal; max-width: 320px; }
 .badge.pending_review, .badge.pending, .badge.pending_payment { background: #fff6e6; color: #8a5a00; }
 .badge.rejected, .badge.cancelled, .badge.failed, .badge.capped { background: var(--err-bg); color: var(--err-fg); }
 .badge.exhausted { background: var(--bg-tint); color: var(--ink-2); }
+.badge.tool { background: rgba(var(--accent-rgb), .12); color: var(--accent-d); text-transform: none; }
 
 /* ── inputs ── */
 input[type=text], input[type=number], input[type=search], select {
