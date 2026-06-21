@@ -85,7 +85,7 @@ const C = {
 // ── The card markup. Fixed at exactly the OpenGraph canonical size, 1200×630
 // (1.91:1). All variants share one layout + palette; only the eyebrow + headline
 // + subhead copy change, so every preview is unmistakably the same product. ──
-const cardHtml = ({ eyebrow, h1, sub }) => `<!doctype html><html><head><meta charset="utf-8">
+const cardHtml = ({ eyebrow, h1, sub, demo = true }) => `<!doctype html><html><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -147,6 +147,12 @@ const cardHtml = ({ eyebrow, h1, sub }) => `<!doctype html><html><head><meta cha
     font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 18px;
   }
   .arrow { font-size: 40px; color: ${C.accent}; font-weight: 800; align-self: center; margin-top: 18px; }
+
+  /* Demo-less "simple" card: vertically center the headline block instead of
+     anchoring it to the top, so it reads as deliberate, not top-heavy. */
+  .mid { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .mid .eyebrow, .mid h1 { margin-top: 0; }
+  .mid .eyebrow { margin-bottom: 14px; }
 </style></head>
 <body>
   <div class="frame"></div>
@@ -156,7 +162,9 @@ const cardHtml = ({ eyebrow, h1, sub }) => `<!doctype html><html><head><meta cha
       <div class="wordmark">FreeAI.fyi</div>
       <div class="domain">freeai.fyi</div>
     </div>
-
+${
+  demo
+    ? `
     ${eyebrow ? `<div class="eyebrow">${eyebrow}</div>` : ""}
     <h1 class="${eyebrow ? "with-eyebrow" : ""}">${h1}</h1>
     <p class="sub">${sub}</p>
@@ -171,7 +179,14 @@ const cardHtml = ({ eyebrow, h1, sub }) => `<!doctype html><html><head><meta cha
         <div class="label">With FreeAI</div>
         <div class="pill"><span class="chip">R</span> <span class="line">Ramp · Spend smarter</span></div>
       </div>
-    </div>
+    </div>`
+    : `
+    <div class="mid">
+      ${eyebrow ? `<div class="eyebrow">${eyebrow}</div>` : ""}
+      <h1>${h1}</h1>
+      ${sub ? `<p class="sub">${sub}</p>` : ""}
+    </div>`
+}
   </div>
 </body></html>`;
 
@@ -187,9 +202,10 @@ const CARDS = [
   },
   {
     file: "og-referral.png",
+    demo: false,
     eyebrow: "A friend invited you",
     h1: `Get a <span class="pop">free month</span> of Claude.`,
-    sub: `Install the free extension and keep using the AI you already use — a tiny sponsored line turns into <b>your Claude credits</b>.`,
+    sub: `Free to start — keep using the AI you already use.`,
   },
 ];
 
