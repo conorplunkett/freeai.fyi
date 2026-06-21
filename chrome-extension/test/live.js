@@ -229,82 +229,107 @@ async function main() {
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });
     });
 
-    // Build Gemini's REAL dots-only structure: the dots are nested deep inside
-    // <model-response>, inside an absolutely-positioned <thinking-overlay>
-    // whose in-flow parent is collapsed (height 0) — which is exactly what
-    // dropped the bar to the page bottom when we anchored on the dots.
-    const buildGeminiDots = () => {
+    // Build Gemini's REAL spinner-stage structure (captured live in Chrome).
+    // Each Q&A turn is a `.conversation-container` wrapping a <user-query> and a
+    // <model-response>. While the model is only showing its loading spinner the
+    // ACTIVE turn is a <pending-request class="conversation-container"> that
+    // holds the new <user-query> but NO <model-response> yet — so the only
+    // <model-response> in the DOM is the PREVIOUS (stale) turn. A document-order
+    // pick lands the bar in that stale turn, ABOVE the newest user message. The
+    // real loader (<chat-loading-animation>) is a detached, absolutely-
+    // positioned page-level overlay — NOT inside the turn — so we can't climb
+    // from it; we climb from the newest <user-query> to its turn instead.
+    const buildGeminiSpinnerStage = () => {
+      const existing = document.querySelector('[data-message-author-role="assistant"]');
+      if (existing) existing.remove();
       window.setGenerating(false);
-      document.querySelector('[data-message-author-role="assistant"]').remove();
       const msgs = document.getElementById("messages");
-      // an OLDER, completed turn — its model-response is the LAST in the DOM
-      // (Gemini keeps several around). The bar must NOT anchor here.
-      const newestUser = document.createElement("div");
+      msgs.innerHTML = "";
+      // a COMPLETED earlier turn — holds the only <model-response> in the DOM.
+      const prev = document.createElement("div");
+      prev.className = "conversation-container";
+      prev.id = "gem-prev-turn";
+      const prevUser = document.createElement("user-query");
+      prevUser.textContent = "first question";
+      const staleMr = document.createElement("model-response");
+      staleMr.id = "gem-stale-mr";
+      staleMr.textContent = "first answer (completed earlier)";
+      prev.appendChild(prevUser);
+      prev.appendChild(staleMr);
+      // the ACTIVE turn during the spinner stage: a <pending-request> carrying
+      // the .conversation-container class, holding the new <user-query> but no
+      // <model-response> yet.
+      const active = document.createElement("pending-request");
+      active.className = "conversation-container";
+      active.id = "gem-active-turn";
+      const newestUser = document.createElement("user-query");
       newestUser.id = "gem-newest-user";
-      newestUser.textContent = "newest user message";
-      // the ACTIVE turn's model-response, holding the live dots
-      const mr = document.createElement("model-response");
-      mr.id = "gem-mr";
-      const content = document.createElement("div"); // response-content (collapsed)
-      content.id = "gem-content";
-      const overlay = document.createElement("thinking-overlay");
-      overlay.style.position = "absolute"; // out of flow, like the real overlay
-      const dots = document.createElement("thinking-dots-animation");
-      dots.id = "gem-dots";
-      dots.style.cssText = "display:block;width:28px;height:28px"; // real dots are visible (28×28)
-      dots.innerHTML = '<div class="thinking-dots-animation" style="width:28px;height:28px"></div>';
-      overlay.appendChild(dots);
-      content.appendChild(overlay);
-      mr.appendChild(content);
-      // a TRAILING empty model-response → reproduces "active turn is not last"
-      const trailing = document.createElement("model-response");
-      trailing.id = "gem-mr-trailing";
-      msgs.appendChild(newestUser);
-      msgs.appendChild(mr);
-      msgs.appendChild(trailing);
+      newestUser.textContent = "newest question";
+      active.appendChild(newestUser);
+      // the detached page-level loader overlay (not inside any turn)
+      const overlay = document.createElement("chat-loading-animation");
+      overlay.style.cssText = "position:absolute;top:100px;left:0";
+      // a visible Stop button is what flags generation (drives isThinking)
+      const stop = document.createElement("button");
+      stop.id = "gem-stop";
+      stop.setAttribute("aria-label", "Stop response");
+      stop.textContent = "Stop";
+      msgs.appendChild(prev);
+      msgs.appendChild(active);
+      msgs.appendChild(overlay);
+      document.getElementById("composer").appendChild(stop);
     };
 
-    await check("Gemini dots in a NON-last model-response ⇒ bar anchors to the dots' turn", async () => {
-      await page.evaluate(buildGeminiDots);
+    await check("Gemini spinner stage (no <model-response> yet) ⇒ bar anchors to the active turn, below the newest user message — not the stale turn", async () => {
+      await page.evaluate(buildGeminiSpinnerStage);
       await page.waitForFunction(() => {
-        const mr = document.getElementById("gem-mr");
-        const trailing = document.getElementById("gem-mr-trailing");
+        const active = document.getElementById("gem-active-turn");
+        const stale = document.getElementById("gem-stale-mr");
+        const newestUser = document.getElementById("gem-newest-user");
         const b = document.querySelector(".bb-bar.bb-show");
-        const dots = document.getElementById("gem-dots");
         return (
-          b &&
-          dots &&
-          mr.contains(b) &&                  // the ACTIVE (dots') turn
-          !trailing.contains(b) &&           // NOT the stale last model-response
-          mr.lastElementChild === b &&       // sits at the end of the reply
-          !!(dots.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) // below the dots
+          b && active && stale && newestUser &&
+          active.contains(b) &&              // the ACTIVE (newest user's) turn
+          !stale.contains(b) &&             // NOT the stale prior model-response
+          active.lastElementChild === b &&  // sits at the end of the turn
+          !!(newestUser.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) // below the user msg
         );
       }, { timeout: 5000 });
     });
 
-    await check("Gemini dots+text ⇒ bar stays model-response's last child, below the text", async () => {
-      // the first thinking line streams into the same response, above the bar
+    await check("Gemini stream stage (turn swaps to a real .conversation-container) ⇒ bar stays in the active turn, below the reply", async () => {
+      // Gemini replaces the <pending-request> with a real .conversation-container
+      // and streams the answer into a <model-response> inside it.
       await page.evaluate(() => {
-        const label = document.createElement("span");
-        label.id = "gem-label";
-        label.textContent = "Interpreting the input";
-        document.getElementById("gem-content").appendChild(label);
+        const old = document.getElementById("gem-active-turn");
+        const real = document.createElement("div");
+        real.className = "conversation-container";
+        real.id = "gem-active-turn-real";
+        const u = document.createElement("user-query");
+        u.id = "gem-newest-user";
+        u.textContent = "newest question";
+        const mr = document.createElement("model-response");
+        mr.id = "gem-active-mr";
+        mr.textContent = "streaming the answer…";
+        real.appendChild(u);
+        real.appendChild(mr);
+        old.replaceWith(real);
       });
       await page.waitForFunction(() => {
-        const mr = document.getElementById("gem-mr");
-        const b = mr.querySelector(".bb-bar.bb-show");
-        const label = document.getElementById("gem-label");
+        const turn = document.getElementById("gem-active-turn-real");
+        const mr = document.getElementById("gem-active-mr");
+        const b = turn && turn.querySelector(".bb-bar.bb-show");
         return (
-          b &&
-          mr.lastElementChild === b &&
-          !!(label.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+          b && mr &&
+          turn.lastElementChild === b &&     // still the turn's last child
+          !!(mr.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) // below the reply
         );
-      }, { timeout: 3000 });
+      }, { timeout: 5000 });
+      // restore the ChatGPT-style reply for the rest of the checks
       await page.evaluate(() => {
-        for (const id of ["gem-mr", "gem-mr-trailing", "gem-newest-user"]) {
-          const n = document.getElementById(id);
-          if (n) n.remove();
-        }
+        document.getElementById("messages").innerHTML = "";
+        const stop = document.getElementById("gem-stop");
+        if (stop) stop.remove();
         window.setGenerating(true);
       });
       await page.waitForSelector('[data-message-author-role="assistant"] .bb-bar.bb-show', { timeout: 5000 });

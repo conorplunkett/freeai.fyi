@@ -59,12 +59,13 @@
     "div[data-test-render-count]",            // Claude — assistant turn container
     '[data-message-author-role="assistant"]', // ChatGPT
     ".result-streaming",                      // ChatGPT (older)
-    // Gemini — the per-turn <model-response> wraps the thinking dots and the
-    // streamed reply, so the bar as its last child lands below both. This is
-    // only a FALLBACK: Gemini keeps many model-responses around and the active
-    // one is often not the last in the DOM, so findAnchor() prefers the
-    // model-response that actually contains the live dots (see below).
-    "model-response",                         // Gemini
+    // Gemini — last-resort only. findAnchor() handles Gemini by climbing from
+    // the newest <user-query> to its `.conversation-container` (the active
+    // turn); this bare <model-response> is reached only if that fails. Gemini
+    // keeps many model-responses around and the active one is often not last in
+    // the DOM, so a document-order pick here can land the bar in a stale turn —
+    // which is exactly why the .conversation-container path runs first.
+    "model-response",                         // Gemini (fallback)
   ];
 
   let ads = [];
@@ -125,35 +126,28 @@
   // tick because these apps re-render aggressively (React may evict us) and
   // the anchor often appears a beat after the Stop button.
   let anchorEl = null;
-  // Last visible element (in document order) matching any of the selectors.
-  function lastVisibleMatch(selectors) {
-    let found = null;
-    for (const sel of selectors) {
-      let els;
-      try { els = document.querySelectorAll(sel); } catch (_) { continue; }
-      for (const el of els) {
-        if (!isVisible(el)) continue;
-        if (
-          !found ||
-          (typeof found.compareDocumentPosition === "function" &&
-            found.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
-        ) {
-          found = el;
-        }
-      }
-    }
-    return found;
-  }
   function findAnchor() {
-    // Gemini: anchor to the <model-response> that actually CONTAINS the live
-    // thinking dots, not the last model-response in the DOM. Gemini keeps
-    // several model-responses around and the generating one is often not last,
-    // so a document-order pick landed the bar in a stale turn ABOVE the newest
-    // user message.
-    const dots = lastVisibleMatch(["thinking-dots-animation", ".thinking-dots-animation"]);
-    if (dots && typeof dots.closest === "function") {
-      const mr = dots.closest("model-response");
-      if (mr) return mr;
+    // Gemini: anchor to the conversation turn that holds the NEWEST user
+    // message, not the last <model-response> in the DOM. Gemini wraps each Q&A
+    // turn in a `.conversation-container`; while the model is only showing its
+    // loading spinner the new turn's <model-response> hasn't rendered yet, so
+    // the only <model-response> present is the PREVIOUS (stale) turn — a
+    // document-order pick lands the bar there, ABOVE the user's newest message.
+    // The turn container and the <user-query> inside it exist from the moment
+    // the prompt is sent (during the spinner stage it's a
+    // <pending-request class="conversation-container">, later swapped for a real
+    // <div class="conversation-container">), so climbing from the last
+    // <user-query> to its `.conversation-container` keeps the bar below the
+    // user's message and below the reply at every stage. (Gemini replaced the
+    // old <thinking-dots-animation> we used to climb from with a detached,
+    // page-level <chat-loading-animation> overlay that isn't inside the turn.)
+    const users = document.querySelectorAll("user-query");
+    if (users.length) {
+      const lastUser = users[users.length - 1];
+      if (lastUser && typeof lastUser.closest === "function") {
+        const turn = lastUser.closest(".conversation-container");
+        if (turn) return turn;
+      }
     }
     // Everything else: collect one candidate per selector, then pick the
     // candidate LATEST in document order (a descendant beats its ancestor).
