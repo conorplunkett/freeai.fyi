@@ -511,13 +511,13 @@ async function renderAffiliates(view) {
       td(affiliateActions(a, () => route(true))),
     ])));
 }
-// Current rate + cap, with a cue for who's base-tier-with-socials (an upgrade
-// request) vs already upgraded. A cap at/above $10M reads as uncapped.
+// Current rate + people cap, with a cue for who's base-tier-with-socials (an
+// upgrade request) vs already upgraded. A cap at/above 100k reads as uncapped.
 function affiliateTier(a) {
   const bps = a.reward_bps ?? 1000;
-  const capMc = Number(a.cap_millicents ?? 100000000);
-  const capLabel = capMc >= 1e12 ? "uncapped" : usd(capMc / 100000);
-  const base = bps === 1000 && capMc === 100000000;
+  const capPeople = Number(a.cap_people ?? 1000);
+  const capLabel = capPeople >= 100000 ? "uncapped" : `${capPeople.toLocaleString()} friends`;
+  const base = bps === 1000 && capPeople === 1000;
   const hasSocials = a.instagram_handle || a.linkedin_handle || a.twitter_handle;
   const label = h("span", {}, `${bps / 100}% · ${capLabel}`);
   if (!base) return h("div", { class: "actions" }, label, h("span", { class: "badge approved" }, "upgraded"));
@@ -550,28 +550,28 @@ function affiliateActions(a, reload) {
   } }, "Reject"));
   return wrap;
 }
-// Grant an influencer upgrade: a custom rate, a raised/uncapped cap, and an
-// optional vanity code. Three quick prompts keep it consistent with the rest of
-// this minimal admin (blank cap = uncapped; blank code keeps the current one).
+// Grant an influencer upgrade: a custom rate, a raised/uncapped people cap, and
+// an optional vanity code. Three quick prompts keep it consistent with the rest
+// of this minimal admin (blank cap = uncapped; blank code keeps the current one).
 async function grantUpgrade(a, reload) {
   const curPct = (a.reward_bps ?? 1000) / 100;
   const pctStr = prompt(`Reward % for ${a.email || "this affiliate"} (0.01–100):`, String(curPct));
   if (pctStr === null) return;
   const pct = parseFloat(pctStr);
   if (!(pct >= 0.01 && pct <= 100)) { toast("Rate must be between 0.01% and 100%", true); return; }
-  const capStr = prompt("Cap in USD — blank or 0 = uncapped:", "");
+  const capStr = prompt("Max friends (people cap) — blank or 0 = uncapped:", "");
   if (capStr === null) return;
   const trimmed = capStr.trim();
-  const capUsd = parseFloat(trimmed);
-  const uncapped = !trimmed || capUsd === 0;
-  if (!uncapped && !(capUsd > 0)) { toast("Cap must be a positive number, or blank for uncapped", true); return; }
-  const capMillicents = uncapped ? 100000000000000 : Math.round(capUsd * 100000);
+  const capNum = parseInt(trimmed, 10);
+  const uncapped = !trimmed || capNum === 0;
+  if (!uncapped && !(capNum > 0)) { toast("Cap must be a positive whole number, or blank for uncapped", true); return; }
+  const capPeople = uncapped ? 1000000000 : capNum;
   const code = (prompt("Custom vanity code — 3–16 A–Z/0–9, blank keeps current:", a.code || "") || "").trim();
   try {
     const r = await api("/v1/admin/affiliates/grant", { method: "POST", body: {
       affiliateId: a.id,
       rewardBps: Math.round(pct * 100),
-      capMillicents,
+      capPeople,
       code: code && code !== (a.code || "") ? code : undefined,
     } });
     toast(`Upgraded — ${r.affiliate.reward_bps / 100}% · code ${r.affiliate.code}`);
@@ -714,7 +714,7 @@ async function renderSettings(view) {
       { k: "Referral reward", v: usd(cfg.referralRewardUsd) },
       { k: "Referral cap / user", v: num(cfg.referralCap) },
       { k: "Affiliate reward share", v: (cfg.affiliateRewardPct ?? 10) + "%" },
-      { k: "Affiliate cap / affiliate", v: usd(cfg.affiliateCapUsd ?? 1000) },
+      { k: "Affiliate cap / affiliate", v: num(cfg.affiliateCapPeople ?? 1000) + " friends" },
       { k: "Gift fulfillment inbox", v: cfg.giftFulfillmentEmail },
     ], (r) => [r.k, r.v]),
     h("p", { class: "hint", style: "margin-top:14px" }, "Claude gift catalog"),

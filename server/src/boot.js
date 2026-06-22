@@ -27,7 +27,7 @@ function loadConfig(env = process.env) {
     referralRewardCents: parseInt(env.REFERRAL_REWARD_CENTS || "2000", 10), // $20 to the referrer
     referralCap: parseInt(env.REFERRAL_CAP || "10", 10), // max rewarded referrals per user
     affiliateRewardBps: parseInt(env.AFFILIATE_REWARD_BPS || "1000", 10), // affiliate's cut of an affiliated user's earnings, basis points (1000 = 10%)
-    affiliateCapCents: parseInt(env.AFFILIATE_CAP_CENTS || "100000", 10), // $1,000 total credits per affiliate
+    affiliateCapPeople: parseInt(env.AFFILIATE_CAP_PEOPLE || "1000", 10), // max attributed friends per affiliate (dollar earnings uncapped)
     giftFulfillmentEmail: env.GIFT_FULFILLMENT_EMAIL || "conor.p43@gmail.com", // manual gift card fulfillment inbox
     emailTokenTtlMs: parseInt(env.EMAIL_TOKEN_TTL_MS || "1800000", 10), // 30 min
     emailCooldownMs: parseInt(env.EMAIL_COOLDOWN_MS || "60000", 10), // min gap between magic-link sends per email; 0 disables

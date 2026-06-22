@@ -55,7 +55,7 @@ function loadConfig() {
     referralRewardCents: parseInt(env("REFERRAL_REWARD_CENTS", "2000"), 10),
     referralCap: parseInt(env("REFERRAL_CAP", "10"), 10),
     affiliateRewardBps: parseInt(env("AFFILIATE_REWARD_BPS", "1000"), 10), // affiliate's cut, basis points (1000 = 10%)
-    affiliateCapCents: parseInt(env("AFFILIATE_CAP_CENTS", "100000"), 10), // $1,000 total credits per affiliate
+    affiliateCapPeople: parseInt(env("AFFILIATE_CAP_PEOPLE", "1000"), 10), // max attributed friends per affiliate (dollar earnings uncapped)
     giftFulfillmentEmail: env("GIFT_FULFILLMENT_EMAIL", "conor.p43@gmail.com"),
     emailTokenTtlMs: parseInt(env("EMAIL_TOKEN_TTL_MS", "1800000"), 10),
     emailCooldownMs: parseInt(env("EMAIL_COOLDOWN_MS", "60000"), 10), // min gap between magic-link sends per email; 0 disables. DB-backed, so it holds even though the in-memory rate limiter is dropped here.
@@ -399,11 +399,17 @@ function createRepo(pool: any) {
     const norm = String(code).trim().toUpperCase();
     if (!norm) return false;
     const a = await client.query(
-      "select id, user_id from affiliates where upper(code) = $1 and status = 'approved'",
+      "select id, user_id, cap_people from affiliates where upper(code) = $1 and status = 'approved' for update",
       [norm]
     );
     const aff = a.rows[0];
     if (!aff || aff.user_id === userId) return false;
+    // People cap: an affiliate can attribute at most cap_people friends.
+    const cnt = await client.query(
+      "select count(*)::int as n from affiliate_attributions where affiliate_id = $1",
+      [aff.id]
+    );
+    if (cnt.rows[0].n >= aff.cap_people) return false;
     const upd = await client.query(
       `update users set affiliate_id = $2
         where id = $1 and affiliate_id is null and referred_by is null
@@ -419,23 +425,25 @@ function createRepo(pool: any) {
     return true;
   }
 
-  // Resolve a signup code against both namespaces. Affiliate codes win (the
-  // application-gated program); anything else falls through to referrals.
+  // Resolve a signup code. The $20 referral program is retired, so a signup code
+  // only ever resolves to an affiliate attribution now; old referral codes no
+  // longer attribute anything (applyReferral is archived/uncalled).
   async function applyCode(client: any, userId: string, code: any) {
     if (!code) return;
     const attributed = await applyAffiliateCode(client, userId, code);
-    if (!attributed) await applyReferral(client, userId, code);
   }
 
-  // Pay an affiliate their cut of an affiliated user's just-earned credits. The
-  // affiliate row is locked FOR UPDATE so the running total can't be raced past
-  // the cap. Platform-funded — the affiliated user keeps 100% of their earnings.
+  // Pay an affiliate their cut of an affiliated user's just-earned credits.
+  // Platform-funded — the affiliated user keeps 100% of their earnings. Dollar
+  // earnings are UNCAPPED now (the cap is people-based, enforced at attribution);
+  // credited_millicents stays as a lifetime "credits earned" tally. The affiliate
+  // row is locked FOR UPDATE to serialize the tally update.
   async function creditAffiliate(client: any, affiliatedUserId: string | null, baseMillicents: any) {
     if (!affiliatedUserId) return;
     const base = BigInt(baseMillicents);
     if (base <= 0n) return;
     const a = await client.query(
-      `select a.id, a.user_id, a.reward_bps, a.cap_millicents, a.credited_millicents
+      `select a.id, a.user_id, a.reward_bps
          from affiliates a
          join users u on u.affiliate_id = a.id
         where u.id = $1 and a.status = 'approved'
@@ -444,10 +452,7 @@ function createRepo(pool: any) {
     );
     const aff = a.rows[0];
     if (!aff) return;
-    const remaining = BigInt(aff.cap_millicents) - BigInt(aff.credited_millicents);
-    if (remaining <= 0n) return;
-    let share = (base * BigInt(aff.reward_bps)) / 10000n;
-    if (share > remaining) share = remaining;
+    const share = (base * BigInt(aff.reward_bps)) / 10000n;
     if (share <= 0n) return;
     await client.query(
       `insert into ledger (entry_type, amount_millicents, user_id, meta)
@@ -1076,7 +1081,8 @@ function createRepo(pool: any) {
            values ('gift_redemption_debit', $1, $2, $3)`,
           [(-costMillicents).toString(), userId, JSON.stringify({ redemptionId: rows[0].id, plan, months })]
         );
-        if (referralRewardMillicents) await maybeRewardReferral(c, userId, referralRewardMillicents, referralCap ?? 10);
+        // The $20 referral program is retired — redeeming no longer rewards any
+        // referrer. (maybeRewardReferral is kept defined but uncalled.)
         return rows[0].id;
       });
     },
@@ -1212,7 +1218,7 @@ function createRepo(pool: any) {
       const a = await pool.query(
         `select id, status, code, instagram_handle, instagram_followers,
                 linkedin_handle, linkedin_followers, twitter_handle, twitter_followers,
-                reward_bps, cap_millicents, credited_millicents, created_at, approved_at
+                reward_bps, cap_millicents, cap_people, credited_millicents, created_at, approved_at
            from affiliates where user_id = $1`,
         [userId]
       );
@@ -1237,6 +1243,7 @@ function createRepo(pool: any) {
           },
           rewardBps: aff.reward_bps,
           capMillicents: Number(aff.cap_millicents),
+          capPeople: Number(aff.cap_people),
           creditedMillicents: Number(aff.credited_millicents),
           attributedCount, createdAt: aff.created_at, approvedAt: aff.approved_at,
         },
@@ -1257,7 +1264,7 @@ function createRepo(pool: any) {
                 a.instagram_handle, a.instagram_followers,
                 a.linkedin_handle, a.linkedin_followers,
                 a.twitter_handle, a.twitter_followers,
-                a.reward_bps, a.cap_millicents, a.credited_millicents,
+                a.reward_bps, a.cap_millicents, a.cap_people, a.credited_millicents,
                 a.review_note, a.created_at, a.approved_at,
                 (select count(*)::int from affiliate_attributions aa where aa.affiliate_id = a.id) as attributed_count
            from affiliates a join users u on u.id = a.user_id
@@ -1341,8 +1348,8 @@ function createRepo(pool: any) {
       return rows[0] || null;
     },
     // Admin grants an influencer upgrade: a custom rate (reward_bps), a raised /
-    // uncapped cap, and optionally a vanity code. Stays 'approved' so the cut
-    // keeps flowing. rewardBps/capMillicents are validated by the route.
+    // uncapped people cap, and optionally a vanity code. Stays 'approved' so the
+    // cut keeps flowing. rewardBps/capPeople are validated by the route.
     async grantAffiliateUpgrade(affiliateId: string, opts: any) {
       const ex = await pool.query("select id, code from affiliates where id = $1", [affiliateId]);
       if (!ex.rows[0]) return { ok: false, error: "not found" };
@@ -1361,10 +1368,10 @@ function createRepo(pool: any) {
       }
       const upd = await pool.query(
         `update affiliates set status = 'approved', approved_at = coalesce(approved_at, now()),
-            reward_bps = $2, cap_millicents = $3, code = coalesce($4, code), review_note = null
+            reward_bps = $2, cap_people = $3, code = coalesce($4, code), review_note = null
           where id = $1
-          returning id, reward_bps, cap_millicents, code`,
-        [affiliateId, opts.rewardBps, String(opts.capMillicents), newCode]
+          returning id, reward_bps, cap_people, code`,
+        [affiliateId, opts.rewardBps, opts.capPeople, newCode]
       );
       return { ok: true, affiliate: upd.rows[0] };
     },
@@ -2412,8 +2419,8 @@ route("GET", "/v1/web/affiliate", async (ctx: any) => {
   await repo.getOrCreateAffiliate(user.id);
   const data = await repo.affiliateForUser(user.id);
   const app = data.application;
-  // Influencer upgrade = a higher rate or a raised cap above the base config.
-  const upgraded = app.rewardBps > config.affiliateRewardBps || app.capMillicents > config.affiliateCapCents * 1000;
+  // Influencer upgrade = a higher rate or a raised people cap above the base config.
+  const upgraded = app.rewardBps > config.affiliateRewardBps || app.capPeople > config.affiliateCapPeople;
   // Upgrade requested = the user attached socials (auto-enrolled rows have none).
   const upgradeRequested = !!(app.socials.instagram || app.socials.linkedin || app.socials.twitter);
   return json(200, {
@@ -2422,7 +2429,7 @@ route("GET", "/v1/web/affiliate", async (ctx: any) => {
     link: app.code ? `${config.siteUrl}/redeem.html?ref=${app.code}` : null,
     socials: app.socials,
     rewardPct: app.rewardBps / 100,
-    capUsd: app.capMillicents / 100000,
+    capPeople: app.capPeople,
     creditedUsd: app.creditedMillicents / 100000,
     attributedCount: app.attributedCount,
     upgraded, upgradeRequested,
@@ -2488,7 +2495,6 @@ route("POST", "/v1/web/redemptions", async (ctx: any) => {
   await mailer.sendGiftRedemptionEmail(config.giftFulfillmentEmail, { redemptionId, planName: plan.name, months, amountUsd: amountCents / 100, recipientEmail });
   const recorded = await repo.recordGiftRedemptionForUser({
     id: redemptionId, userId: user.id, plan: plan.id, months, amountCents, recipientEmail,
-    referralRewardMillicents: config.referralRewardCents * 1000, referralCap: config.referralCap,
   });
   if (!recorded) return json(409, { error: "insufficient credits" });
   const after = await repo.balanceForUser(user.id);
@@ -2561,10 +2567,10 @@ route("POST", "/v1/admin/affiliates/grant", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
   const b = ctx.body || {};
   const rewardBps = Number(b.rewardBps);
-  const capMillicents = Number(b.capMillicents);
+  const capPeople = Number(b.capPeople);
   if (!Number.isInteger(rewardBps) || rewardBps < 1 || rewardBps > 10000) return json(400, { error: "rewardBps must be 1–10000 (0.01%–100%)" });
-  if (!Number.isInteger(capMillicents) || capMillicents < 0) return json(400, { error: "capMillicents must be a whole number ≥ 0" });
-  const result = await repo.grantAffiliateUpgrade(b.affiliateId, { rewardBps, capMillicents, code: b.code });
+  if (!Number.isInteger(capPeople) || capPeople < 0) return json(400, { error: "capPeople must be a whole number ≥ 0" });
+  const result = await repo.grantAffiliateUpgrade(b.affiliateId, { rewardBps, capPeople, code: b.code });
   return json(result.ok ? 200 : (result.error === "not found" ? 404 : 400), result);
 });
 route("GET", "/admin", async (ctx: any) => {
@@ -2826,7 +2832,7 @@ route("GET", "/v1/admin/config", async (ctx: any) => {
     referralRewardUsd: config.referralRewardCents / 100,
     referralCap: config.referralCap,
     affiliateRewardPct: config.affiliateRewardBps / 100,
-    affiliateCapUsd: config.affiliateCapCents / 100,
+    affiliateCapPeople: config.affiliateCapPeople,
     giftFulfillmentEmail: config.giftFulfillmentEmail,
     giftPlans: Object.values(GIFT_PLANS).map((p: any) => ({ id: p.id, name: p.name, monthlyUsd: p.monthlyCents / 100 })),
     serving,

@@ -138,11 +138,17 @@ function createRepo(pool) {
     const norm = String(code).trim().toUpperCase();
     if (!norm) return false;
     const a = await client.query(
-      "select id, user_id from affiliates where upper(code) = $1 and status = 'approved'",
+      "select id, user_id, cap_people from affiliates where upper(code) = $1 and status = 'approved' for update",
       [norm]
     );
     const aff = a.rows[0];
     if (!aff || aff.user_id === userId) return false;
+    // People cap: an affiliate can attribute at most cap_people friends.
+    const cnt = await client.query(
+      "select count(*)::int as n from affiliate_attributions where affiliate_id = $1",
+      [aff.id]
+    );
+    if (cnt.rows[0].n >= aff.cap_people) return false;
     const upd = await client.query(
       `update users set affiliate_id = $2
         where id = $1 and affiliate_id is null and referred_by is null
@@ -158,27 +164,27 @@ function createRepo(pool) {
     return true;
   }
 
-  // Resolve a code entered at signup against both namespaces. Affiliate codes win
-  // (they're the application-gated program); anything else falls through to the
-  // referral path. Keeps a single signup field working for either kind of code.
+  // Resolve a code entered at signup. The $20 referral program is retired, so a
+  // signup code only ever resolves to an affiliate attribution now; old referral
+  // codes no longer attribute anything (applyReferral is archived/uncalled).
   async function applyCode(client, userId, code) {
     if (!code) return;
     const attributed = await applyAffiliateCode(client, userId, code);
-    if (!attributed) await applyReferral(client, userId, code);
   }
 
   // Pay an affiliate their cut of an affiliated user's just-earned credits. The
-  // affiliate row is locked FOR UPDATE so the running total (credited_millicents)
-  // can't be raced past the cap. The credit is a platform-funded bonus — the
-  // affiliated user keeps 100% of their own earnings. `baseMillicents` is the
-  // user's earning the cut is computed from. No-op when the user has no approved
-  // affiliate or the cap is already reached.
+  // credit is a platform-funded bonus — the affiliated user keeps 100% of their
+  // own earnings. `baseMillicents` is the user's earning the cut is computed from.
+  // Dollar earnings are UNCAPPED now (the cap is people-based, enforced at
+  // attribution); credited_millicents stays as a lifetime "credits earned" tally.
+  // The affiliate row is locked FOR UPDATE to serialize the tally update. No-op
+  // when the user has no approved affiliate.
   async function creditAffiliate(client, affiliatedUserId, baseMillicents) {
     if (!affiliatedUserId) return;
     const base = BigInt(baseMillicents);
     if (base <= 0n) return;
     const a = await client.query(
-      `select a.id, a.user_id, a.reward_bps, a.cap_millicents, a.credited_millicents
+      `select a.id, a.user_id, a.reward_bps
          from affiliates a
          join users u on u.affiliate_id = a.id
         where u.id = $1 and a.status = 'approved'
@@ -187,10 +193,7 @@ function createRepo(pool) {
     );
     const aff = a.rows[0];
     if (!aff) return;
-    const remaining = BigInt(aff.cap_millicents) - BigInt(aff.credited_millicents);
-    if (remaining <= 0n) return;
-    let share = (base * BigInt(aff.reward_bps)) / 10000n;
-    if (share > remaining) share = remaining;
+    const share = (base * BigInt(aff.reward_bps)) / 10000n;
     if (share <= 0n) return;
     await client.query(
       `insert into ledger (entry_type, amount_millicents, user_id, meta)
@@ -1002,10 +1005,8 @@ function createRepo(pool) {
           [(-costMillicents).toString(), userId,
            JSON.stringify({ redemptionId: rows[0].id, plan, months })]
         );
-        // Redeeming is what qualifies this user's referrer for their $20 bonus.
-        if (referralRewardMillicents) {
-          await maybeRewardReferral(c, userId, referralRewardMillicents, referralCap ?? 10);
-        }
+        // The $20 referral program is retired — redeeming no longer rewards any
+        // referrer. (maybeRewardReferral is kept defined but uncalled.)
         return rows[0].id;
       });
     },
@@ -1173,7 +1174,7 @@ function createRepo(pool) {
       const a = await pool.query(
         `select id, status, code, instagram_handle, instagram_followers,
                 linkedin_handle, linkedin_followers, twitter_handle, twitter_followers,
-                reward_bps, cap_millicents, credited_millicents, created_at, approved_at
+                reward_bps, cap_millicents, cap_people, credited_millicents, created_at, approved_at
            from affiliates where user_id = $1`,
         [userId]
       );
@@ -1200,6 +1201,7 @@ function createRepo(pool) {
           },
           rewardBps: aff.reward_bps,
           capMillicents: Number(aff.cap_millicents),
+          capPeople: Number(aff.cap_people),
           creditedMillicents: Number(aff.credited_millicents),
           attributedCount,
           createdAt: aff.created_at,
@@ -1230,7 +1232,7 @@ function createRepo(pool) {
                 a.instagram_handle, a.instagram_followers,
                 a.linkedin_handle, a.linkedin_followers,
                 a.twitter_handle, a.twitter_followers,
-                a.reward_bps, a.cap_millicents, a.credited_millicents,
+                a.reward_bps, a.cap_millicents, a.cap_people, a.credited_millicents,
                 a.review_note, a.created_at, a.approved_at,
                 (select count(*)::int from affiliate_attributions aa where aa.affiliate_id = a.id) as attributed_count
            from affiliates a join users u on u.id = a.user_id
@@ -1323,8 +1325,8 @@ function createRepo(pool) {
       return rows[0] || null;
     },
     // Admin grants an influencer upgrade: a custom rate (reward_bps), a raised /
-    // uncapped cap, and optionally a vanity code. Stays 'approved' so the cut
-    // keeps flowing. rewardBps/capMillicents are validated by the route.
+    // uncapped people cap, and optionally a vanity code. Stays 'approved' so the
+    // cut keeps flowing. rewardBps/capPeople are validated by the route.
     async grantAffiliateUpgrade(affiliateId, opts) {
       const ex = await pool.query("select id, code from affiliates where id = $1", [affiliateId]);
       if (!ex.rows[0]) return { ok: false, error: "not found" };
@@ -1343,10 +1345,10 @@ function createRepo(pool) {
       }
       const upd = await pool.query(
         `update affiliates set status = 'approved', approved_at = coalesce(approved_at, now()),
-            reward_bps = $2, cap_millicents = $3, code = coalesce($4, code), review_note = null
+            reward_bps = $2, cap_people = $3, code = coalesce($4, code), review_note = null
           where id = $1
-          returning id, reward_bps, cap_millicents, code`,
-        [affiliateId, opts.rewardBps, String(opts.capMillicents), newCode]
+          returning id, reward_bps, cap_people, code`,
+        [affiliateId, opts.rewardBps, opts.capPeople, newCode]
       );
       return { ok: true, affiliate: upd.rows[0] };
     },

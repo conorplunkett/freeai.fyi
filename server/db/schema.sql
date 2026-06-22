@@ -264,8 +264,9 @@ create table if not exists affiliates (
   twitter_handle text,
   twitter_followers integer check (twitter_followers is null or twitter_followers >= 0),
   reward_bps integer not null default 1000,             -- the affiliate's cut, basis points (1000 = 10%)
-  cap_millicents bigint not null default 100000000,     -- $1,000 total credits per affiliate
-  credited_millicents bigint not null default 0,        -- running total, the cheap/atomic cap check
+  cap_millicents bigint not null default 100000000,     -- legacy dollar cap (no longer enforced; kept for archive)
+  cap_people integer not null default 1000,             -- the cap is now people-based: max attributed friends per affiliate
+  credited_millicents bigint not null default 0,        -- running lifetime tally of credits earned (uncapped)
   review_note text,
   created_at timestamptz not null default now(),
   approved_at timestamptz,
@@ -283,6 +284,8 @@ create index if not exists affiliates_status_idx on affiliates (status);
 -- Drop the legacy "at least one social handle" constraint on databases created
 -- before self-serve enrollment, so handle-less auto-enrolled affiliates are valid.
 alter table affiliates drop constraint if exists affiliates_handle_present;
+-- The cap is now people-based (max attributed friends); add it for existing DBs.
+alter table affiliates add column if not exists cap_people integer not null default 1000;
 
 -- The affiliate this user is attributed to. Lives on users like referred_by, and
 -- is mutually exclusive with it — a signup resolves to one or the other. Set at

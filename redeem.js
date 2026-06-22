@@ -145,7 +145,7 @@ function showSection(name) {
     tab.classList.toggle("active", on);
     tab.setAttribute("aria-selected", on ? "true" : "false");
   });
-  if (name === "referrals") { loadReferrals(); loadAffiliate(); }
+  if (name === "referrals") { loadAffiliate(); }
   if (name === "ledger" && activityRows === null) retrieveActivity();
   if (name === "install") loadInstall();
 }
@@ -228,85 +228,9 @@ $("install-list").addEventListener("click", (e) => {
   renderInstallChecks();
 });
 
-async function loadReferrals() {
-  const { status, body } = await apiGet("/v1/web/referrals");
-  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
-  if (status !== 200) return;
-  $("ref-link").value = body.link || "";
-  $("ref-earned").textContent = usd(body.creditsEarnedUsd || 0);
-  $("ref-earned-2").textContent = usd(body.creditsEarnedUsd || 0);
-  $("ref-reward").textContent = usdWhole(body.rewardUsd || 20);
-  $("ref-reward-2").textContent = usdWhole(body.rewardUsd || 20);
-  $("ref-cap").textContent = body.cap;
-  $("ref-invited").textContent = body.invitedCount || 0;
-  $("ref-count").textContent = `${body.rewardedCount || 0}/${body.cap}`;
-  $("ref-pending").textContent = body.pendingCount || 0;
-  renderReferralList(body.referrals || []);
-}
-
-// One row per friend, ordered newest-first, walking the full referral journey:
-// invited (email sent) → pending (signed up with the code) → rewarded, plus the
-// terminal capped / cancelled states. The status badge is the stage indicator
-// and the email is the "who you referred" the dashboard surfaces.
-function renderReferralList(items) {
-  const el = $("ref-list");
-  if (!items.length) {
-    el.innerHTML = `<p class="ref-empty">No referrals yet — invite a friend or share your link to get started.</p>`;
-    return;
-  }
-  const label = {
-    invited: "Invite sent — waiting for them to sign up",
-    pending: "Signed up — waiting on their first redemption",
-    rewarded: "Rewarded",
-    capped: "Cap reached — not credited",
-    cancelled: "Cancelled",
-  };
-  el.innerHTML = items
-    .map((r) => {
-      const when = r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "";
-      const who = r.email ? escapeHtml(r.email) : (label[r.status] || r.status);
-      return (
-        `<div class="ref-item">` +
-        `<span class="ref-badge ${r.status}">${r.status}</span>` +
-        `<span class="ref-desc"><strong>${who}</strong><span class="ref-sub">${label[r.status] || r.status}</span></span>` +
-        `<span class="ref-when">${when}</span>` +
-        `</div>`
-      );
-    })
-    .join("");
-}
-
-// Send a referral invite to a friend's email. The backend rejects the user's own
-// address; we surface that (and any other error) inline under the form.
-function setInviteMsg(text, kind) {
-  const el = $("ref-invite-msg");
-  el.textContent = text || "";
-  el.hidden = !text;
-  el.className = "ref-invite-msg" + (kind ? ` ${kind}` : "");
-}
-
-$("ref-invite-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = ($("ref-invite-email").value || "").trim();
-  if (!email) return;
-  const btn = $("ref-invite-btn");
-  btn.disabled = true;
-  setInviteMsg("Sending…", "");
-  const { status, body } = await apiPost("/v1/web/referrals/invite", { email });
-  btn.disabled = false;
-  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
-  if (status === 200) {
-    // The backend records the invite even if the email itself can't go out yet
-    // (e.g. sending domain not verified); reflect that honestly.
-    setInviteMsg(body && body.sent === false ? `Invite saved for ${email}.` : `Invite sent to ${email}.`, "ok");
-    $("ref-invite-email").value = "";
-    loadReferrals();
-  } else {
-    setInviteMsg((body && body.error) || "Couldn't send that invite. Try again.", "err");
-  }
-});
-
-$("ref-copy").addEventListener("click", () => copyFrom("ref-link", "ref-copy"));
+// The $20 referral program is retired. Its UI was removed from #referrals-view
+// (now the affiliate "crew" tab) and loadReferrals / the invite form / list /
+// copy handlers are gone — only the affiliate flow below drives this tab.
 
 // ---- affiliate (self-serve: everyone earns 10%; the form is the influencer
 // upgrade for a custom rate + uncapped earnings) ----
@@ -324,17 +248,18 @@ async function loadAffiliate() {
 
   const upgraded = !!body.upgraded;
   const requested = !!body.upgradeRequested;
-  const uncapped = (body.capUsd || 0) >= 10000000; // $10M+ cap = effectively uncapped
+  const capPeople = body.capPeople ?? 1000;
+  const attributed = body.attributedCount || 0;
+  const uncapped = capPeople >= 100000; // 100k+ friends = effectively unlimited
 
   // Base enrollment — link + stats, always shown.
   show("aff-approved", true);
   $("aff-pct").textContent = (body.rewardPct ?? 10) + "%";
-  $("aff-cap").textContent = uncapped ? "no cap" : usdWhole(body.capUsd ?? 1000);
+  $("aff-cap").textContent = uncapped ? "no cap" : capPeople.toLocaleString() + " friends";
   $("aff-link").value = body.link || "";
-  $("aff-users").textContent = body.attributedCount || 0;
+  $("aff-users").textContent = attributed;
   $("aff-earned").textContent = usd(body.creditedUsd || 0);
-  const remaining = Math.max(0, (body.capUsd || 0) - (body.creditedUsd || 0));
-  $("aff-remaining").textContent = uncapped ? "Uncapped" : usd(remaining);
+  $("aff-remaining").textContent = uncapped ? "Unlimited" : Math.max(0, capPeople - attributed).toLocaleString();
 
   // Influencer upgrade — form, or its requested / granted state.
   show("aff-upgrade", !upgraded && !requested);

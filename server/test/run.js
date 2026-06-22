@@ -66,7 +66,7 @@ const fakeMailer = {
   const config = {
     revenueShare: 0.9, dailyImpressionCap: 5000, ipDailyImpressionCap: 0, dailyClickCap: 5, payoutThresholdCents: 1000,
     referralRewardCents: 2000, referralCap: 10,
-    affiliateRewardBps: 1000, affiliateCapCents: 100000,
+    affiliateRewardBps: 1000, affiliateCapPeople: 1000,
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
     emailTokenTtlMs: 1800000, emailCooldownMs: 0, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
@@ -478,31 +478,24 @@ const fakeMailer = {
   const userId = async (email) =>
     (await poolNs.query("select id from users where email = $1", [email])).rows[0].id;
 
-  await check("referrer earns $20 once a referred friend redeems (single-sided, once, capped)", async () => {
-    // referrer signs up and reads their shareable code
+  await check("the $20 referral program is retired: signup no longer attributes, redemption pays no referrer", async () => {
+    // referrer signs up and reads their (still-minted) shareable code
     const refSess = await loginVia("ref-er@example.com");
     const refDash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${refSess}` });
     assert.strictEqual(refDash.status, 200);
     const code = refDash.body.code;
     assert.ok(/^[A-Z0-9]{8}$/.test(code), "code is 8 chars");
-    assert.strictEqual(refDash.body.link, `https://freeai.fyi/redeem.html?ref=${code}`);
 
-    // friend signs up WITH the code → one pending referral, attributed to referrer
+    // friend signs up WITH the code → NO referral attribution (program retired):
+    // no referrals row and no referred_by on the user.
     const friendSess = await loginVia("ref-ee@example.com", code);
     const friendId = await userId("ref-ee@example.com");
-    let row = (await poolNs.query("select referrer_user_id, status from referrals where referred_user_id = $1", [friendId])).rows;
-    assert.strictEqual(row.length, 1);
-    assert.strictEqual(row[0].status, "pending");
-    assert.strictEqual(row[0].referrer_user_id, await userId("ref-er@example.com"));
-
-    // a code can only be applied at first sign-in: a second login is a no-op
-    await loginVia("ref-ee@example.com", code);
-    const cnt = (await poolNs.query("select count(*)::int n from referrals where referred_user_id = $1", [friendId])).rows[0].n;
-    assert.strictEqual(cnt, 1);
-
-    // before the friend redeems, the referrer has earned nothing
-    let refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
-    assert.strictEqual(refMe.body.balanceUsd, 0);
+    assert.strictEqual(
+      (await poolNs.query("select count(*)::int n from referrals where referred_user_id = $1", [friendId])).rows[0].n, 0,
+      "no referral row is created at signup");
+    assert.strictEqual(
+      (await poolNs.query("select referred_by from users where id = $1", [friendId])).rows[0].referred_by, null,
+      "referred_by is not set at signup");
 
     // friend earns >$20 on a linked device, then redeems their first gift card
     const camp = await api("POST", "/v1/checkout", {
@@ -521,42 +514,17 @@ const fakeMailer = {
       { Authorization: `Bearer ${friendSess}` });
     assert.strictEqual(red.status, 200);
 
-    // referral is now rewarded and the referrer holds $20 of spendable credit
-    row = (await poolNs.query("select status, reward_millicents from referrals where referred_user_id = $1", [friendId])).rows;
-    assert.strictEqual(row[0].status, "rewarded");
-    assert.strictEqual(Number(row[0].reward_millicents), 2000000);
-    refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
-    assert.strictEqual(refMe.body.balanceUsd, 20);
-    const after = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${refSess}` });
-    assert.strictEqual(after.body.rewardedCount, 1);
-    assert.strictEqual(after.body.creditsEarnedUsd, 20);
-
-    // idempotent: a second redemption by the friend does not double-credit
-    const red2 = await api("POST", "/v1/web/redemptions",
-      { plan: "pro", months: 1, recipientEmail: "ref-ee@example.com" },
-      { Authorization: `Bearer ${friendSess}` });
-    assert.strictEqual(red2.status, 200);
-    refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
-    assert.strictEqual(refMe.body.balanceUsd, 20);
-
-    // cap: at the limit, a qualified redemption is marked 'capped' and pays nothing
-    const capSess = await loginVia("cap-er@example.com");
-    const capCode = (await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${capSess}` })).body.code;
-    await loginVia("cap-ee@example.com", capCode);
-    const capFriendId = await userId("cap-ee@example.com");
-    await poolNs.query("insert into ledger (entry_type, amount_millicents, user_id) values ('impression_credit', 2000000, $1)", [capFriendId]);
-    const rid = await repo.recordGiftRedemptionForUser({
-      userId: capFriendId, plan: "pro", months: 1, amountCents: 2000, recipientEmail: "cap-ee@example.com",
-      referralRewardMillicents: 2000000, referralCap: 0,
-    });
-    assert.ok(rid);
-    const capStatus = (await poolNs.query("select status from referrals where referred_user_id = $1", [capFriendId])).rows[0].status;
-    assert.strictEqual(capStatus, "capped");
-    const capRefBal = await repo.balanceForUser(await userId("cap-er@example.com"));
-    assert.strictEqual(capRefBal.balanceMillicents, 0);
+    // the referrer earns NOTHING — no referral_credit, balance unchanged
+    const refMe = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${refSess}` });
+    assert.strictEqual(refMe.body.balanceUsd, 0, "referrer is not paid — the $20 program is retired");
+    assert.strictEqual(
+      (await poolNs.query(
+        "select count(*)::int n from ledger where entry_type = 'referral_credit' and user_id = $1",
+        [await userId("ref-er@example.com")])).rows[0].n, 0,
+      "no referral_credit ledger entry is ever posted");
   });
 
-  await check("email invites: send, self-refer guard, sent → joined → rewarded indicators", async () => {
+  await check("email invites: send + self-refer guard (retired program: no joined/rewarded transitions)", async () => {
     const inviterSess = await loginVia("inviter@example.com");
 
     // first-login onboarding gate: a brand-new user must refer someone before
@@ -604,17 +572,18 @@ const fakeMailer = {
     assert.ok(invitedItem && invitedItem.status === "invited", "invitee listed as invited (masked)");
     assert.ok(!JSON.stringify(dash.body.referrals).includes("invitee@example.com"), "full email never leaves the server");
 
-    // friend signs up WITH the code → the invite's "code used" indicator flips to 'joined'
+    // the $20 referral program is retired: signing up with the code no longer
+    // attributes the friend, so the invite stays 'sent' (no 'joined' transition)
+    // and no referrals row is created.
     await loginVia("invitee@example.com", inviterCode);
     assert.strictEqual(
       (await poolNs.query("select status from referral_invites where lower(email) = 'invitee@example.com'")).rows[0].status,
-      "joined");
-    dash = await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${inviterSess}` });
-    assert.strictEqual(dash.body.invitedCount, 0, "joined invite no longer counts as merely invited");
-    const joinedItem = dash.body.referrals.find((r) => r.email === "i•••@example.com");
-    assert.ok(joinedItem && joinedItem.status === "pending", "now shows as a pending referral with their (masked) email");
+      "sent", "retired program: signup does not flip the invite to 'joined'");
+    assert.strictEqual(
+      (await poolNs.query("select referred_by from users where id = $1", [await userId("invitee@example.com")])).rows[0].referred_by,
+      null, "retired program: signup does not attribute the friend");
 
-    // friend redeems → invite reaches its terminal 'rewarded' stage
+    // and redeeming never advances the invite to 'rewarded' nor pays the inviter
     const inviteeId = await userId("invitee@example.com");
     await poolNs.query("insert into ledger (entry_type, amount_millicents, user_id) values ('impression_credit', 2000000, $1)", [inviteeId]);
     const inviteeSess = await loginVia("invitee@example.com");
@@ -623,11 +592,16 @@ const fakeMailer = {
         { Authorization: `Bearer ${inviteeSess}` })).status, 200);
     assert.strictEqual(
       (await poolNs.query("select status from referral_invites where lower(email) = 'invitee@example.com'")).rows[0].status,
-      "rewarded");
+      "sent", "retired program: redemption does not reward the inviter");
+    assert.strictEqual(
+      (await poolNs.query(
+        "select count(*)::int n from ledger where entry_type = 'referral_credit' and user_id = $1",
+        [await userId("inviter@example.com")])).rows[0].n, 0,
+      "no referral_credit is posted");
   });
 
   // ---------- affiliates ----------
-  await check("affiliate: self-serve 10% of an affiliated user's earnings (capped); upgrade request attaches socials", async () => {
+  await check("affiliate: self-serve 10% of an affiliated user's earnings (people cap, uncapped $); upgrade request attaches socials", async () => {
     const affSess = await loginVia("affiliate@example.com");
 
     // self-serve: every signed-in user is auto-enrolled with a code at the base 10%
@@ -697,15 +671,33 @@ const fakeMailer = {
       (await repo.balanceForUser(await userId("affiliate@example.com"))).balanceMillicents, 45000,
       "affiliate earns 10% as a platform-funded bonus");
 
-    // cap: lower the cap just above the current total; further earnings clamp
-    await poolNs.query("update affiliates set cap_millicents = 50000 where id = $1", [affId]);
-    await api("POST", "/v1/events", { ...dev, batchKey: "baff2", events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    // people cap: lower this affiliate's cap to 1 (they already have 1 attributed
+    // friend). A second distinct user signing up with the code is NOT attributed.
+    await poolNs.query("update affiliates set cap_people = 1 where id = $1", [affId]);
+    await loginVia("affuser2@example.com", code);
+    const affUser2Id = await userId("affuser2@example.com");
     assert.strictEqual(
-      (await repo.balanceForUser(await userId("affiliate@example.com"))).balanceMillicents, 50000,
-      "affiliate credit clamps to the cap");
+      (await poolNs.query("select affiliate_id from users where id = $1", [affUser2Id])).rows[0].affiliate_id, null,
+      "second user past the people cap is not attributed");
+    assert.strictEqual(
+      (await poolNs.query("select count(*)::int n from affiliate_attributions where affiliate_id = $1", [affId])).rows[0].n, 1,
+      "no new attribution row past the people cap");
+
+    // dollar earnings are UNCAPPED: set the affiliate's legacy dollar cap to a low
+    // value (the old code would have clamped affiliate credits here) and prove the
+    // affiliate now keeps accruing 10% straight past it with no ceiling.
+    await poolNs.query("update affiliates set cap_millicents = 50000 where id = $1", [affId]);
+    // 3 more batches of 1000 impressions → affiliate +45000 millicents each.
+    for (let i = 0; i < 3; i++) {
+      await api("POST", "/v1/events", { ...dev, batchKey: `bafflong${i}`, events: [{ campaignId: camp.body.campaignId, impressions: 1000, clicks: 0 }] });
+    }
+    // started at 45000 millicents; +45000 per batch × 3 = 180000 total.
+    const affBal = (await repo.balanceForUser(await userId("affiliate@example.com"))).balanceMillicents;
+    assert.strictEqual(affBal, 45000 + 45000 * 3, "affiliate keeps accruing 10% with no dollar ceiling");
+    assert.ok(affBal > 50000, "affiliate balance grows past the legacy dollar cap that used to clamp it");
   });
 
-  await check("admin grants an influencer upgrade: custom rate, uncapped cap, vanity code", async () => {
+  await check("admin grants an influencer upgrade: custom rate, uncapped people cap, vanity code", async () => {
     const sess = await loginVia("creator@example.com");
     // starts on the self-serve base tier
     let dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${sess}` });
@@ -718,15 +710,15 @@ const fakeMailer = {
 
     // validation: rate out of range, and a code another affiliate already owns
     assert.strictEqual(
-      (await api("POST", "/v1/admin/affiliates/grant", { affiliateId: row.id, rewardBps: 0, capMillicents: 0 }, { "X-Admin-Key": "test-admin" })).status,
+      (await api("POST", "/v1/admin/affiliates/grant", { affiliateId: row.id, rewardBps: 0, capPeople: 0 }, { "X-Admin-Key": "test-admin" })).status,
       400, "rewardBps must be ≥ 1");
     if (takenCode) assert.strictEqual(
-      (await api("POST", "/v1/admin/affiliates/grant", { affiliateId: row.id, rewardBps: 2500, capMillicents: 100000000000000, code: takenCode }, { "X-Admin-Key": "test-admin" })).status,
+      (await api("POST", "/v1/admin/affiliates/grant", { affiliateId: row.id, rewardBps: 2500, capPeople: 1000000000, code: takenCode }, { "X-Admin-Key": "test-admin" })).status,
       400, "can't take a code another affiliate already owns");
 
-    // grant 25%, uncapped, with a vanity code (case-normalised)
+    // grant 25%, uncapped (huge people cap), with a vanity code (case-normalised)
     const granted = await api("POST", "/v1/admin/affiliates/grant",
-      { affiliateId: row.id, rewardBps: 2500, capMillicents: 100000000000000, code: "creator1" },
+      { affiliateId: row.id, rewardBps: 2500, capPeople: 1000000000, code: "creator1" },
       { "X-Admin-Key": "test-admin" });
     assert.strictEqual(granted.status, 200);
     assert.strictEqual(granted.body.affiliate.code, "CREATOR1", "vanity code is upper-cased");
@@ -735,7 +727,7 @@ const fakeMailer = {
     assert.strictEqual(dash.body.rewardPct, 25, "custom rate is live");
     assert.strictEqual(dash.body.upgraded, true);
     assert.strictEqual(dash.body.code, "CREATOR1", "vanity code is the affiliate's link");
-    assert.ok(dash.body.capUsd >= 10000000, "cap is effectively uncapped");
+    assert.ok(dash.body.capPeople >= 100000, "people cap is effectively unlimited");
   });
 
   await check("extension auto-links a device to the signed-in web account (no magic link)", async () => {
@@ -802,7 +794,7 @@ const fakeMailer = {
     assert.ok(!JSON.stringify(crew.invited).includes("crewmate@example.com"), "full email never leaves the server");
   });
 
-  await check("affiliate codes apply retroactively; referred users can't; self/unknown codes rejected", async () => {
+  await check("affiliate codes apply retroactively; self/unknown codes rejected (referral program retired)", async () => {
     const affSess = await loginVia("aff2@example.com");
     // self-serve enrollment mints the code straight away (no application/approval)
     const code = (await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` })).body.code;
@@ -820,13 +812,17 @@ const fakeMailer = {
       (await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${lateSess}` })).body.reason,
       "already_affiliated");
 
-    // a referred user can't add an affiliate code (referral attribution is one-way)
+    // the $20 referral program is retired: signing up with a (referral) code no
+    // longer sets referred_by, so such a user is NOT blocked — they can attach an
+    // affiliate code like any other unattributed user.
     const refSess = await loginVia("refholder@example.com");
     const refCode = (await api("GET", "/v1/web/referrals", undefined, { Authorization: `Bearer ${refSess}` })).body.code;
     const referredSess = await loginVia("referred-then-aff@example.com", refCode);
-    const blocked = await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${referredSess}` });
-    assert.strictEqual(blocked.status, 400);
-    assert.strictEqual(blocked.body.reason, "has_referrer");
+    assert.strictEqual(
+      (await poolNs.query("select referred_by from users where id = $1", [await userId("referred-then-aff@example.com")])).rows[0].referred_by,
+      null, "retired program: no referrer is set at signup");
+    const applied = await api("POST", "/v1/web/affiliate-code", { code }, { Authorization: `Bearer ${referredSess}` });
+    assert.strictEqual(applied.status, 200, "an unattributed user can attach an affiliate code");
 
     // an affiliate can't self-apply their own code, and unknown codes are rejected
     assert.strictEqual(
