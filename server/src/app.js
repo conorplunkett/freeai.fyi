@@ -9,6 +9,10 @@ const { GIFT_PLANS, GIFT_MONTHS, giftPriceCents } = require("./giftcards");
 const { runPayouts } = require("./payouts");
 const { escapeHtml, isCleanAdLine, normalizeHexColor } = require("./util");
 
+// Crew = the affiliate "earn with your friends" panel in the extension popup.
+// Five slots: each is a joined friend, a pending invite, or an open invite form.
+const CREW_SIZE = 5;
+
 // Validate + normalize an affiliate application's socials. At least one of
 // Instagram / LinkedIn / Twitter is required, and every handle provided must
 // carry a non-negative follower count. Handles are trimmed, '@'-stripped, and
@@ -324,15 +328,53 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     if (!user) return json(res, 200, { linked: false, rewardPct });
     const aff = await repo.getOrCreateAffiliate(user.id);
     const crew = await repo.affiliateCrew(aff.id, user.id);
+    // Pending invites you've sent that haven't joined yet — surfaced so the
+    // popup's crew slots stay filled across reopens. Drop any whose masked
+    // address already matches a joined friend (they show up under `friends`).
+    const friendNames = new Set(crew.friends.map((f) => f.name));
+    const invited = (await repo.pendingInvitesForUser(user.id)).filter((i) => !friendNames.has(i.email));
     json(res, 200, {
       linked: true,
       email: user.email,
       code: aff.code,
       link: `${config.siteUrl}/redeem.html?ref=${aff.code}`,
       rewardPct,
+      crewSize: CREW_SIZE,
       attributedCount: crew.count,
       creditedUsd: crew.creditedMillicents / 100000,
       friends: crew.friends,
+      invited,
+    });
+  });
+
+  // Invite a friend to your crew from the extension popup. Device-scoped (no web
+  // session): authed by device credentials, the invite carries the user's
+  // affiliate link so the friend is attributed to them — earning the affiliate's
+  // cut forever. The friend keeps 100% of their own earnings.
+  route("POST", "/v1/me/affiliate/invite", async (req, res, body) => {
+    const device = await authDeviceFrom(body);
+    if (!device) return json(res, 401, { error: "bad device credentials" });
+    const user = await repo.userForDevice(device.id);
+    if (!user) return json(res, 401, { error: "link this device to invite friends" });
+    const email = String(body?.email || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return json(res, 400, { error: "valid email required" });
+    }
+    if (email.toLowerCase() === String(user.email || "").toLowerCase()) {
+      return json(res, 400, { error: "you can't invite your own email" });
+    }
+    const aff = await repo.getOrCreateAffiliate(user.id);
+    const link = `${config.siteUrl}/redeem.html?ref=${aff.code}`;
+    const invite = await repo.createReferralInvite(user.id, email, aff.code);
+    await mailer.sendCrewInviteEmail(email, {
+      inviterEmail: user.email,
+      link,
+      rewardPct: config.affiliateRewardBps / 100,
+    });
+    json(res, 200, {
+      ok: true,
+      sent: true,
+      invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at },
     });
   });
 

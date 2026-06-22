@@ -46,15 +46,19 @@
     <a class="cta" id="redeem-cta" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem for Claude →</a>
   </section>
 
-  <!-- CREW — friends you invited + the 10% of their credits you earn, forever -->
+  <!-- CREW — invite up to 5 friends; earn 10% of their credits, forever -->
   <section class="sec" id="crew">
     <div class="sec-head">
       <span class="lbl" id="crew-label">Your crew</span>
       <span class="sum" id="crew-sum" hidden></span>
     </div>
 
-    <!-- linked: real per-friend breakdown -->
-    <div id="crew-list"></div>
+    <!-- linked: 5 slots (joined friends, pending invites, and one invite form),
+         rendered by popup.js into #crew-slots -->
+    <div id="crew-linked" hidden>
+      <p class="crew-intro">Invite up to <b>5 friends</b> — earn <b id="crew-pct">10%</b> of every credit they make, forever.</p>
+      <div id="crew-slots"></div>
+    </div>
 
     <!-- anonymous: value prop + sign-in. Opens the freeai.fyi login page; once
          signed in there, the device auto-links and this panel fills in. -->
@@ -80,7 +84,7 @@
 
   <footer class="foot">
     <a href="https://freeai.fyi" target="_blank" rel="noopener">freeai.fyi</a>
-    <a class="r" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem credits →</a>
+    <a class="r" href="https://freeai.fyi/#advertisers" target="_blank" rel="noopener">Place your own ad →</a>
   </footer>
 
   <!-- Developer tools — kept subtle, collapsed by default. -->

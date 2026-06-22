@@ -1050,6 +1050,19 @@ function createRepo(pool) {
       );
       return r.rows[0];
     },
+    // Pending crew invites (email sent, friend hasn't signed up yet) for the
+    // device-scoped affiliate panel in the extension. Masked emails only — the
+    // full address never leaves the server. Friends who've already joined are
+    // filtered out by the caller (they surface via affiliateCrew instead).
+    async pendingInvitesForUser(userId) {
+      const r = await pool.query(
+        `select email, sent_at from referral_invites
+          where referrer_user_id = $1 and status = 'sent'
+          order by sent_at desc limit 20`,
+        [userId]
+      );
+      return r.rows.map((row) => ({ email: maskEmail(row.email), invitedAt: row.sent_at }));
+    },
 
     // First-login onboarding gate: true once the user has referred anyone — either
     // sent at least one invite, or has a friend who joined with their code. Drives
