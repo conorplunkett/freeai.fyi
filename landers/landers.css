@@ -89,3 +89,13 @@
   0%, 80%, 100% { transform: translateY(0);    opacity: .4; }
   40%           { transform: translateY(-4px); opacity: 1;  }
 }
+
+/* Reduced motion — hold each tool's thinking indicator static (still visible,
+   just no perpetual pulse/spin/blink) for anyone who asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .think-gpt::before,
+  .think-gemini::before,
+  .think-pplx::before,
+  .think-cursor::before,
+  .think-copilot i { animation: none; }
+}

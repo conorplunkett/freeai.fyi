@@ -44,7 +44,9 @@ if (wordStock) {
 // He idles (bobbing + blinking via CSS) and every few seconds either shuffles
 // along the right end of the bar, ducks down behind it, or does a tiny hop.
 const claudeGuy = document.getElementById("claude-guy");
-if (claudeGuy) {
+const prefersReducedMotion =
+  window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (claudeGuy && !prefersReducedMotion) {
   const wander = () => {
     const roll = Math.random();
     if (roll < 0.4) {
