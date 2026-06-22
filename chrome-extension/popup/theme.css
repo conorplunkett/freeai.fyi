@@ -16,6 +16,9 @@
  *                                                 tokens on .bb-bar (injected into
  *                                                 third-party pages, no theme.css)
  *   3. desktop/macos/.../OverlayPanel.swift     — `Palette` enum mirrors --ov-*
+ *   4. desktop/macos/.../Resources/onboarding/tokens.css — the onboarding window's
+ *                                                 WKWebView can't reach this file,
+ *                                                 so it ports the color block here
  */
 :root {
   /* ── Brand / accent — Claude coral ── */
