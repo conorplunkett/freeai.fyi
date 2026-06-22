@@ -271,6 +271,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleClick(campaignId: String) {
+        // Paused means no earnings: ignore clicks too. The card fades out over
+        // ~2s after a pause, so without this a click in that window would still
+        // be credited.
+        guard !adsPaused else { return }
         guard let ad = currentAd, ad.id == campaignId else { return }
         if demoMode {
             NSLog("[freeai] click: campaign=%@", campaignId)
@@ -439,7 +443,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         label.font = .systemFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
         label.frame = NSRect(x: 14, y: 26, width: width - 28, height: 16)
-        let slider = NSSlider(value: Double(Self.defaultLift), minValue: 0, maxValue: 500,
+        // Max lift = tallest screen, so dragging fully right always reaches the
+        // top of even a full-height window (the top-clamp in OverlayPanel.show
+        // stops it overshooting). A fixed cap only reached part-way up.
+        let maxLift = Double(NSScreen.screens.map(\.frame.height).max() ?? 1400)
+        let slider = NSSlider(value: Double(Self.defaultLift), minValue: 0, maxValue: maxLift,
                               target: self, action: #selector(cardLiftChanged(_:)))
         slider.isContinuous = true
         slider.frame = NSRect(x: 14, y: 4, width: width - 28, height: 20)
