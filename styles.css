@@ -298,6 +298,38 @@ a { color: inherit; text-decoration: none; }
 }
 .est-note strong { color: #4a2c1f; }
 
+/* LIVE PREVIEW — mirrors the dark spinner overlay a viewer sees. Chip/line/dots
+   recolor to the advertiser's chosen ad color via --prev-accent (set in JS;
+   defaults to the brand coral). */
+.adpreview-bar {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--ov-bar-bg); border: 1px solid var(--ov-bar-border);
+  border-radius: 14px; padding: 15px 18px;
+  box-shadow: 0 18px 44px -24px rgba(0,0,0,.55); font-family: var(--mono);
+}
+.adpreview-chip {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none;
+  border-radius: 7px; font-family: var(--sans); font-weight: 800; font-size: 14px;
+  background: var(--prev-accent, var(--accent)); color: var(--prev-ink, #fff);
+}
+.adpreview-line {
+  flex: 1; min-width: 0; font-size: 16px; color: var(--prev-accent, var(--accent));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.adpreview-dots { display: inline-flex; gap: 5px; flex: none; }
+.adpreview-dots i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--prev-accent, var(--accent)); opacity: .18;
+}
+/* Cumulative "thinking" sequence: 1 dot → 2 dots → 3 dots → reset. */
+.adpreview-dots i:nth-child(1) { animation: adprev-d1 1.5s linear infinite; }
+.adpreview-dots i:nth-child(2) { animation: adprev-d2 1.5s linear infinite; }
+.adpreview-dots i:nth-child(3) { animation: adprev-d3 1.5s linear infinite; }
+@keyframes adprev-d1 { 0%, 74% { opacity: 1; } 75%, 100% { opacity: .18; } }
+@keyframes adprev-d2 { 0%, 24% { opacity: .18; } 25%, 74% { opacity: 1; } 75%, 100% { opacity: .18; } }
+@keyframes adprev-d3 { 0%, 49% { opacity: .18; } 50%, 74% { opacity: 1; } 75%, 100% { opacity: .18; } }
+@media (prefers-reduced-motion: reduce) { .adpreview-dots i { animation: none; opacity: 1; } }
+
 .stripe-btn {
   display: flex; align-items: center; justify-content: center; gap: 9px;
   background: var(--stripe); color: #fff; border: none; border-radius: 12px;

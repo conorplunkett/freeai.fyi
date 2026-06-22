@@ -33,6 +33,7 @@ function h(tag, attrs = {}, ...kids) {
   return e;
 }
 const usd = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd0 = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("en-US"); // whole-dollar (CPM)
 const num = (n) => (Number(n) || 0).toLocaleString("en-US");
 const dt = (s) => (s ? new Date(s).toLocaleString() : "—");
 const dShort = (s) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—");
@@ -247,7 +248,7 @@ async function renderDaily(view) {
     ];
     const rev = series.slice().reverse();
     body.append(h("div", { style: "margin-top:18px" }, table(cols, rev, (r) => [
-      r.date, num(r.impressions), num(r.clicks), usd(r.effectiveCpmUsd), usd(r.recognizedUsd), usd(r.adsPurchasedUsd),
+      r.date, num(r.impressions), num(r.clicks), usd0(r.effectiveCpmUsd), usd(r.recognizedUsd), usd(r.adsPurchasedUsd),
       usd(r.developerCreditUsd), num(r.newDevices), num(r.newUsers), num(r.redemptions), usd(r.redemptionsUsd),
     ])));
   };
@@ -705,7 +706,7 @@ async function renderSettings(view) {
       h("p", { class: "hint" }, "Read-only — set via the function’s environment.")),
     table([{ label: "Setting" }, { label: "Value", num: true }], [
       { k: "Revenue share to developers", v: cfg.revenueSharePct + "%" },
-      { k: "Reference gross CPM", v: usd(cfg.grossCpmUsd) },
+      { k: "Reference gross CPM", v: usd0(cfg.grossCpmUsd) },
       { k: "Daily impression cap / device", v: num(cfg.dailyImpressionCap) },
       { k: "Daily impression cap / IP", v: num(cfg.ipDailyImpressionCap) },
       { k: "Daily click cap / device", v: num(cfg.dailyClickCap) },
