@@ -58,8 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenuBar()
-        overlay.verticalLift = cardLift
         requestAccessibilityIfNeeded()
+        showSetupOnFirstLaunch()
 
         if probeMode {
             print("probe: dumping the focused assistant's AX tree every 2s — focus Claude or ChatGPT and start a generation (Ctrl+C to quit)")
@@ -170,6 +170,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 state.windowBounds = CGRect(x: f.midX - 400, y: 120, width: 800, height: f.height - 240)
             }
         }
+
+        // Track the focused app and apply its saved card height. The menu bar
+        // steals focus when open, so `lastTargetID` is what the slider edits.
+        if let target = state.target { lastTargetID = target.id }
+        overlay.verticalLift = lift(forAppID: state.target?.id ?? lastTargetID)
 
         let signedIn = demoMode || credentials != nil
         let signals = Signals(
@@ -296,6 +301,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let redeem = NSMenuItem(title: "Redeem credits…", action: #selector(openRedeem), keyEquivalent: "")
         redeem.target = self
         menu.addItem(redeem)
+        let setup = NSMenuItem(title: "Set Up FreeAI…", action: #selector(showSetup), keyEquivalent: "")
+        setup.target = self
+        menu.addItem(setup)
         let updates = NSMenuItem(title: "Check for Updates…",
                                  action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
                                  keyEquivalent: "")
@@ -383,37 +391,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(string: "https://freeai.fyi/redeem")!)
     }
 
-    // MARK: sponsor-card height offset (user setting)
+    // MARK: sponsor-card height offset (per-app user setting)
 
-    /// Extra points the card is lifted above the composer. Persisted so it
-    /// survives launches; defaults to a clearly-raised position.
-    private var cardLift: CGFloat = {
-        CGFloat(UserDefaults.standard.object(forKey: "cardLift") as? Double ?? 160)
-    }()
+    /// Default lift (points above the composer) for an app with no saved value.
+    static let defaultLift: CGFloat = 160
+    /// Last assistant detected as focused — the app the height slider edits, and
+    /// whose saved height the card uses. The menu bar steals focus while open,
+    /// so we can't read the active app live; this is the remembered one.
+    private var lastTargetID: String?
+    private weak var offsetSlider: NSSlider?
+    private weak var offsetLabel: NSTextField?
 
-    /// A label + slider embedded in the menu so the height is adjustable live.
+    private func liftKey(_ id: String) -> String { "cardLift.\(id)" }
+
+    /// Saved card height for an app id, or the default.
+    private func lift(forAppID id: String?) -> CGFloat {
+        guard let id else { return Self.defaultLift }
+        return CGFloat(UserDefaults.standard.object(forKey: liftKey(id)) as? Double ?? Double(Self.defaultLift))
+    }
+
+    private func displayName(forAppID id: String?) -> String {
+        AssistantTarget.all.first { $0.id == id }?.displayName ?? AssistantTarget.claude.displayName
+    }
+
+    /// A per-app label + slider embedded in the menu so the height is adjustable
+    /// live. Edits the last-focused app's value; the label names which app.
     private func makeOffsetMenuItem() -> NSMenuItem {
-        let width: CGFloat = 220
+        let width: CGFloat = 230
         let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 46))
-        let label = NSTextField(labelWithString: "Sponsor card height")
+        let label = NSTextField(labelWithString: "Card height")
         label.font = .systemFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
         label.frame = NSRect(x: 14, y: 26, width: width - 28, height: 16)
-        let slider = NSSlider(value: Double(cardLift), minValue: 0, maxValue: 400,
+        let slider = NSSlider(value: Double(Self.defaultLift), minValue: 0, maxValue: 500,
                               target: self, action: #selector(cardLiftChanged(_:)))
         slider.isContinuous = true
         slider.frame = NSRect(x: 14, y: 4, width: width - 28, height: 20)
         container.addSubview(label)
         container.addSubview(slider)
+        offsetSlider = slider
+        offsetLabel = label
         let item = NSMenuItem()
         item.view = container
         return item
     }
 
+    /// Sync the slider + label to the app being edited (focus, hence the app,
+    /// may have changed since the menu last opened).
+    private func refreshOffsetControl() {
+        offsetSlider?.doubleValue = Double(lift(forAppID: lastTargetID))
+        offsetLabel?.stringValue = "\(displayName(forAppID: lastTargetID)) card height"
+    }
+
     @objc private func cardLiftChanged(_ sender: NSSlider) {
-        cardLift = CGFloat(sender.doubleValue)
-        UserDefaults.standard.set(Double(cardLift), forKey: "cardLift")
-        overlay.verticalLift = cardLift
+        let id = lastTargetID ?? AssistantTarget.claude.id
+        UserDefaults.standard.set(sender.doubleValue, forKey: liftKey(id))
+        // The slider only ever edits the last-focused app, so apply live.
+        overlay.verticalLift = CGFloat(sender.doubleValue)
         repositionOverlay()
     }
 
@@ -423,6 +457,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func repositionOverlay() {
         guard overlay.isShown, let bounds = lastShownBounds else { return }
         overlay.show(over: bounds, composer: lastComposerBounds, star: lastStarBounds)
+    }
+
+    // MARK: setup tutorial
+
+    private var setupWindow: NSWindow?
+
+    private func showSetupOnFirstLaunch() {
+        guard !demoMode, !UserDefaults.standard.bool(forKey: "didOnboard") else { return }
+        UserDefaults.standard.set(true, forKey: "didOnboard")
+        showSetup()
+    }
+
+    @objc private func showSetup() {
+        if let w = setupWindow {
+            w.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 320),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Set up FreeAI"
+        w.isReleasedWhenClosed = false
+        w.center()
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 320))
+        let heading = NSTextField(labelWithString: "Earn Claude credits while you work")
+        heading.font = .systemFont(ofSize: 16, weight: .bold)
+        heading.frame = NSRect(x: 28, y: 268, width: 384, height: 24)
+
+        let steps = NSTextField(wrappingLabelWithString: """
+        1.  Keep FreeAI running — it lives in your menu bar (the F$ icon).
+
+        2.  Open your preferred app — ChatGPT or Claude — and grant \
+        Accessibility access if prompted (System Settings ▸ Privacy & \
+        Security ▸ Accessibility).
+
+        3.  Start a response, then open the menu bar F$ icon and drag \
+        “Card height” until the sponsor card overlaps the app’s thinking \
+        icon. Each app remembers its own height.
+
+        4.  Done — the card appears only while the assistant is generating, \
+        and your credits build automatically.
+        """)
+        steps.font = .systemFont(ofSize: 13)
+        steps.frame = NSRect(x: 28, y: 64, width: 384, height: 196)
+
+        let done = NSButton(title: "Got it", target: self, action: #selector(closeSetup))
+        done.bezelStyle = .rounded
+        done.keyEquivalent = "\r"
+        done.frame = NSRect(x: 440 - 28 - 96, y: 18, width: 96, height: 32)
+
+        content.addSubview(heading)
+        content.addSubview(steps)
+        content.addSubview(done)
+        w.contentView = content
+        setupWindow = w
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func closeSetup() {
+        setupWindow?.close()
     }
 
     private func requestAccessibilityIfNeeded() {
@@ -435,6 +531,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         refreshAccessibilityState()
+        refreshOffsetControl()
     }
 }
 

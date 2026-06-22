@@ -52,7 +52,17 @@ final class OverlayPanelController {
     /// so it can never leave the top of the window.
     var verticalLift: CGFloat = 0
 
-    var isShown: Bool { panel?.isVisible ?? false }
+    /// Fade timings mirror the Chrome extension's inline bar: quick fade-in,
+    /// slow drift-out (inject.css: `transition: opacity 0.25s` in, `2s` out).
+    static let fadeInDuration: TimeInterval = 0.25
+    static let fadeOutDuration: TimeInterval = 2.0
+    private var isFadingIn = false
+    private var isFadingOut = false
+
+    /// "Shown" for impression/gating purposes excludes the slow fade-out — once
+    /// generation ends and the card starts drifting out it no longer counts as
+    /// visible, even though it's still partially on screen.
+    var isShown: Bool { (panel?.isVisible ?? false) && !isFadingOut }
 
     /// Occlusion check feeding overlay-core's `overlay_covered` signal.
     var isCovered: Bool {
@@ -100,11 +110,39 @@ final class OverlayPanelController {
         let screenH = NSScreen.screens.first?.frame.height ?? 0
         let y = screenH - (axTop + Self.height)
         panel.setFrame(NSRect(x: x, y: y, width: width, height: Self.height), display: true)
-        panel.orderFrontRegardless()
+
+        // Fade in on first appearance (or reverse an in-flight fade-out).
+        // Steady-state repositions just move the frame above — no re-animation.
+        let stable = panel.isVisible && !isFadingOut && !isFadingIn && panel.alphaValue >= 1
+        if !stable && !isFadingIn {
+            if !panel.isVisible { panel.alphaValue = 0 }
+            isFadingOut = false
+            isFadingIn = true
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = Self.fadeInDuration
+                panel.animator().alphaValue = 1
+            }, completionHandler: { [weak self] in
+                self?.isFadingIn = false
+            })
+        }
     }
 
+    /// Slow fade-out, then actually order the panel out. A `show` during the
+    /// fade cancels it (isFadingOut flips false) so the card simply fades back.
     func hide() {
-        panel?.orderOut(nil)
+        guard let panel, panel.isVisible, !isFadingOut else { return }
+        isFadingIn = false
+        isFadingOut = true
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = Self.fadeOutDuration
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            guard let self, self.isFadingOut else { return }
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+            self.isFadingOut = false
+        })
     }
 
     private func makePanel() -> NSPanel {
