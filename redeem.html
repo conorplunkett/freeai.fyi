@@ -517,20 +517,43 @@
 
         <div class="ref-list" id="ref-list"></div>
 
-        <!-- Affiliate codes: a separate, application-gated program. Affiliates
-             earn 10% of the ad revenue of users who join with their code. -->
+        <!-- Affiliate: every signed-in earner is auto-enrolled at the base 10%
+             (self-serve, no application). The form below is the influencer
+             upgrade — apply for a higher rate, uncapped earnings + a custom link. -->
         <div class="affiliate-block" id="affiliate-block" hidden>
           <hr class="aff-sep" />
-          <span class="eyebrow">Affiliate codes</span>
-          <h2>Become a FreeAI affiliate</h2>
+          <span class="eyebrow">Affiliate</span>
+          <h2>Earn with your crew</h2>
           <p class="redeem-lead">
-            Affiliates earn <strong>10%</strong> of the ad revenue of everyone who
-            joins with their code — dropped into your balance as credits, up to
-            <span id="aff-cap">$1,000</span>. Apply with your socials below; every
-            application is reviewed.
+            You earn <strong id="aff-pct">10%</strong> of the ad revenue of everyone who
+            joins with your link — for life, dropped into your balance as credits, up to
+            <span id="aff-cap">$1,000</span>.
           </p>
 
-          <!-- Retroactively attach an affiliate code to your own account. -->
+          <!-- Auto-enrolled: shareable link + stats (shown to everyone). -->
+          <div class="aff-approved" id="aff-approved" hidden>
+            <h3 class="ref-invite-h">Your affiliate link</h3>
+            <div class="ref-link-row">
+              <input type="text" id="aff-link" readonly aria-label="Your affiliate link" />
+              <button class="btn-green" id="aff-copy" type="button">Copy link</button>
+            </div>
+            <div class="ref-stats">
+              <div class="ref-stat">
+                <span class="rs-num" id="aff-users">0</span>
+                <span class="rs-label">friends joined</span>
+              </div>
+              <div class="ref-stat">
+                <span class="rs-num" id="aff-earned">$0.00</span>
+                <span class="rs-label">credits earned</span>
+              </div>
+              <div class="ref-stat">
+                <span class="rs-num" id="aff-remaining">$1,000</span>
+                <span class="rs-label">cap remaining</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Retroactively attach someone else's affiliate code. -->
           <div class="aff-have-code" id="aff-have-code" hidden>
             <h3 class="ref-invite-h">Have an affiliate code?</h3>
             <form class="ref-invite-row" id="aff-code-form">
@@ -547,57 +570,38 @@
             <p class="ref-invite-msg" id="aff-code-msg" hidden></p>
           </div>
 
-          <!-- Application form (when the user hasn't applied yet). -->
-          <form class="aff-apply" id="aff-apply-form" hidden>
-            <h3 class="ref-invite-h">Apply to become an affiliate</h3>
-            <div class="aff-row">
-              <input type="text" id="aff-ig" class="auth-input" placeholder="Instagram @handle" autocomplete="off" />
-              <input type="number" min="0" id="aff-ig-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
-            </div>
-            <div class="aff-row">
-              <input type="text" id="aff-li" class="auth-input" placeholder="LinkedIn handle" autocomplete="off" />
-              <input type="number" min="0" id="aff-li-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
-            </div>
-            <div class="aff-row">
-              <input type="text" id="aff-tw" class="auth-input" placeholder="Twitter / X @handle" autocomplete="off" />
-              <input type="number" min="0" id="aff-tw-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
-            </div>
-            <p class="aff-hint">Give at least one handle — a follower count is required for each one you add.</p>
-            <button class="btn-green" id="aff-apply-btn" type="submit">Submit application</button>
-            <p class="ref-invite-msg" id="aff-apply-msg" hidden></p>
-          </form>
-
-          <!-- Pending review. -->
-          <div class="aff-status" id="aff-pending" hidden>
-            <p class="redeem-lead">⏳ Your affiliate application is under review — we'll email you once it's approved.</p>
+          <!-- Influencer upgrade — apply for more than 10% + uncapped + custom link. -->
+          <div class="aff-upgrade" id="aff-upgrade" hidden>
+            <hr class="aff-sep" />
+            <form class="aff-apply" id="aff-apply-form">
+              <h3 class="ref-invite-h">Want to make more money?</h3>
+              <p class="aff-hint">Apply for <strong>more than 10%</strong> and <strong>uncapped</strong> earnings with a custom affiliate link.</p>
+              <div class="aff-row">
+                <input type="text" id="aff-ig" class="auth-input" placeholder="Instagram @handle" autocomplete="off" />
+                <input type="number" min="0" id="aff-ig-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
+              </div>
+              <div class="aff-row">
+                <input type="text" id="aff-li" class="auth-input" placeholder="LinkedIn handle" autocomplete="off" />
+                <input type="number" min="0" id="aff-li-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
+              </div>
+              <div class="aff-row">
+                <input type="text" id="aff-tw" class="auth-input" placeholder="Twitter / X @handle" autocomplete="off" />
+                <input type="number" min="0" id="aff-tw-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
+              </div>
+              <p class="aff-hint">Share your socials so we can set your custom rate — a follower count is required for each handle you add.</p>
+              <button class="btn-green" id="aff-apply-btn" type="submit">Apply for the upgrade</button>
+              <p class="ref-invite-msg" id="aff-apply-msg" hidden></p>
+            </form>
           </div>
 
-          <!-- Rejected. -->
-          <div class="aff-status" id="aff-rejected" hidden>
-            <p class="redeem-lead">Your affiliate application wasn't approved this time.</p>
+          <!-- Upgrade requested (socials submitted, awaiting review). -->
+          <div class="aff-status" id="aff-upgrade-requested" hidden>
+            <p class="redeem-lead">✅ Upgrade requested — we'll review your socials and email you about your custom rate.</p>
           </div>
 
-          <!-- Approved: shareable code + link + stats. -->
-          <div class="aff-approved" id="aff-approved" hidden>
-            <h3 class="ref-invite-h">Your affiliate link</h3>
-            <div class="ref-link-row">
-              <input type="text" id="aff-link" readonly aria-label="Your affiliate link" />
-              <button class="btn-green" id="aff-copy" type="button">Copy link</button>
-            </div>
-            <div class="ref-stats">
-              <div class="ref-stat">
-                <span class="rs-num" id="aff-users">0</span>
-                <span class="rs-label">users referred</span>
-              </div>
-              <div class="ref-stat">
-                <span class="rs-num" id="aff-earned">$0.00</span>
-                <span class="rs-label">credits earned</span>
-              </div>
-              <div class="ref-stat">
-                <span class="rs-num" id="aff-remaining">$1,000</span>
-                <span class="rs-label">cap remaining</span>
-              </div>
-            </div>
+          <!-- Upgrade granted (custom rate / uncapped). -->
+          <div class="aff-status" id="aff-upgrade-granted" hidden>
+            <p class="redeem-lead">🎉 You're on a custom affiliate plan — <strong id="aff-custom-pct">10%</strong>, uncapped.</p>
           </div>
         </div>
       </section>

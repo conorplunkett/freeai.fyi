@@ -212,6 +212,49 @@ async function refreshAll() {
   await flushEvents();
 }
 
+// ---------- crew (affiliate) ----------
+// The popup's "earn with your friends" panel. The extension stays anonymous; the
+// device links to a user via the magic link from /v1/auth/request-link. Once
+// linked, the user is auto-enrolled as an approved affiliate, and the
+// device-scoped /v1/me/affiliate returns the invite link + per-friend 10%
+// breakdown — no web session, just device credentials. While unlinked it returns
+// { linked:false } and the popup shows the sign-in CTA.
+async function getCrew() {
+  const device = await getDevice();
+  if (!device || typeof fetch !== "function") return { linked: false, friends: [] };
+  try {
+    const qs = `deviceId=${encodeURIComponent(device.deviceId)}&deviceKey=${encodeURIComponent(device.deviceKey)}`;
+    const res = await fetch(`${API_BASE}/v1/me/affiliate?${qs}`);
+    if (!res.ok) return { linked: false, friends: [] };
+    return await res.json();
+  } catch (_) {
+    return { linked: false, friends: [] };
+  }
+}
+
+// Kick off email sign-in from the popup: link this device to a user account via a
+// magic link. authed by the device credentials. The click in the email hits
+// /v1/auth/verify, which sets devices.user_id — after which getCrew() goes linked.
+async function requestSignInLink(email) {
+  if (typeof fetch !== "function") return { ok: false };
+  const device = await getOrRegisterDevice();
+  if (!device) return { ok: false, error: "no device" };
+  try {
+    const res = await fetch(`${API_BASE}/v1/auth/request-link`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, deviceId: device.deviceId, deviceKey: device.deviceKey }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, error: data.error || "couldn't send the link" };
+    }
+    return { ok: true, sent: true };
+  } catch (_) {
+    return { ok: false, error: "network error" };
+  }
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   const has = await chrome.storage.local.get("installedAt");
   if (!has.installedAt) {
@@ -236,6 +279,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     switch (msg.type) {
       case "BB_GET_STATE":
         sendResponse(await getState());
+        break;
+      case "BB_GET_CREW":
+        sendResponse(await getCrew());
+        break;
+      case "BB_SIGNIN":
+        sendResponse(await requestSignInLink((msg.email || "").trim()));
         break;
       case "BB_GET_ADS": {
         const s = await getState();

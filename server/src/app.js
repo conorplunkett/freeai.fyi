@@ -298,6 +298,31 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
   });
 
+  // Device-scoped affiliate "crew": the extension popup's earn-with-friends
+  // panel. Anonymous until the device is linked to a user (via the magic link
+  // from /v1/auth/request-link); once linked, the user is auto-enrolled as an
+  // approved affiliate and this returns their invite link plus the per-friend 10%
+  // breakdown — device credentials only, no web session.
+  route("GET", "/v1/me/affiliate", async (req, res, body, rawBody, query) => {
+    const device = await authDeviceFrom(null, query);
+    if (!device) return json(res, 401, { error: "bad device credentials" });
+    const rewardPct = config.affiliateRewardBps / 100;
+    const user = await repo.userForDevice(device.id);
+    if (!user) return json(res, 200, { linked: false, rewardPct });
+    const aff = await repo.getOrCreateAffiliate(user.id);
+    const crew = await repo.affiliateCrew(aff.id, user.id);
+    json(res, 200, {
+      linked: true,
+      email: user.email,
+      code: aff.code,
+      link: `${config.siteUrl}/redeem.html?ref=${aff.code}`,
+      rewardPct,
+      attributedCount: crew.count,
+      creditedUsd: crew.creditedMillicents / 100000,
+      friends: crew.friends,
+    });
+  });
+
   // ---------- gift card redemptions ----------
   route("GET", "/v1/giftcards", async (req, res) => {
     json(res, 200, {
@@ -667,35 +692,39 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   route("GET", "/v1/web/affiliate", async (req, res, body, rawBody, query) => {
     const user = await repo.userForSession(sessionFrom(req, body, query));
     if (!user) return json(res, 401, { error: "not signed in" });
+    // Self-serve: everyone is an affiliate. Ensure enrollment, then read details.
+    await repo.getOrCreateAffiliate(user.id);
     const data = await repo.affiliateForUser(user.id);
     const app = data.application;
+    // Influencer upgrade = a higher rate or a raised cap above the base config.
+    const upgraded = app.rewardBps > config.affiliateRewardBps || app.capMillicents > config.affiliateCapCents * 1000;
+    // Upgrade requested = the user attached socials (auto-enrolled rows have none).
+    const upgradeRequested = !!(app.socials.instagram || app.socials.linkedin || app.socials.twitter);
     json(res, 200, {
-      application: app ? {
-        status: app.status,
-        code: app.code,
-        link: app.code ? `${config.siteUrl}/redeem.html?ref=${app.code}` : null,
-        socials: app.socials,
-        rewardPct: app.rewardBps / 100,
-        capUsd: app.capMillicents / 100000,
-        creditedUsd: app.creditedMillicents / 100000,
-        attributedCount: app.attributedCount,
-        createdAt: app.createdAt,
-      } : null,
+      enrolled: true,
+      code: app.code,
+      link: app.code ? `${config.siteUrl}/redeem.html?ref=${app.code}` : null,
+      socials: app.socials,
+      rewardPct: app.rewardBps / 100,
+      capUsd: app.capMillicents / 100000,
+      creditedUsd: app.creditedMillicents / 100000,
+      attributedCount: app.attributedCount,
+      upgraded, upgradeRequested,
       attributed: data.attributed,
       hasReferrer: data.hasReferrer,
       canApplyCode: !data.attributed && !data.hasReferrer,
     });
   });
 
-  // Apply to join the affiliate program (social handles + follower counts).
+  // Influencer upgrade application: attach socials to request a custom rate /
+  // uncapped earnings. Keeps the user's active base 10% — no status downgrade.
   route("POST", "/v1/web/affiliate/apply", async (req, res, body) => {
     const user = await repo.userForSession(sessionFrom(req, body));
     if (!user) return json(res, 401, { error: "not signed in" });
     const parsed = parseAffiliateSocials(body);
     if (parsed.error) return json(res, 400, { error: parsed.error });
-    const created = await repo.submitAffiliateApplication(user.id, parsed.socials);
-    if (!created) return json(res, 409, { error: "you've already applied" });
-    json(res, 200, { ok: true, status: created.status });
+    await repo.requestAffiliateUpgrade(user.id, parsed.socials);
+    json(res, 200, { ok: true });
   });
 
   // Retroactively attach an affiliate code to your own account. Allowed only

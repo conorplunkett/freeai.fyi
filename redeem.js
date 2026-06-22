@@ -306,30 +306,38 @@ $("ref-invite-form").addEventListener("submit", async (e) => {
 
 $("ref-copy").addEventListener("click", () => copyFrom("ref-link", "ref-copy"));
 
-// ---- affiliate codes (a separate, application-gated program) ----
-// One block, four states driven by the application status: not-applied (the
-// apply form), pending, rejected, approved (code + link + stats). The "have an
-// affiliate code?" form is shown only while the account has no attribution.
+// ---- affiliate (self-serve: everyone earns 10%; the form is the influencer
+// upgrade for a custom rate + uncapped earnings) ----
+// Every signed-in user is auto-enrolled, so the link + stats always show. The
+// upgrade form, "requested", and "granted" states are driven by upgraded /
+// upgradeRequested. The "have an affiliate code?" form shows only when the
+// account has no attribution of its own.
 async function loadAffiliate() {
   const { status, body } = await apiGet("/v1/web/affiliate");
   if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
   if (status !== 200) return;
+  const show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
   $("affiliate-block").hidden = false;
   $("aff-have-code").hidden = !body.canApplyCode;
-  const app = body.application;
-  const show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
-  show("aff-apply-form", !app);
-  show("aff-pending", !!app && app.status === "pending");
-  show("aff-rejected", !!app && app.status === "rejected");
-  show("aff-approved", !!app && app.status === "approved");
-  $("aff-cap").textContent = usdWhole(app?.capUsd ?? 1000);
-  if (app && app.status === "approved") {
-    $("aff-link").value = app.link || "";
-    $("aff-users").textContent = app.attributedCount || 0;
-    $("aff-earned").textContent = usd(app.creditedUsd || 0);
-    const remaining = Math.max(0, (app.capUsd || 0) - (app.creditedUsd || 0));
-    $("aff-remaining").textContent = usd(remaining);
-  }
+
+  const upgraded = !!body.upgraded;
+  const requested = !!body.upgradeRequested;
+
+  // Base enrollment — link + stats, always shown.
+  show("aff-approved", true);
+  $("aff-pct").textContent = (body.rewardPct ?? 10) + "%";
+  $("aff-cap").textContent = upgraded ? "no cap" : usdWhole(body.capUsd ?? 1000);
+  $("aff-link").value = body.link || "";
+  $("aff-users").textContent = body.attributedCount || 0;
+  $("aff-earned").textContent = usd(body.creditedUsd || 0);
+  const remaining = Math.max(0, (body.capUsd || 0) - (body.creditedUsd || 0));
+  $("aff-remaining").textContent = upgraded ? "Uncapped" : usd(remaining);
+
+  // Influencer upgrade — form, or its requested / granted state.
+  show("aff-upgrade", !upgraded && !requested);
+  show("aff-upgrade-requested", !upgraded && requested);
+  show("aff-upgrade-granted", upgraded);
+  if (upgraded) $("aff-custom-pct").textContent = (body.rewardPct ?? 10) + "%";
 }
 
 function setMsg(id, text, kind) {
@@ -360,7 +368,7 @@ $("aff-apply-form").addEventListener("submit", async (e) => {
   const { status, body } = await apiPost("/v1/web/affiliate/apply", payload);
   btn.disabled = false;
   if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
-  if (status === 200) { setMsg("aff-apply-msg", "Application submitted — we'll be in touch.", "ok"); loadAffiliate(); }
+  if (status === 200) { setMsg("aff-apply-msg", "Upgrade requested — we'll review your socials and be in touch.", "ok"); loadAffiliate(); }
   else setMsg("aff-apply-msg", (body && body.error) || "Couldn't submit that. Try again.", "err");
 });
 

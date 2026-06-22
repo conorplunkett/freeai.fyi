@@ -80,4 +80,27 @@
   --blue: var(--accent-d);
   --stripe: #635bff;   /* Stripe brand purple — intentionally off-palette; only the "Pay with Stripe" checkout button uses it */
   --orange: var(--accent);
+
+  /* ── Semantic surface / border aliases — prefer these in new work. ── */
+  --surface-inset: #fcfbf9;     /* faintly inset tiles (stat cards) */
+  --border-strong: #cfd4dc;     /* a heavier hairline than --line (hover borders) */
+
+  /* ── Radius ── (AGENTS.md ▸ Design System: the once-inline radius scale,
+   * tokenized here when first shared — first consumer is the extension popup.) */
+  --radius-xs: 5px;     /* chips, inline code */
+  --radius-sm: 8px;     /* small buttons, logo */
+  --radius-md: 11px;    /* inputs, nav cards, stat tiles */
+  --radius-lg: 14px;    /* terminal, estimate box, popup card */
+  --radius-xl: 16px;    /* demo cards, install card, list rows */
+  --radius-2xl: 20px;   /* auth card */
+  --radius-3xl: 24px;   /* hero / advertiser / redeem cards */
+  --radius-pill: 999px; /* nav buttons, badges, status pills */
+
+  /* ── Shadows ── (accent-tinted ones reference --accent-rgb so the coral glow
+   * stays in one place; neutral drop shadows carry their own dark rgba.) */
+  --shadow-sm: 0 1px 3px rgba(20, 30, 40, 0.12);
+  --shadow-card: 0 30px 70px -45px rgba(20, 30, 40, 0.4);    /* big white cards */
+  --shadow-dark: 0 18px 44px -24px rgba(0, 0, 0, 0.55);      /* dark demo / install cards */
+  --shadow-accent: 0 12px 28px -14px rgba(var(--accent-rgb), 0.7); /* coral CTA glow */
+  --shadow-logo: 0 2px 8px rgba(var(--accent-rgb), 0.35);    /* "F$" brand mark */
 }

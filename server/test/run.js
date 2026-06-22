@@ -625,9 +625,20 @@ const fakeMailer = {
   });
 
   // ---------- affiliates ----------
-  await check("affiliate program: apply → admin approve → 10% of an affiliated user's earnings, capped", async () => {
-    // application validation: at least one handle, a follower count per handle
+  await check("affiliate: self-serve 10% of an affiliated user's earnings (capped); upgrade request attaches socials", async () => {
     const affSess = await loginVia("affiliate@example.com");
+
+    // self-serve: every signed-in user is auto-enrolled with a code at the base 10%
+    let dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` });
+    assert.strictEqual(dash.body.enrolled, true);
+    const code = dash.body.code;
+    assert.ok(/^[A-Z0-9]{8}$/.test(code), "affiliate code is 8 chars");
+    assert.strictEqual(dash.body.link, `https://freeai.fyi/redeem.html?ref=${code}`);
+    assert.strictEqual(dash.body.rewardPct, 10);
+    assert.strictEqual(dash.body.upgraded, false);
+    assert.strictEqual(dash.body.upgradeRequested, false);
+
+    // influencer upgrade form validation: at least one handle, a follower count per handle
     assert.strictEqual(
       (await api("POST", "/v1/web/affiliate/apply", {}, { Authorization: `Bearer ${affSess}` })).status,
       400, "no handles rejected");
@@ -635,35 +646,24 @@ const fakeMailer = {
       (await api("POST", "/v1/web/affiliate/apply", { instagram: "creator" }, { Authorization: `Bearer ${affSess}` })).status,
       400, "handle without a follower count rejected");
 
+    // submitting socials requests the upgrade without disturbing the active base 10%
     const applied = await api("POST", "/v1/web/affiliate/apply",
       { instagram: "@creator", instagramFollowers: "120,000", twitter: "creator", twitterFollowers: 8000 },
       { Authorization: `Bearer ${affSess}` });
     assert.strictEqual(applied.status, 200);
-    assert.strictEqual(applied.body.status, "pending");
-    // one application per user
-    assert.strictEqual(
-      (await api("POST", "/v1/web/affiliate/apply", { instagram: "creator", instagramFollowers: 1 }, { Authorization: `Bearer ${affSess}` })).status,
-      409, "duplicate application rejected");
-
-    let dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` });
-    assert.strictEqual(dash.body.application.status, "pending");
-    assert.strictEqual(dash.body.application.code, null);
-
-    // admin sees it pending and approves → a code is minted
-    const list = await api("GET", "/v1/admin/affiliates", undefined, { "X-Admin-Key": "test-admin" });
-    const appRow = list.body.affiliates.find((a) => a.email === "affiliate@example.com");
-    assert.ok(appRow && appRow.status === "pending");
-    assert.strictEqual(appRow.instagram_followers, 120000, "comma-formatted follower count parsed");
-    const approved = await api("POST", "/v1/admin/affiliates/approve", { adminKey: "test-admin", affiliateId: appRow.id });
-    assert.strictEqual(approved.status, 200);
-    const code = approved.body.code;
-    assert.ok(/^[A-Z0-9]{8}$/.test(code), "affiliate code is 8 chars");
-    const affId = appRow.id;
+    assert.strictEqual(applied.body.ok, true);
 
     dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` });
-    assert.strictEqual(dash.body.application.status, "approved");
-    assert.strictEqual(dash.body.application.code, code);
-    assert.strictEqual(dash.body.application.link, `https://freeai.fyi/redeem.html?ref=${code}`);
+    assert.strictEqual(dash.body.upgradeRequested, true, "socials attached → upgrade requested");
+    assert.strictEqual(dash.body.upgraded, false, "still base 10% until an admin grants more");
+    assert.strictEqual(dash.body.code, code, "code is unchanged by the upgrade request");
+
+    // admin sees the affiliate with parsed socials
+    const list = await api("GET", "/v1/admin/affiliates", undefined, { "X-Admin-Key": "test-admin" });
+    const appRow = list.body.affiliates.find((a) => a.email === "affiliate@example.com");
+    assert.ok(appRow && appRow.status === "approved");
+    assert.strictEqual(appRow.instagram_followers, 120000, "comma-formatted follower count parsed");
+    const affId = appRow.id;
 
     // a new user signs up WITH the affiliate code → attributed to the affiliate,
     // and that attribution is mutually exclusive with referrals (no referred_by)
@@ -705,10 +705,10 @@ const fakeMailer = {
 
   await check("affiliate codes apply retroactively; referred users can't; self/unknown codes rejected", async () => {
     const affSess = await loginVia("aff2@example.com");
-    await api("POST", "/v1/web/affiliate/apply", { linkedin: "aff-two", linkedinFollowers: 5000 }, { Authorization: `Bearer ${affSess}` });
+    // self-serve enrollment mints the code straight away (no application/approval)
+    const code = (await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${affSess}` })).body.code;
     const row = (await api("GET", "/v1/admin/affiliates", undefined, { "X-Admin-Key": "test-admin" }))
       .body.affiliates.find((a) => a.email === "aff2@example.com");
-    const code = (await api("POST", "/v1/admin/affiliates/approve", { adminKey: "test-admin", affiliateId: row.id })).body.code;
 
     // an existing user with no attribution attaches the code retroactively
     const lateSess = await loginVia("late@example.com");

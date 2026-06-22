@@ -204,6 +204,63 @@ function createRepo(pool) {
     );
   }
 
+  // Mint a unique affiliate code (unique across users.referral_code AND
+  // affiliates.code) onto an affiliate row that has none yet; returns the code
+  // (existing or freshly minted). Shared by approveAffiliate and the self-serve
+  // getOrCreateAffiliate path so the two never drift.
+  async function mintAffiliateCode(affiliateId) {
+    const ex = await pool.query("select code from affiliates where id = $1", [affiliateId]);
+    if (ex.rows[0]?.code) return ex.rows[0].code;
+    for (let i = 0; i < 8; i++) {
+      const cand = generateReferralCode();
+      const clash = await pool.query(
+        `select 1 from users where upper(referral_code) = $1
+         union all select 1 from affiliates where upper(code) = $1`,
+        [cand]
+      );
+      if (clash.rows[0]) continue;
+      try {
+        const r = await pool.query(
+          "update affiliates set code = $2 where id = $1 and code is null returning code",
+          [affiliateId, cand]
+        );
+        if (r.rows[0]) return r.rows[0].code;
+        const re = await pool.query("select code from affiliates where id = $1", [affiliateId]);
+        if (re.rows[0]?.code) return re.rows[0].code;
+      } catch (err) {
+        if (err.code === "23505") continue;
+        throw err;
+      }
+    }
+    throw new Error("could not allocate affiliate code");
+  }
+
+  // Ensure the user is enrolled as an APPROVED affiliate with a code (self-serve,
+  // no social application), idempotently; returns { id, code }. Shared by the
+  // device popup path and the web dashboard so everyone has a base 10% link.
+  async function ensureAffiliate(userId) {
+    const ins = await pool.query(
+      `insert into affiliates (user_id, status, approved_at)
+       values ($1, 'approved', now())
+       on conflict (user_id) do nothing
+       returning id`,
+      [userId]
+    );
+    let id = ins.rows[0]?.id;
+    if (!id) {
+      const ex = await pool.query("select id, status from affiliates where user_id = $1", [userId]);
+      id = ex.rows[0].id;
+      if (ex.rows[0].status !== "approved") {
+        await pool.query(
+          "update affiliates set status = 'approved', approved_at = coalesce(approved_at, now()) where id = $1",
+          [id]
+        );
+      }
+    }
+    const code = await mintAffiliateCode(id);
+    return { id, code };
+  }
+
   return {
     // ---------- devices ----------
     async registerDevice() {
@@ -1169,39 +1226,73 @@ function createRepo(pool) {
     // existing referral or affiliate code (so signup resolution stays
     // unambiguous). Idempotent — re-approving keeps the same code.
     async approveAffiliate(affiliateId) {
-      const existing = await pool.query("select code from affiliates where id = $1", [affiliateId]);
+      const existing = await pool.query("select id from affiliates where id = $1", [affiliateId]);
       if (!existing.rows[0]) return null;
-      let code = existing.rows[0].code;
-      if (!code) {
-        for (let i = 0; i < 8; i++) {
-          const cand = generateReferralCode();
-          const clash = await pool.query(
-            `select 1 from users where upper(referral_code) = $1
-             union all select 1 from affiliates where upper(code) = $1`,
-            [cand]
-          );
-          if (clash.rows[0]) continue;
-          try {
-            const r = await pool.query(
-              "update affiliates set code = $2 where id = $1 and code is null returning code",
-              [affiliateId, cand]
-            );
-            if (r.rows[0]) { code = r.rows[0].code; break; }
-            const re = await pool.query("select code from affiliates where id = $1", [affiliateId]);
-            if (re.rows[0]?.code) { code = re.rows[0].code; break; }
-          } catch (err) {
-            if (err.code === "23505") continue;
-            throw err;
-          }
-        }
-        if (!code) throw new Error("could not allocate affiliate code");
-      }
+      const code = await mintAffiliateCode(affiliateId);
       const upd = await pool.query(
         `update affiliates set status = 'approved', approved_at = coalesce(approved_at, now()),
             review_note = null where id = $1 returning id`,
         [affiliateId]
       );
       return upd.rows[0] ? { id: affiliateId, code } : null;
+    },
+
+    // Self-serve affiliate enrollment: every signed-in earner is an approved
+    // affiliate (base 10%) with a code — no social application, no admin review.
+    async getOrCreateAffiliate(userId) {
+      return ensureAffiliate(userId);
+    },
+    // Influencer upgrade request: the user keeps their active base 10% while
+    // attaching socials so an admin can grant a higher rate / uncapped earnings /
+    // a custom code. Records the socials on the (auto-created) affiliate row; the
+    // presence of any handle is the "upgrade requested" signal the dashboard reads.
+    async requestAffiliateUpgrade(userId, socials) {
+      await ensureAffiliate(userId);
+      const s = socials || {};
+      await pool.query(
+        `update affiliates set
+           instagram_handle = $2, instagram_followers = $3,
+           linkedin_handle = $4, linkedin_followers = $5,
+           twitter_handle = $6, twitter_followers = $7
+         where user_id = $1`,
+        [userId, s.instagram || null, s.instagramFollowers ?? null,
+         s.linkedin || null, s.linkedinFollowers ?? null,
+         s.twitter || null, s.twitterFollowers ?? null]
+      );
+    },
+
+    // Per-friend crew breakdown for an affiliate: each attributed friend, the
+    // credits they've generated, and the affiliate's 10% cut earned from them.
+    async affiliateCrew(affiliateId, affiliateUserId) {
+      const credited = await pool.query(
+        "select coalesce(sum(amount_millicents), 0)::bigint as c from ledger where entry_type = 'affiliate_credit' and user_id = $1",
+        [affiliateUserId]
+      );
+      const { rows } = await pool.query(
+        `select u.email,
+          coalesce((select sum(amount_millicents) from ledger l
+                     where l.entry_type in ('impression_credit','click_credit')
+                       and (l.user_id = aa.affiliated_user_id
+                            or l.device_id in (select id from devices where user_id = aa.affiliated_user_id))), 0)::bigint as generated,
+          coalesce((select sum(amount_millicents) from ledger l
+                     where l.entry_type = 'affiliate_credit' and l.user_id = $2
+                       and l.meta->>'affiliatedUserId' = aa.affiliated_user_id::text), 0)::bigint as your_cut
+         from affiliate_attributions aa
+         join users u on u.id = aa.affiliated_user_id
+        where aa.affiliate_id = $1
+        order by your_cut desc, generated desc
+        limit 50`,
+        [affiliateId, affiliateUserId]
+      );
+      return {
+        count: rows.length,
+        creditedMillicents: Number(credited.rows[0].c),
+        friends: rows.map((r) => ({
+          name: maskEmail(r.email),
+          generatedUsd: Number(r.generated) / 100000,
+          youUsd: Number(r.your_cut) / 100000,
+        })),
+      };
     },
 
     // Admin: reject an application with an optional note.

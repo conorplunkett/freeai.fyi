@@ -269,10 +269,10 @@ create table if not exists affiliates (
   review_note text,
   created_at timestamptz not null default now(),
   approved_at timestamptz,
-  -- at least one social handle, and any handle provided carries a follower count
-  constraint affiliates_handle_present check (
-    instagram_handle is not null or linkedin_handle is not null or twitter_handle is not null
-  ),
+  -- any handle provided carries a follower count. (There is no "≥1 handle"
+  -- constraint: the Chrome extension auto-enrolls every device-linked user as an
+  -- approved affiliate with no socials — the self-serve "crew" path — while the
+  -- admin application route still validates socials in code, parseAffiliateSocials.)
   constraint affiliates_followers_present check (
     (instagram_handle is null or instagram_followers is not null) and
     (linkedin_handle  is null or linkedin_followers  is not null) and
@@ -280,6 +280,9 @@ create table if not exists affiliates (
   )
 );
 create index if not exists affiliates_status_idx on affiliates (status);
+-- Drop the legacy "at least one social handle" constraint on databases created
+-- before self-serve enrollment, so handle-less auto-enrolled affiliates are valid.
+alter table affiliates drop constraint if exists affiliates_handle_present;
 
 -- The affiliate this user is attributed to. Lives on users like referred_by, and
 -- is mutually exclusive with it — a signup resolves to one or the other. Set at

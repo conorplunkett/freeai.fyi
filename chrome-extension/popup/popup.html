@@ -8,10 +8,11 @@
   <title>FreeAI</title>
 </head>
 <body>
+  <!-- sticky header — brand stays visible while the popup scrolls -->
   <header class="top">
-    <div class="brand">
-      <span class="logo">F$</span>
-      <span class="name">FreeAI<span class="dim">.fyi</span></span>
+    <div class="pbrand">
+      <span class="plogo">F$</span>
+      <span class="pname">FreeAI<span class="dim">.fyi</span></span>
     </div>
     <label class="switch" title="Enable / disable earning">
       <input type="checkbox" id="enabled" />
@@ -19,24 +20,72 @@
     </label>
   </header>
 
+  <!-- HERO — the fuel ring is the product: credits earned toward a free month -->
   <section class="hero">
-    <div class="earn-label">Claude credits</div>
-    <div class="earn" id="earnings">$0.00</div>
-    <div class="progress" id="progress"><b>0%</b> toward your next free month of Claude</div>
+    <div class="ring">
+      <svg width="152" height="152" viewBox="0 0 152 152" aria-hidden="true">
+        <defs>
+          <linearGradient id="fr" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="var(--accent-grad-a)" />
+            <stop offset="1" stop-color="var(--accent-grad-b)" />
+          </linearGradient>
+        </defs>
+        <circle class="ring-track" cx="76" cy="76" r="69" fill="none" stroke-width="14" />
+        <circle id="ring-arc" class="ring-arc" cx="76" cy="76" r="69" fill="none" stroke-width="14"
+                stroke-linecap="round" stroke-dasharray="433.5" stroke-dashoffset="433.5"
+                transform="rotate(-90 76 76)" />
+        <circle class="ring-spin" cx="76" cy="76" r="81" fill="none" stroke-width="1.5"
+                stroke-dasharray="1.5 9" stroke-linecap="round" />
+      </svg>
+      <div class="ring-center">
+        <div class="amt" id="earnings">$0.00</div>
+        <div class="goal" id="goal">of $20</div>
+      </div>
+    </div>
+    <div class="tagline" id="progress"><b>0%</b> toward a free month of Claude</div>
+    <a class="cta" id="redeem-cta" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem for Claude →</a>
   </section>
 
-  <a class="redeem-cta" id="redeem-cta" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem for Claude →</a>
+  <!-- CREW — friends you invited + the 10% of their credits you earn, forever -->
+  <section class="sec" id="crew">
+    <div class="sec-head">
+      <span class="lbl" id="crew-label">Your crew</span>
+      <span class="sum" id="crew-sum" hidden></span>
+    </div>
 
-  <section class="cards">
-    <div class="card"><div class="n" id="impressions">0</div><div class="l">impressions</div></div>
-    <div class="card"><div class="n" id="perday">$0.00</div><div class="l">per day</div></div>
+    <!-- linked: real per-friend breakdown -->
+    <div id="crew-list"></div>
+
+    <!-- anonymous: value prop + sign-in -->
+    <div id="crew-signedout">
+      <p class="crew-empty">Earn <b>10%</b> of every credit your friends make — forever.</p>
+      <button class="invite" id="signin-btn"><span class="plus">+</span>Sign in to earn with your friends</button>
+      <form class="signin-form" id="signin-form" hidden>
+        <input id="signin-email" type="email" inputmode="email" autocomplete="email" placeholder="you@email.com" />
+        <button type="submit" class="cta" id="signin-send">Email me a magic link →</button>
+      </form>
+      <p class="hint" id="signin-msg" hidden></p>
+    </div>
+
+    <!-- linked: invite CTA (copies the user's affiliate link) -->
+    <button class="invite" id="invite" hidden><span class="plus">+</span>Invite a friend — copy your link</button>
   </section>
 
-  <section class="board-wrap">
-    <h2>Live bid market</h2>
+  <!-- STATS — ads watched + average per day -->
+  <section class="sec">
+    <div class="stats">
+      <div class="stat"><div class="n" id="impressions">0</div><div class="k">ads watched</div></div>
+      <div class="stat"><div class="n" id="perday">$0.00</div><div class="k">per day</div></div>
+    </div>
+  </section>
+
+  <!-- TOP ADS — the live bid market, top of inventory -->
+  <section class="sec">
+    <div class="sec-head"><span class="lbl">Top ads · live bid market</span></div>
     <ol class="board" id="board"></ol>
   </section>
 
+  <!-- live status line reflects the on/off switch -->
   <div class="status" id="status">
     <span class="dot"></span>
     <span class="status-txt">Active on <b>chatgpt.com</b>, <b>claude.ai</b></span>
@@ -44,7 +93,7 @@
 
   <footer class="foot">
     <a href="https://freeai.fyi" target="_blank" rel="noopener">freeai.fyi</a>
-    <a class="redeem-link" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem credits →</a>
+    <a class="r" href="https://freeai.fyi/redeem" target="_blank" rel="noopener">Redeem credits →</a>
   </footer>
 
   <!-- Developer tools — kept subtle, collapsed by default. -->
