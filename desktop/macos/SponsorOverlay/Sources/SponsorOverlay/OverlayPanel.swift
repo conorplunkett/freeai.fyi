@@ -41,14 +41,12 @@ final class OverlayPanelController {
     private static let padX: CGFloat = 14
     private static let gap: CGFloat = 9
     private static let chipSize: CGFloat = 18
-    private static let dismissSize: CGFloat = 18
 
     private var panel: NSPanel?
     private(set) var card: SponsorCard?
     /// Content-fitted width, recomputed whenever the card changes.
     private(set) var panelWidth: CGFloat = 360
     var onClick: ((SponsorCard) -> Void)?
-    var onDismiss: ((SponsorCard) -> Void)?
 
     var isShown: Bool { panel?.isVisible ?? false }
 
@@ -127,9 +125,9 @@ final class OverlayPanelController {
         let lineText = "\(card.sponsorName) · \(card.message)"
         var lineW = ceil(lineText.size(withAttributes: [.font: lineFont]).width)
 
-        // Everything except the (ellipsizable) line is fixed width.
-        let fixed = Self.padX + Self.chipSize + Self.gap + Self.gap
-                  + Self.dismissSize + Self.padX
+        // Everything except the (ellipsizable) line is fixed width:
+        // padX [chip] gap [line] padX.
+        let fixed = Self.padX + Self.chipSize + Self.gap + Self.padX
         lineW = min(lineW, Self.maxWidth - fixed)
         let width = fixed + lineW
         panelWidth = width
@@ -158,15 +156,10 @@ final class OverlayPanelController {
         line.textColor = Palette.line
         line.lineBreakMode = .byTruncatingTail
         line.frame = NSRect(x: x, y: (h - 17) / 2, width: lineW, height: 17)
-        x += lineW + Self.gap
 
-        let dismiss = NSButton(title: "×", target: self, action: #selector(dismissTapped))
-        dismiss.isBordered = false
-        dismiss.contentTintColor = Palette.dots
-        dismiss.frame = NSRect(x: x, y: (h - Self.dismissSize) / 2,
-                               width: Self.dismissSize, height: Self.dismissSize)
-
-        // Whole bar is the click target (like the extension); × stays separate.
+        // The whole bar is the click target (like the extension). There is no
+        // dismiss control — the card is shown only while the assistant is
+        // generating and hides on its own when generation ends.
         for view in [chip, line] {
             view.addGestureRecognizer(
                 NSClickGestureRecognizer(target: self, action: #selector(cardTapped)))
@@ -174,7 +167,6 @@ final class OverlayPanelController {
 
         root.addSubview(chip)
         root.addSubview(line)
-        root.addSubview(dismiss)
         panel.contentView = root
     }
 
@@ -184,10 +176,5 @@ final class OverlayPanelController {
         // here too would double-open the destination.
         guard let card else { return }
         onClick?(card)
-    }
-
-    @objc private func dismissTapped() {
-        hide()
-        if let card { onDismiss?(card) }
     }
 }

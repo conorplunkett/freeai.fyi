@@ -71,10 +71,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bootstrap()
 
         overlay.onClick = { [weak self] card in self?.handleClick(campaignId: card.campaignID) }
-        overlay.onDismiss = { [weak self] _ in
-            self?.adsPaused = true // dismiss pauses until next generation burst
-            DispatchQueue.main.asyncAfter(deadline: .now() + 300) { self?.adsPaused = false }
-        }
 
         // 100ms loop. Every 5th tick is the full signal poll (500ms, as
         // before): AX tree scan, show/hide decision, impression engine. The

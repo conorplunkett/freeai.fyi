@@ -210,15 +210,18 @@ final class AssistantDetector {
             }
         }
 
-        // Stop button: match loosely ("Stop response", "Stop generating",
-        // "Stop streaming", localized variants keep the verb) but require it on
-        // a button so plain message text can never trip it. This is the primary
+        // Stop button: the generation Stop control — "Stop response" (Claude),
+        // "Stop generating" / "Stop streaming" (ChatGPT). Require the full verb
+        // phrase, NOT a bare "stop": a substring match flagged unrelated UI like
+        // the sidebar chat titled "6 Train Not Stopping", pinning the card on
+        // forever (the same trap the Chrome extension documents). Matched only
+        // on a button so message text can never trip it. This is the primary
         // generating signal for ChatGPT, which has no thinking star.
         if !scan.hasStopButton, role == kAXButtonRole as String {
             for attr in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute] {
                 var v: CFTypeRef?
                 AXUIElementCopyAttributeValue(element, attr as CFString, &v)
-                if let s = (v as? String)?.lowercased(), s.contains("stop") {
+                if let s = (v as? String)?.lowercased(), Self.isStopGenerationLabel(s) {
                     scan.hasStopButton = true
                     break
                 }
@@ -238,6 +241,16 @@ final class AssistantDetector {
             scanTree(child, depth: depth + 1, into: &scan, target: target)
             if scan.isComplete { return }
         }
+    }
+
+    /// True when a button label denotes the generation Stop control, not merely
+    /// any text containing "stop" (e.g. a chat titled "… Not Stopping"). Keeps
+    /// the verb phrases the assistants use, plus a bare exact "stop" for safety.
+    static func isStopGenerationLabel(_ label: String) -> Bool {
+        let t = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if t == "stop" { return true }
+        return t.contains("stop generating") || t.contains("stop streaming")
+            || t.contains("stop response") || t.contains("stop responding")
     }
 
     /// The thinking star is matched by its DOM class: Chromium (and therefore
@@ -304,7 +317,13 @@ final class AssistantDetector {
         // DOM classes are how the star is matched — print them so a probe run
         // against a new build shows what to update in isThinkingStar.
         let classes = (classRef as? [String])?.joined(separator: ".") ?? ""
-        let starLike = classes.contains("spark") || classes.contains("thinking")
+        // Broad net for animated indicators so a renamed thinking star still
+        // surfaces in the concise dump (the matcher in isThinkingStar stays
+        // narrow — this is just for the diagnostic display).
+        let lc = classes.lowercased()
+        let starLike = ["spark", "thinking", "working", "spinner", "loading",
+                        "loader", "animate", "animation", "pulse", "shimmer",
+                        "progress"].contains { lc.contains($0) }
         let isTextInput = role == kAXTextAreaRole as String || role == kAXTextFieldRole as String
         let isStopButton = role == kAXButtonRole as String
             && (title + " " + desc).lowercased().contains("stop")
