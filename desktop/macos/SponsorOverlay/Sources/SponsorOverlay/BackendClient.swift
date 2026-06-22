@@ -1,5 +1,5 @@
 // HTTP client for the existing FreeAI API (server/src/app.js). The
-// desktop app speaks the same protocol as the VS Code extension:
+// desktop app speaks the same protocol as the other FreeAI clients:
 //   POST /v1/devices/register  -> { deviceId, deviceKey }
 //   GET  /v1/ads               -> { ads: [{ id, brand, line, url, cat }] }
 //   POST /v1/events            -> { batchKey, events: [{campaignId, impressions, clicks}] }

@@ -39,9 +39,13 @@ landers:
 # Brand assets
 # ---------------------------------------------------------------------------
 
-## icons: Regenerate the "F$" coral app icons (chrome, vscode, macOS) from theme.css.
+## icons: Regenerate the "F$" coral app icons (chrome, macOS) from theme.css.
 icons:
 	python3 tools/gen-icons.py
+
+## og: Regenerate the social share / link-preview image (og.png) from theme.css.
+og:
+	node tools/gen-og.mjs
 
 # ---------------------------------------------------------------------------
 # Server (Node + Postgres backend)
@@ -117,26 +121,6 @@ test-terminal:
 	cd terminal && npm test
 
 # ---------------------------------------------------------------------------
-# VS Code / Cursor extension (incubating — see vscode-extension/INTEGRATION.md)
-# ---------------------------------------------------------------------------
-
-## vscode-install: Install the VS Code extension's dev dependencies.
-vscode-install:
-	cd vscode-extension && npm install
-
-## build-vscode: Bundle the VS Code extension (esbuild → dist/).
-build-vscode:
-	cd vscode-extension && npm run build
-
-## test-vscode: Run the VS Code extension's vitest editor-safety suite.
-test-vscode:
-	cd vscode-extension && npm test
-
-## package-vscode: Produce the .vsix (requires @vscode/vsce).
-package-vscode:
-	cd vscode-extension && npm run package
-
-# ---------------------------------------------------------------------------
 # macOS app (SponsorOverlay) + Rust core
 # ---------------------------------------------------------------------------
 
@@ -175,7 +159,6 @@ mac-open:
 ## test: Run every test suite (server, extension, terminal, mac core).
 test: test-server test-ext test-terminal test-mac
 
-.PHONY: help site landers icons db-up db-down migrate seed server server-up devnet devnet-earn server-install \
-	test-server test-ext lint-ext package-ext test-terminal vscode-install build-vscode test-vscode \
-	package-vscode test-mac mac-build mac-run mac-demo \
+.PHONY: help site landers icons og db-up db-down migrate seed server server-up devnet devnet-earn server-install \
+	test-server test-ext lint-ext package-ext test-terminal test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test

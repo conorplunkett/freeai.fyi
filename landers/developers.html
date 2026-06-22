@@ -8,9 +8,33 @@
   <meta name="freeai-api" content="https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api" />
   <title>FreeAI.fyi — Get Claude for free while you ship code</title>
   <meta name="description" content="Earn Claude credits while you build with Claude Code, ChatGPT and Gemini. A subtle sponsored line shows while the model thinks — 50% of the revenue comes back to you as credits for Claude." />
+
+  <!-- Link previews. The rich card every chat app / social platform shows when
+       someone shares a freeai.fyi link — built to make the product obvious at a
+       glance (OpenGraph + Twitter, with an absolute-URL og.png from
+       tools/gen-og.mjs). The lander generator (tools/gen-landers.mjs) rewrites
+       og/twitter title+description, og:url and the canonical per campaign; the
+       shared image carries the rest. theme-color mirrors --accent, the same
+       coral the favicon data-URI hardcodes (no CSS var reaches a <meta>). -->
+  <link rel="canonical" href="https://freeai.fyi/developers" />
+  <meta name="theme-color" content="#d97757" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="FreeAI.fyi" />
+  <meta property="og:url" content="https://freeai.fyi/developers" />
+  <meta property="og:locale" content="en_US" />
   <meta property="og:title" content="FreeAI.fyi — Get Claude for free while you ship code" />
   <meta property="og:description" content="50% of the revenue comes back as Claude credits. Bid live for the most-watched spinner on Earth." />
-  <link rel="canonical" href="https://freeai.fyi/developers" />
+  <meta property="og:image" content="https://freeai.fyi/og.png?v=20260620" />
+  <meta property="og:image:secure_url" content="https://freeai.fyi/og.png?v=20260620" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="FreeAI.fyi — a sponsored line shows while ChatGPT, Claude and Gemini think, and 50% of the revenue comes back to you as Claude credits." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FreeAI.fyi — Get Claude for free while you ship code" />
+  <meta name="twitter:description" content="50% of the revenue comes back as Claude credits. Bid live for the most-watched spinner on Earth." />
+  <meta name="twitter:image" content="https://freeai.fyi/og.png?v=20260620" />
+  <meta name="twitter:image:alt" content="FreeAI.fyi — earn Claude credits while you use ChatGPT, Claude and Gemini." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />

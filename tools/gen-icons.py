@@ -3,19 +3,15 @@
 surface, from a single definition. No third-party deps: it drives a local
 Chromium (for real font rendering) and writes PNGs by hand.
 
-The mark mirrors the shared brand renderer in
-`vscode-extension/scripts/_brand.mjs` — the monospace "F$" (JetBrains Mono, the
-same face as the site .logo chip and favicon) on the vertical coral gradient. The
-gradient colors are read straight from the design-system source of truth,
-`theme.css` (--accent-grad-a / --accent-grad-b), so the icon can never drift from
-the palette. JetBrains Mono loads from Google Fonts when online; offline it falls
-back to a local monospace (DejaVu Sans Mono) — the same monospaced shape.
-`vscode-extension/scripts/gen-icon.mjs` remains the Marketplace-official path
-(via Playwright); this tool is the dependency-free, offline one.
+The mark is the monospace "F$" (JetBrains Mono, the same face as the site .logo
+chip and favicon) on the vertical coral gradient. The gradient colors are read
+straight from the design-system source of truth, `theme.css` (--accent-grad-a /
+--accent-grad-b), so the icon can never drift from the palette. JetBrains Mono
+loads from Google Fonts when online; offline it falls back to a local monospace
+(DejaVu Sans Mono) — the same monospaced shape.
 
 Writes (overwrites) every committed app icon:
   chrome-extension/icons/icon16.png, icon48.png, icon128.png
-  vscode-extension/media/icon.png                       (256)
   desktop/macos/SponsorOverlay/packaging/assets/AppIcon-1024.png
 
 Run:  make icons   (or:  python3 tools/gen-icons.py)
@@ -44,7 +40,6 @@ TARGETS = [
     ("chrome-extension/icons/icon16.png", 16),
     ("chrome-extension/icons/icon48.png", 48),
     ("chrome-extension/icons/icon128.png", 128),
-    ("vscode-extension/media/icon.png", 256),
     ("desktop/macos/SponsorOverlay/packaging/assets/AppIcon-1024.png", 1024),
 ]
 
@@ -77,7 +72,7 @@ def icon_html(size, grad_top, grad_bot):
     r = round(size * RADIUS_RATIO)
     fs = round(size * FONT_RATIO)
     # Center the glyph with an SVG <text dominant-baseline="central"> (same as
-    # _brand.mjs markSVG / the favicon) — flex + line-height:1 sits it too high.
+    # the favicon) — flex + line-height:1 sits it too high.
     return (
         "<!doctype html><html><head><meta charset=utf-8>"
         "<link rel=preconnect href='https://fonts.googleapis.com'>"

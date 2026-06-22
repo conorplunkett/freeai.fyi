@@ -149,11 +149,20 @@ bar), and the macOS app. Always use it.
 
 5. **Logo.** The brand mark is the **"F$" coral wordmark** on the accent
    gradient — the app icon for **every** surface (Chrome `chrome-extension/icons/*`,
-   VS Code `vscode-extension/media/icon.png`, macOS `AppIcon-1024.png`) and the
-   site favicon. Regenerate all icons with `make icons` (`tools/gen-icons.py`,
-   which reads the gradient straight from `theme.css`); the canonical renderer is
-   `vscode-extension/scripts/_brand.mjs`. Never hand-edit icon PNGs or
+   macOS `AppIcon-1024.png`) and the site favicon. Regenerate all icons with
+   `make icons` (`tools/gen-icons.py`, the canonical renderer, which reads the
+   gradient straight from `theme.css`). Never hand-edit icon PNGs or
    reintroduce the old green/teal marks.
+
+   The **social link-preview cards** — `og.png` (the default, shown when a
+   `freeai.fyi` link is shared) and `og-referral.png` (the invite card the
+   `/redeem?ref=…` referral link previews as), both at the repo root and wired up
+   via the OpenGraph/Twitter `<meta>` block in each page's `<head>` — are
+   generated the same way: `make og` (`tools/gen-og.mjs`) renders every variant
+   in the `CARDS` list, reading the palette straight from `theme.css`. They share
+   one layout so the brand is unmistakable; only the eyebrow/headline/subhead copy
+   changes per card. Regenerate (and bump the `?v=` cache-bust in the `<meta>`
+   tags) after any palette or pitch change; never hand-edit the PNGs.
 
 6. **Next token group.** Radius/shadow values are still inline and not yet
    tokenized — when you first need to share one, add a `--radius-*` / `--shadow-*`

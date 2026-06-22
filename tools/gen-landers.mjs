@@ -286,12 +286,32 @@ for (const l of LANDERS) {
     /<meta property="og:description" content="[\s\S]*?" \/>/,
     `<meta property="og:description" content="${l.ogDescription}" />`,
   );
-  // Canonicalize every URL variant of this lander to its short campaign URL.
+  // Twitter title/description mirror the OG copy (the share image is shared).
   out = sub(
     out,
-    "canonical anchor",
-    /(<link rel="preconnect" href="https:\/\/fonts\.googleapis\.com" \/>)/,
-    `<link rel="canonical" href="https://freeai.fyi/${l.slug}" />\n  $1`,
+    "twitter:title",
+    /<meta name="twitter:title" content="[\s\S]*?" \/>/,
+    `<meta name="twitter:title" content="${l.ogTitle}" />`,
+  );
+  out = sub(
+    out,
+    "twitter:description",
+    /<meta name="twitter:description" content="[\s\S]*?" \/>/,
+    `<meta name="twitter:description" content="${l.ogDescription}" />`,
+  );
+  // Point og:url + the canonical at this lander's short campaign URL, so shares
+  // and search both resolve to /chatgpt rather than the homepage.
+  out = sub(
+    out,
+    "og:url",
+    /<meta property="og:url" content="[\s\S]*?" \/>/,
+    `<meta property="og:url" content="https://freeai.fyi/${l.slug}" />`,
+  );
+  out = sub(
+    out,
+    "canonical",
+    /<link rel="canonical" href="[\s\S]*?" \/>/,
+    `<link rel="canonical" href="https://freeai.fyi/${l.slug}" />`,
   );
   out = sub(out, "hero h1", /<h1>[\s\S]*?<\/h1>/, `<h1>${l.h1}</h1>`);
   out = sub(
