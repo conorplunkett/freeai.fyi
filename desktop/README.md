@@ -91,6 +91,12 @@ can't be forged), `GET /v1/me/earnings`. Point the app elsewhere with
 
 ## Testing
 
+> **End-to-end across surfaces ("watch your balance climb"):** demo mode below
+> logs to the console and never touches a real account. To earn against a local
+> API and watch a portal balance update live, run the app with
+> `FREEAI_API_URL=http://localhost:8787` and follow [`../DEVNET.md`](../DEVNET.md)
+> (`make devnet` + `make devnet-earn`).
+
 **Core logic (any OS):**
 ```sh
 cd desktop/core && cargo test

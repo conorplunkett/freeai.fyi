@@ -52,6 +52,11 @@ npm test             # vitest — the editor-safety net (902 tests)
 npm run package      # produce the .vsix (requires @vscode/vsce)
 ```
 
+> **End-to-end across surfaces ("watch your balance climb"):** this extension is
+> incubating and **not yet wired to earn**, so it won't move a real balance. The
+> cross-surface devnet test plan (extension / terminal / macOS) lives in
+> [`../DEVNET.md`](../DEVNET.md).
+
 Brand/config knobs:
 
 - **Backend:** `src/config.ts` → `DEFAULT_BACKEND_BASE`

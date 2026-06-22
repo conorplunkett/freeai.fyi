@@ -89,6 +89,12 @@ browser: injection, the Stop-button show/hide cycle, rendered ad copy, real
 impressions hitting `chrome.storage` at the 50% rate, and Test-Mode
 impressions/clicks staying out of real earnings.
 
+> **End-to-end across surfaces ("watch your balance climb"):** Test mode uses
+> throwaway counters that never touch a real account. To earn against a local
+> API and watch the portal balance update live, point the extension at the
+> devnet by editing `API_BASE` in `src/background.js` to `http://localhost:8787`,
+> reload unpacked, then follow [`../DEVNET.md`](../DEVNET.md) (`make devnet`).
+
 ## Publishing to the Chrome Web Store
 
 ```bash

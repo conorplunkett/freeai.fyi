@@ -45,6 +45,12 @@ one-line description. The common ones:
 | `make mac-bundle` / `make mac-open` | Package then open `SponsorOverlay.app` |
 | `make test` | Every test suite |
 
+**Test the product end-to-end before launch** — run every surface against a
+local API and watch a real account balance climb live, with no Stripe account
+and no real money: see **[`DEVNET.md`](DEVNET.md)** (`make devnet` +
+`make devnet-earn`). The production cutover checklist is in
+[`LAUNCH.md`](LAUNCH.md).
+
 These wrap the per-component READMEs, which stay the source of truth:
 
 - **Extension:** see [`chrome-extension/README.md`](chrome-extension/README.md).

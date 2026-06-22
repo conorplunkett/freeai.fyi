@@ -148,12 +148,17 @@ curl -X POST localhost:8787/v1/checkout -H 'content-type: application/json' \
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/freeai npm test
 ```
 
-30 end-to-end checks drive the real routes against a real Postgres (isolated
+33 end-to-end checks drive the real routes against a real Postgres (isolated
 schema per run) with only the Stripe + mail transports faked: checkout → webhook
 activation → moderation → auction ranking → 50% impression/click credits →
 idempotency → caps → budget exhaustion → Connect onboarding → payout sweep →
 gift-card catalog → website login → balance redemption → referral rewards →
 earnings/activity dashboards → killswitch.
+
+> **End-to-end across surfaces ("watch your balance climb"):** to run this API
+> with a seeded campaign and see a real account balance update live as devices
+> serve ads, see [`../DEVNET.md`](../DEVNET.md) — `make devnet` boots it with
+> **no Stripe key required**, and `make devnet-earn` drives the loop.
 
 ## Wiring the extension
 
@@ -277,7 +282,7 @@ clean. Rejection auto-refunds via Stripe and posts a reversing ledger entry.
 ## CI
 
 - **`.github/workflows/ci.yml`** — the `server` job spins up a Postgres 16
-  service and runs these 30 end-to-end API checks (`npm install` → `npm test`)
+  service and runs these 33 end-to-end API checks (`npm install` → `npm test`)
   on every push/PR. (Separate `chrome-extension`, `terminal`, `desktop-core`,
   `desktop-macos`, and `site` jobs cover the other surfaces.)
 - **Production deploy** is the Edge Function, not this tree:

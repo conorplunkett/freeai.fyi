@@ -94,3 +94,8 @@ make test-terminal
 # or
 cd terminal && npm test
 ```
+
+> **End-to-end across surfaces ("watch your balance climb"):** to earn against a
+> local API and watch a portal balance update live, run the client with
+> `FREEAI_BASE=http://localhost:8787` and follow [`../DEVNET.md`](../DEVNET.md)
+> (`make devnet` + `make devnet-earn`).
