@@ -724,19 +724,30 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       return json(res, 400, { error: "valid email required" });
     }
     if (email.toLowerCase() === String(user.email || "").toLowerCase()) {
-      return json(res, 400, { error: "you can't refer your own email" });
+      return json(res, 400, { error: "You can't refer your own email" });
     }
     const code = await repo.getOrCreateReferralCode(user.id);
     const link = `${config.siteUrl}/redeem.html?ref=${code}`;
     const invite = await repo.createReferralInvite(user.id, email, code);
-    await mailer.sendReferralInviteEmail(email, {
-      inviterEmail: user.email,
-      link,
-      rewardUsd: config.referralRewardCents / 100,
-    });
+    // The invite row above is the onboarding gate and the source of truth: the
+    // friend never has to act for the inviter to progress. Delivering the email
+    // is best-effort — if the mail provider rejects it (e.g. an unverified
+    // sending domain) we log it but don't fail the request, otherwise the user
+    // is stranded on onboarding behind an "internal error" for a saved invite.
+    let sent = true;
+    try {
+      await mailer.sendReferralInviteEmail(email, {
+        inviterEmail: user.email,
+        link,
+        rewardUsd: config.referralRewardCents / 100,
+      });
+    } catch (err) {
+      sent = false;
+      console.error("[freeai] referral invite email failed:", err.message);
+    }
     json(res, 200, {
       ok: true,
-      sent: true,
+      sent,
       invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at },
     });
   });

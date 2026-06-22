@@ -14,7 +14,7 @@ function createMailer(config) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: config.mailFrom || "FreeAI <hello@freeai.fyi>",
+          from: config.mailFrom || "FreeAI <contact@freeai.fyi>",
           to,
           subject,
           html: htmlBody,
