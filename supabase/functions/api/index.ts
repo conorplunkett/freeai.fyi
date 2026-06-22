@@ -223,7 +223,7 @@ function createMailer(cfg: any) {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${cfg.resendApiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: cfg.mailFrom || "FreeAI <contact@freeai.fyi>", to, subject, html: htmlBody }),
+        body: JSON.stringify({ from: cfg.mailFrom || "FreeAI <ads@contact.freeai.fyi>", to, subject, html: htmlBody }),
       });
       if (!res.ok) throw new Error("resend send failed: " + res.status + " " + (await res.text().catch(() => "")).slice(0, 300));
       return;
@@ -252,6 +252,16 @@ function createMailer(cfg: any) {
        </ul>
        <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
        <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`),
+    sendCampaignLiveEmail: (to: string, { campaignId, brand, adLine, blocks }: any) =>
+      send(to, "Your FreeAI ad is live 🎉",
+      `<p>Good news — your campaign is approved and now <strong>live on FreeAI</strong>. 🎉</p>
+       <ul>
+         <li><strong>Ad line:</strong> "${adLine}"</li>
+         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
+         <li><strong>Running:</strong> ${(blocks * 1000).toLocaleString("en-US")} impressions (${blocks} block${blocks === 1 ? "" : "s"})</li>
+         <li><strong>Campaign id:</strong> ${campaignId}</li>
+       </ul>
+       <p>It's showing in the spinner while people use ChatGPT, Claude &amp; Gemini. Higher bids serve first — come back any time to boost your bid and climb the leaderboard.</p>`),
     sendCampaignRejectedEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }: any) =>
       send(to, "Your FreeAI campaign was refunded",
       `<p>Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>
@@ -593,11 +603,15 @@ function createRepo(pool: any) {
     },
     async approveCampaign(campaignId: string) {
       const { rows } = await pool.query(
-        `update campaigns set status = 'active', activated_at = now()
-          where id = $1 and status = 'pending_review' returning id`,
+        `update campaigns cmp set status = 'active', activated_at = now()
+           from advertisers adv
+          where cmp.id = $1 and cmp.status = 'pending_review'
+            and adv.id = cmp.advertiser_id
+          returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks`,
         [campaignId]
       );
-      return !!rows[0];
+      const r = rows[0];
+      return r ? { email: r.email, brand: r.brand, adLine: r.ad_line, pricePerBlockCents: r.price_per_block_cents, blocks: r.blocks } : null;
     },
     async rejectCampaign(campaignId: string, note: string) {
       return tx(async (c: any) => {
@@ -2488,8 +2502,21 @@ route("GET", "/v1/admin/campaigns", async (ctx: any) => {
 });
 route("POST", "/v1/admin/campaigns/approve", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
-  const ok = await repo.approveCampaign(ctx.body?.campaignId);
-  return json(ok ? 200 : 404, { ok });
+  const result = await repo.approveCampaign(ctx.body?.campaignId);
+  if (!result) return json(404, { ok: false });
+  // Tell the advertiser their ad is live. Wrapped so a mail failure never
+  // fails the approval (already committed above).
+  try {
+    await mailer.sendCampaignLiveEmail((result as any).email, {
+      campaignId: ctx.body?.campaignId,
+      brand: (result as any).brand,
+      adLine: (result as any).adLine,
+      blocks: (result as any).blocks,
+    });
+  } catch (err: any) {
+    console.error("[freeai] live email failed:", err.message);
+  }
+  return json(200, { ok: true });
 });
 route("POST", "/v1/admin/campaigns/reject", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
