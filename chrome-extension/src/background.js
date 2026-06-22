@@ -169,6 +169,9 @@ async function flushEvents() {
         deviceId: device.deviceId,
         deviceKey: device.deviceKey,
         batchKey,
+        // Tags credits with the surface so the portal's Install tab can light up
+        // the per-service "active" logo (grey → colored on the first credit).
+        source: "chrome",
         events: [{ impressions: pendingImpressions, clicks: 0 }],
       }),
     });

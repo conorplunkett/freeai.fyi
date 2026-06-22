@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FreeAI Products — install the Chrome extension, Claude Code &amp; Desktop</title>
+  <meta name="description" content="Three ways to earn Claude credits with FreeAI: the Chrome extension, the Claude Code terminal integration, and the macOS desktop app. Install any of them in three steps." />
+
+  <!-- Link previews (OpenGraph + Twitter). Shares the brand share image; see
+       index.html and tools/gen-og.mjs. -->
+  <link rel="canonical" href="https://freeai.fyi/products" />
+  <meta name="theme-color" content="#d97757" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="FreeAI.fyi" />
+  <meta property="og:url" content="https://freeai.fyi/products" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="FreeAI Products — earn Claude credits everywhere you use AI" />
+  <meta property="og:description" content="Install the Chrome extension, the Claude Code terminal integration, or the macOS desktop app — each in three steps. 50% of the revenue comes back as Claude credits." />
+  <meta property="og:image" content="https://freeai.fyi/og.png?v=20260620" />
+  <meta property="og:image:secure_url" content="https://freeai.fyi/og.png?v=20260620" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="FreeAI.fyi — a sponsored line shows while ChatGPT, Claude and Gemini think, and 50% of the revenue comes back to you as Claude credits." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FreeAI Products — earn Claude credits everywhere you use AI" />
+  <meta name="twitter:description" content="Install the Chrome extension, the Claude Code terminal integration, or the macOS desktop app — each in three steps." />
+  <meta name="twitter:image" content="https://freeai.fyi/og.png?v=20260620" />
+  <meta name="twitter:image:alt" content="FreeAI.fyi — earn Claude credits while you use ChatGPT, Claude and Gemini." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="theme.css?v=20260619a" />
+  <link rel="stylesheet" href="styles.css?v=20260619a" />
+
+  <!-- Page-local styles. The Products page reuses the shared design system
+       (theme.css tokens + the .nav / .logo / .btn-green / .eyebrow / .footer
+       primitives from styles.css) and adds only what's unique to it: the
+       priority-ordered product blocks, the three-step grids, the terminal mock
+       (mirrored from terminal.html), and the macOS install graphics. -->
+  <style>
+    .prod-wrap { max-width: 940px; margin: 8px auto 0; padding: 0 24px 96px; }
+
+    .prod-hero { text-align: center; max-width: 680px; margin: 18px auto 8px; }
+    .prod-hero .eyebrow {
+      display: inline-block; font-family: var(--mono); font-size: 12.5px;
+      letter-spacing: .08em; text-transform: uppercase; color: var(--accent-d); font-weight: 700;
+    }
+    .prod-hero h1 { font-size: clamp(28px, 7vw, 44px); font-weight: 900; letter-spacing: -.035em; line-height: 1.06; margin: 12px 0 12px; }
+    .prod-hero p { color: var(--ink-2); font-size: 17px; line-height: 1.6; margin: 0 auto; max-width: 560px; }
+
+    /* In-page chip nav — jumps to each product, in priority order. */
+    .prod-jump { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 24px 0 6px; }
+    .prod-jump a {
+      font-family: var(--mono); font-size: 12.5px; font-weight: 600; letter-spacing: .02em;
+      color: var(--ink-2); padding: 8px 15px; border: 1px solid var(--line); border-radius: 999px;
+      background: #fff; transition: border-color .15s, background .15s, color .15s;
+    }
+    .prod-jump a:hover { border-color: var(--accent); color: var(--accent-d); background: rgba(var(--accent-rgb),.07); }
+    .prod-jump a .rank { color: var(--gray-2); margin-right: 6px; }
+
+    /* ── Product block ── one per surface, priority encoded in size + emphasis ── */
+    .product {
+      position: relative; scroll-margin-top: 84px;
+      border: 1px solid var(--line); border-radius: 20px; background: #fff;
+      padding: 30px 30px 32px; margin-top: 26px;
+      box-shadow: 0 24px 60px -44px rgba(20,30,40,.5);
+    }
+    /* Priority #1 — Chrome: heaviest. Accent top rule, larger heading, tinted canvas. */
+    .product.is-primary {
+      border-color: rgba(var(--accent-rgb),.32); background: linear-gradient(180deg, rgba(var(--accent-rgb),.05), #fff);
+      box-shadow: 0 30px 70px -40px rgba(var(--accent-rgb),.55);
+    }
+    .product.is-primary::before {
+      content: ""; position: absolute; left: 24px; right: 24px; top: 0; height: 4px;
+      border-radius: 0 0 4px 4px; background: linear-gradient(90deg, var(--accent-grad-a), var(--accent-grad-b));
+    }
+    .product.is-primary .prod-title { font-size: clamp(24px, 5vw, 32px); }
+    .product.is-secondary, .product.is-tertiary { background: #fff; }
+
+    .prod-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .prod-ico { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--bg-tint); color: var(--ink); }
+    .prod-ico svg { width: 28px; height: 28px; display: block; }
+    .product.is-primary .prod-ico { background: rgba(var(--accent-rgb),.14); color: var(--accent-d); }
+    .prod-headings { flex: 1 1 280px; min-width: 0; }
+    .prod-rank { font-family: var(--mono); font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--accent-d); font-weight: 700; }
+    .prod-title { font-size: clamp(21px, 4vw, 26px); font-weight: 800; letter-spacing: -.025em; margin: 4px 0 6px; }
+    .prod-lead { color: var(--ink-2); font-size: 15.5px; line-height: 1.6; margin: 0; }
+    .prod-badge {
+      flex: none; align-self: flex-start; font-family: var(--mono); font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase; padding: 6px 11px; border-radius: 999px;
+      background: var(--accent); color: #fff;
+    }
+    .prod-badge.soft { background: var(--bg-tint); color: var(--gray); }
+
+    /* ── Three-step grid (max 3 steps per product) ── */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 24px 0 4px; }
+    .step { border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 18px; background: #fff; }
+    .product.is-primary .step { background: #fff; }
+    .step-num {
+      width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+      font-family: var(--mono); font-weight: 700; font-size: 13px;
+      background: var(--accent); color: #fff; margin-bottom: 10px;
+    }
+    .product.is-secondary .step-num, .product.is-tertiary .step-num { background: var(--ink); }
+    .step-title { font-size: 15px; font-weight: 700; margin: 0 0 5px; letter-spacing: -.01em; }
+    .step-body { font-size: 13.5px; color: var(--gray); line-height: 1.55; margin: 0; }
+    .step-body code { font-family: var(--mono); font-size: 12.5px; background: var(--bg-tint); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--ink); }
+
+    .prod-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 22px; }
+    .prod-cta .note { font-size: 13px; color: var(--gray-2); }
+    .prod-cta .note strong { color: var(--green-d); }
+    .prod-cta a.text-link { font-size: 14px; font-weight: 600; color: var(--green-d); }
+
+    /* Code + terminal mock — mirrors terminal.html's overlay/sponsor palette. */
+    .prod pre, .product pre { background: var(--card-dark-2); color: var(--ov-text); border-radius: 12px; padding: 14px 16px; overflow-x: auto; margin: 16px 0 0; font-family: var(--mono); font-size: 13px; line-height: 1.7; }
+    .product pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+    .product pre .c { color: var(--ov-dots); }
+    .term { background: var(--ov-bar-bg); border: 1px solid var(--ov-bar-border); border-radius: 14px; overflow: hidden; margin: 18px 0 0; box-shadow: 0 18px 40px rgba(20,23,28,.18); }
+    .term-bar { display: flex; align-items: center; gap: 7px; padding: 9px 13px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .term-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .term-dot.r { background: #ff5f57; } .term-dot.y { background: #febc2e; } .term-dot.g { background: #28c840; }
+    .term-title { margin-left: 8px; font-family: var(--mono); font-size: 12px; color: var(--ov-dots); }
+    .term-body { padding: 13px 15px 15px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--ov-text); }
+    .term-body .pr { color: #28c840; }
+    .term-status { margin-top: 9px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.08); color: var(--ov-line); }
+    .term-status .adtag { color: var(--ov-tag-text); }
+
+    /* ── macOS install graphics (illustrated, CSS/SVG — no real screenshots) ── */
+    .step.has-art { padding-bottom: 14px; }
+    .mac-art { width: 100%; height: 96px; margin: 12px 0 2px; border-radius: 10px; background: var(--bg-tint); border: 1px solid var(--line); display: block; }
+    .mac-art svg { width: 100%; height: 100%; display: block; }
+    /* SVG presentation attributes can't read CSS var(), so palette colors + fonts
+       for the install graphics are applied via these classes instead of raw hex.
+       (Genuinely non-palette macOS-illustration colors — traffic lights, the blue
+       Applications folder, the system-green toggle — stay literal, like the
+       terminal mock's traffic lights.) */
+    .mac-art text { font-family: var(--sans); }
+    .mac-art .mono { font-family: var(--mono); }
+    .mac-art .e-line { stroke: var(--line); }
+    .mac-art .f-tint { fill: var(--bg-tint); }
+    .mac-art .f-acc { fill: var(--accent); }
+    .mac-art .s-acc { stroke: var(--accent); }
+    .mac-art .f-acc-soft { fill: var(--accent); opacity: .25; }
+    .mac-art .s-gray2 { stroke: var(--gray-2); }
+    .mac-art .f-gray { fill: var(--gray); }
+    .mac-art .f-ink { fill: var(--ink); }
+
+    .back { display: inline-block; margin-top: 40px; font-size: 14px; color: var(--green-d); font-weight: 600; }
+
+    @media (max-width: 640px) {
+      .steps { grid-template-columns: 1fr; }
+      .product { padding: 24px 18px 26px; border-radius: 16px; }
+      .prod-badge { position: absolute; top: 18px; right: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- NAV — mirrors the lander/terminal header. -->
+  <header class="nav">
+    <a class="brand" href="/">
+      <span class="logo">F$</span>
+      <span class="brand-name">FreeAI.fyi</span>
+    </a>
+    <nav class="nav-btns">
+      <a href="/" class="navbtn">Home</a>
+      <a href="/redeem" class="navbtn">User Login</a>
+      <a href="#chrome" class="navbtn navbtn-cta">Install</a>
+    </nav>
+  </header>
+
+  <main class="prod-wrap">
+    <div class="prod-hero">
+      <span class="eyebrow">Products</span>
+      <h1>Earn Claude credits everywhere you use AI.</h1>
+      <p>
+        FreeAI shows one subtle sponsored line while the AI is thinking — and returns
+        <strong>50%</strong> of the revenue to you as credits for Claude Pro or Max. Pick
+        where you work and install in three steps.
+      </p>
+    </div>
+
+    <nav class="prod-jump" aria-label="Jump to a product">
+      <a href="#chrome"><span class="rank">01</span> Chrome extension</a>
+      <a href="#claude-code"><span class="rank">02</span> Claude Code</a>
+      <a href="#desktop"><span class="rank">03</span> Desktop</a>
+    </nav>
+
+    <!-- ═══════════ 01 · CHROME EXTENSION — top priority ═══════════ -->
+    <section class="product is-primary" id="chrome">
+      <span class="prod-badge">Most popular</span>
+      <div class="prod-top">
+        <span class="prod-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="3.4"/>
+            <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <div class="prod-headings">
+          <span class="prod-rank">01 · Browser</span>
+          <h2 class="prod-title">Chrome extension</h2>
+          <p class="prod-lead">
+            Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. The
+            fastest way to start — free, installs in seconds, reads none of your prompts.
+          </p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <h3 class="step-title">Add to Chrome</h3>
+          <p class="step-body">Open the Chrome Web Store listing and click <strong>Add to Chrome</strong> to confirm.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <h3 class="step-title">Open your AI</h3>
+          <p class="step-body">Head to <strong>ChatGPT</strong>, <strong>Claude</strong>, or <strong>Gemini</strong> and ask anything.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <h3 class="step-title">Earn &amp; redeem</h3>
+          <p class="step-body">A sponsored line shows while it thinks; 50% becomes Claude credits in your <a href="/redeem">portal</a>.</p>
+        </div>
+      </div>
+
+      <div class="prod-cta">
+        <a href="https://chromewebstore.google.com/" class="btn-green">
+          <svg class="btn-chrome" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+            <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Add to Chrome
+        </a>
+        <span class="note">Free forever. <strong>50% back as Claude credits.</strong> Opt out any time.</span>
+      </div>
+    </section>
+
+    <!-- ═══════════ 02 · CLAUDE CODE — secondary ═══════════ -->
+    <section class="product is-secondary" id="claude-code">
+      <div class="prod-top">
+        <span class="prod-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2.5"/>
+            <path d="M7.5 9.5 10.5 12l-3 2.5"/>
+            <path d="M13 14.5h4"/>
+          </svg>
+        </span>
+        <div class="prod-headings">
+          <span class="prod-rank">02 · Terminal</span>
+          <h2 class="prod-title">Claude Code</h2>
+          <p class="prod-lead">
+            A reversible <code>claude</code> shell alias shows one sponsored line in the status
+            bar <strong>only while Claude Code is thinking</strong>. Every flag and exit code is
+            forwarded untouched.
+          </p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <h3 class="step-title">Install the command</h3>
+          <p class="step-body">Clone the repo and <code>npm link</code> the <code>terminal/</code> package to expose the global <code>freeai</code> command.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <h3 class="step-title">Run setup</h3>
+          <p class="step-body">Run <code>freeai claude setup</code>, then reload your shell (it prints the exact <code>source</code> line).</p>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <h3 class="step-title">Verify</h3>
+          <p class="step-body"><code>freeai claude doctor</code> should print <code>ok: true</code>. Use <code>claude</code> exactly as before.</p>
+        </div>
+      </div>
+
+      <div class="term" aria-hidden="true">
+        <div class="term-bar">
+          <span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span>
+          <span class="term-title">claude</span>
+        </div>
+        <div class="term-body">
+          <span class="pr">›</span> refactor the auth middleware<br />
+          ✳ Discombobulating… (esc to interrupt)
+          <div class="term-status"><span class="adtag">ad·</span> Linear — Plan your next sprint faster</div>
+        </div>
+      </div>
+
+      <div class="prod-cta">
+        <a href="/terminal" class="btn-outline">Full Claude Code guide →</a>
+        <span class="note">Reversible alias. Fails open — you're never blocked.</span>
+      </div>
+    </section>
+
+    <!-- ═══════════ 03 · DESKTOP — tertiary, with install graphics ═══════════ -->
+    <section class="product is-tertiary" id="desktop">
+      <span class="prod-badge soft">macOS · Preview</span>
+      <div class="prod-top">
+        <span class="prod-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="12" rx="2"/>
+            <path d="M8 20h8M12 16v4"/>
+          </svg>
+        </span>
+        <div class="prod-headings">
+          <span class="prod-rank">03 · Desktop</span>
+          <h2 class="prod-title">Desktop app</h2>
+          <p class="prod-lead">
+            A lightweight macOS overlay that anchors the sponsored line to <strong>Claude
+            Desktop</strong> and <strong>ChatGPT Desktop</strong> while they think — no browser
+            needed.
+          </p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step has-art">
+          <span class="step-num">1</span>
+          <h3 class="step-title">Download the app</h3>
+          <span class="mac-art" role="img" aria-label="Downloading the FreeAI disk image">
+            <svg viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+              <rect x="34" y="14" width="132" height="74" rx="9" fill="#fff" class="e-line"/>
+              <path d="M34 23a9 9 0 0 1 9-9h114a9 9 0 0 1 9 9v6H34z" class="f-tint"/>
+              <circle cx="46" cy="21.5" r="2.6" fill="#ff5f57"/><circle cx="55" cy="21.5" r="2.6" fill="#febc2e"/><circle cx="64" cy="21.5" r="2.6" fill="#28c840"/>
+              <path d="M100 40v22" class="s-acc" stroke-width="4.5" stroke-linecap="round"/>
+              <path d="M89 53l11 11 11-11" fill="none" class="s-acc" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="74" y="72" width="52" height="7" rx="3.5" class="f-acc-soft"/>
+            </svg>
+          </span>
+          <p class="step-body">Grab <code>FreeAI.dmg</code> and open it.</p>
+        </div>
+        <div class="step has-art">
+          <span class="step-num">2</span>
+          <h3 class="step-title">Drag to Applications</h3>
+          <span class="mac-art" role="img" aria-label="Dragging FreeAI into the Applications folder">
+            <svg viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="180" height="90" rx="10" fill="#fff" class="e-line"/>
+              <!-- FreeAI app icon -->
+              <rect x="34" y="38" width="36" height="36" rx="9" class="f-acc"/>
+              <text x="52" y="62" class="mono" font-weight="700" font-size="18" fill="#fff" text-anchor="middle">F$</text>
+              <!-- drag arrow -->
+              <path d="M80 56h36" class="s-gray2" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 7"/>
+              <path d="M112 50l8 6-8 6" fill="none" class="s-gray2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- Applications folder (macOS folder blue — non-palette OS illustration) -->
+              <path d="M130 40h14l4 5h18a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3h-36a3 3 0 0 1-3-3V43a3 3 0 0 1 3-3z" fill="#cfe0f5" stroke="#9bb8de"/>
+              <text x="151" y="88" font-weight="700" font-size="9" class="f-gray" text-anchor="middle">Applications</text>
+            </svg>
+          </span>
+          <p class="step-body">Drop FreeAI into your <strong>Applications</strong> folder.</p>
+        </div>
+        <div class="step has-art">
+          <span class="step-num">3</span>
+          <h3 class="step-title">Allow &amp; launch</h3>
+          <span class="mac-art" role="img" aria-label="Granting screen permission in System Settings">
+            <svg viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
+              <rect x="14" y="12" width="172" height="86" rx="10" fill="#fff" class="e-line"/>
+              <text x="28" y="34" font-weight="700" font-size="10" class="f-gray">Screen Recording</text>
+              <line x1="28" y1="42" x2="172" y2="42" class="e-line"/>
+              <rect x="28" y="54" width="22" height="22" rx="6" class="f-acc"/>
+              <text x="39" y="69" class="mono" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">F$</text>
+              <text x="58" y="68" font-weight="600" font-size="11" class="f-ink">FreeAI</text>
+              <!-- toggle ON (macOS system green — non-palette OS illustration) -->
+              <rect x="138" y="58" width="34" height="18" rx="9" fill="#28c840"/>
+              <circle cx="163" cy="67" r="7" fill="#fff"/>
+            </svg>
+          </span>
+          <p class="step-body">Enable FreeAI under <strong>Screen Recording</strong>, then open it.</p>
+        </div>
+      </div>
+
+      <div class="prod-cta">
+        <a href="/redeem" class="btn-outline">Track installs in your portal →</a>
+        <span class="note">In preview — <strong>join from the extension</strong> to be notified when it ships.</span>
+      </div>
+    </section>
+
+    <a class="back" href="/">← Back to FreeAI</a>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 FreeAI.fyi · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+    <p class="fdim">The AI is already thinking. Might as well earn Claude.</p>
+    <p class="fdim tiny">Not affiliated with Anthropic, OpenAI, or Google.</p>
+  </footer>
+</body>
+</html>

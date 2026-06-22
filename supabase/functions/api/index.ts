@@ -565,7 +565,7 @@ function createRepo(pool: any) {
       );
       return !!rows[0];
     },
-    async ingestBatch({ deviceId, batchKey, events, revenueShare, dailyCap, ipHash, ipDailyCap }: any) {
+    async ingestBatch({ deviceId, batchKey, events, source, revenueShare, dailyCap, ipHash, ipDailyCap }: any) {
       return tx(async (c: any) => {
         const claimedImpressions = events.reduce((n: number, e: any) => n + (e.impressions || 0), 0);
         const claimedClicks = events.reduce((n: number, e: any) => n + (e.clicks || 0), 0);
@@ -629,7 +629,7 @@ function createRepo(pool: any) {
           await c.query(
             `insert into ledger (entry_type, amount_millicents, device_id, campaign_id, meta)
              values ('impression_credit', $1, $2, $3, $4)`,
-            [dev.toString(), deviceId, ev.campaignId, JSON.stringify({ impressions: imp, billed })]
+            [dev.toString(), deviceId, ev.campaignId, JSON.stringify(source ? { impressions: imp, billed, source } : { impressions: imp, billed })]
           );
           await c.query(
             `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
@@ -947,6 +947,21 @@ function createRepo(pool: any) {
         id: r.id, createdAt: r.created_at, entryType: r.entry_type,
         amountMillicents: Number(r.amount_millicents), advertiser: r.brand || null, meta: r.meta || {},
       }));
+    },
+    // Which surfaces this account has ever received a credit from, read from the
+    // source tag stamped on impression credits at ingest. Drives the Install
+    // tab's per-service "active" logo (grey → colored on the first credit).
+    async sourcesForUser(userId: string) {
+      const { rows } = await pool.query(
+        `select distinct meta->>'source' as source
+           from ledger
+          where (user_id = $1 or device_id in (select id from devices where user_id = $1))
+            and entry_type in ('impression_credit','click_credit')
+            and meta->>'source' is not null`,
+        [userId]
+      );
+      const seen = new Set(rows.map((r: any) => r.source));
+      return { chrome: seen.has("chrome"), claude_code: seen.has("claude_code"), desktop: seen.has("desktop") };
     },
     async recordGiftRedemptionForUser({ id, userId, plan, months, amountCents, recipientEmail, referralRewardMillicents, referralCap }: any) {
       return tx(async (c: any) => {
@@ -1713,6 +1728,9 @@ route("POST", "/v1/events", async (ctx: any) => {
   try {
     const result = await repo.ingestBatch({
       deviceId: device.id, batchKey: body.batchKey, events: body.events,
+      // Which product reported this batch (chrome / claude_code / desktop), so a
+      // credit can be attributed back to its surface; ignored unless allow-listed.
+      source: ["chrome", "claude_code", "desktop"].includes(body.source) ? body.source : null,
       revenueShare: config.revenueShare, dailyCap: config.dailyImpressionCap,
       ipHash: hashIp(ctx), ipDailyCap: config.ipDailyImpressionCap,
     });
@@ -2039,6 +2057,14 @@ route("GET", "/v1/web/activity", async (ctx: any) => {
       amountUsd: r.amountMillicents / 100000, advertiser: r.advertiser, meta: r.meta,
     })),
   });
+});
+// Per-service activation for the Install tab: true once the account has received
+// its first credit from that surface (chrome / claude_code / desktop).
+route("GET", "/v1/web/sources", async (ctx: any) => {
+  const user = await repo.userForSession(sessionFrom(ctx));
+  if (!user) return json(401, { error: "not signed in" });
+  const sources = await repo.sourcesForUser(user.id);
+  return json(200, { sources });
 });
 route("GET", "/v1/web/referrals", async (ctx: any) => {
   const user = await repo.userForSession(sessionFrom(ctx));

@@ -106,6 +106,9 @@ final class BackendClient {
             "deviceId": credentials.deviceId,
             "deviceKey": credentials.deviceKey,
             "batchKey": batchKey,
+            // Tags credits with the surface so the portal's Install tab can light
+            // up the per-service "active" logo (grey -> colored on first credit).
+            "source": "desktop",
             "events": events,
         ]) { result in
             if case .success = result { completion(true) } else { completion(false) }
