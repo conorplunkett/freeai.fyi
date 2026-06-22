@@ -93,10 +93,8 @@ function friendSlot(f) {
 function invitedSlot(inv) {
   return (
     `<div class="friend invited">` +
-    `<div class="meta">` +
-    `<div class="nm">${esc(inv.email || "a friend")}</div>` +
-    `<div class="sub">invite sent — waiting to join</div>` +
-    `</div><div class="badge">Invited</div></div>`
+    `<div class="meta"><div class="nm">${esc(inv.email || "a friend")}</div></div>` +
+    `<div class="badge">Invited</div></div>`
   );
 }
 
@@ -160,11 +158,11 @@ function bindInviteForm() {
   });
 }
 
-// Re-render only when the crew actually changes, so an 8s poll never wipes an
-// email the user is mid-way through typing.
+// Paint a crew object onto the panel. Re-renders the slots only when the crew
+// actually changes, so an 8s poll never wipes an email the user is mid-type.
 let crewSig = null;
-async function refreshCrew() {
-  const crew = (await send({ type: "BB_GET_CREW" })) || {};
+function applyCrew(crew) {
+  crew = crew || {};
   const sum = $("crew-sum");
   const signedout = $("crew-signedout");
   const linkedWrap = $("crew-linked");
@@ -200,6 +198,20 @@ async function refreshCrew() {
   if (sig === crewSig) return;
   crewSig = sig;
   renderCrewSlots(friends, invited, size);
+}
+
+async function refreshCrew() {
+  applyCrew((await send({ type: "BB_GET_CREW" })) || {});
+}
+
+// Instant first paint from the last crew we saw (cached by the background on
+// every fetch), so the panel never flashes the sign-in CTA or an empty list
+// before the network responds.
+async function primeCrewFromCache() {
+  try {
+    const { crewCache } = await chrome.storage.local.get(["crewCache"]);
+    if (crewCache) applyCrew(crewCache);
+  } catch (_) {}
 }
 
 // Sign-in: open the freeai.fyi login page in a new tab. No magic link in the
@@ -267,7 +279,7 @@ if ($("reset")) {
 renderBoard();   // instant paint from the bundled list
 refreshBoard();  // then swap in live inventory if available
 refresh();
-refreshCrew();
+primeCrewFromCache().then(refreshCrew); // cached crew first (no flash), then live
 setInterval(refresh, 1000);
 // Slower poll so the crew panel flips from signed-out → linked once the user
 // clicks the magic link in their email (no network spam on the 1s tick).

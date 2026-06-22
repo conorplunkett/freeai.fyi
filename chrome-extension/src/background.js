@@ -226,8 +226,17 @@ async function getCrew() {
     const qs = `deviceId=${encodeURIComponent(device.deviceId)}&deviceKey=${encodeURIComponent(device.deviceKey)}`;
     const res = await fetch(`${API_BASE}/v1/me/affiliate?${qs}`);
     if (!res.ok) return { linked: false, friends: [] };
-    return await res.json();
+    const data = await res.json();
+    // Cache the last good crew so the popup paints instantly on open instead of
+    // flashing the sign-in CTA / an empty list while the fetch is in flight.
+    try { await chrome.storage.local.set({ crewCache: data }); } catch (_) {}
+    return data;
   } catch (_) {
+    // Offline / transient failure: serve the last known crew if we have one.
+    try {
+      const { crewCache } = await chrome.storage.local.get(["crewCache"]);
+      if (crewCache) return crewCache;
+    } catch (_) {}
     return { linked: false, friends: [] };
   }
 }
