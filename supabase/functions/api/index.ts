@@ -1749,7 +1749,9 @@ route("POST", "/v1/checkout", async (ctx: any) => {
   if (!(nBlocks >= 1)) return json(400, { error: "at least 1 block" });
   const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, color: normalizeHexColor(color), pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
   const session = await stripe.createCheckoutSession({
-    mode: "payment", customer_email: email, receipt_email: email,
+    mode: "payment", customer_email: email,
+    // receipt_email isn't a Checkout Session param; it lives on the PaymentIntent.
+    payment_intent_data: { receipt_email: email },
     line_items: [{ quantity: nBlocks, price_data: { currency: "usd", unit_amount: priceCents, product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `"${adLine}"` } } }],
     metadata: { campaign_id: campaignId },
     success_url: `${config.siteUrl}/?checkout=success`,

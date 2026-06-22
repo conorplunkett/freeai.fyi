@@ -176,7 +176,9 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard,
     });
     const session = await stripe.createCheckoutSession({
-      mode: "payment", customer_email: email, receipt_email: email,
+      mode: "payment", customer_email: email,
+      // receipt_email isn't a Checkout Session param; it lives on the PaymentIntent.
+      payment_intent_data: { receipt_email: email },
       line_items: [{
         quantity: nBlocks,
         price_data: {
