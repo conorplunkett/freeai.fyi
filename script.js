@@ -145,6 +145,34 @@ if (adcolor && adcolorSwatch) {
   });
 }
 
+// --- Live ad preview: mirror the spinner overlay as the advertiser types ---
+const adPrevBar = document.getElementById("adpreview-bar");
+function readableInk(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
+  if (!m) return "#fff";
+  const [r, g, b] = [1, 2, 3].map((i) => parseInt(m[i], 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62 ? "#1b1e25" : "#fff"; // dark ink on light chips
+}
+function updateAdPreview() {
+  if (!adPrevBar) return;
+  const form = document.querySelector(".adform");
+  const brand = (form?.querySelector('input[name="organization"]')?.value || "").trim();
+  const line = (document.getElementById("adline")?.value || "").trim();
+  const raw = (document.getElementById("adcolor")?.value || "").trim();
+  const hex = /^#?[0-9a-f]{6}$/i.test(raw) ? (raw[0] === "#" ? raw : "#" + raw) : "";
+  const accent = hex || getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#d97757";
+  const chip = document.getElementById("prev-chip");
+  const lineEl = document.getElementById("prev-line");
+  if (chip) chip.textContent = ((brand || line || "Your ad here").trim()[0] || "Y").toUpperCase();
+  if (lineEl) lineEl.textContent = line || "Your ad here";
+  adPrevBar.style.setProperty("--prev-accent", accent);
+  adPrevBar.style.setProperty("--prev-ink", readableInk(accent));
+}
+{
+  const form = document.querySelector(".adform");
+  if (form && adPrevBar) { form.addEventListener("input", updateAdPreview); updateAdPreview(); }
+}
+
 // --- Destination URL: accept bare domains by auto-adding https:// ---
 // The backend requires https://, so prepend the scheme when the advertiser
 // tabs out of the field (and again on submit), and upgrade a typed http://.
