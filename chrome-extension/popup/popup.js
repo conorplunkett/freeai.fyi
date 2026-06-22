@@ -98,15 +98,16 @@ function invitedSlot(inv) {
   );
 }
 
-// The single active invite form, shown in the first open slot.
+// The single active invite form, shown in the first open slot. The "N slots
+// open" label sits above the form as a small header for the open section.
 function formSlot(open) {
   const left = open === 1 ? "1 slot open" : `${open} slots open`;
   return (
+    `<p class="invite-hint" id="invite-hint">${left}</p>` +
     `<form class="invite-form" id="invite-form">` +
     `<input type="email" id="invite-email" placeholder="friend@email.com" autocomplete="off" spellcheck="false" />` +
     `<button type="submit" id="invite-send">Invite</button>` +
     `</form>` +
-    `<p class="invite-hint" id="invite-hint">${left}</p>` +
     `<p class="invite-msg" id="invite-msg" hidden></p>`
   );
 }

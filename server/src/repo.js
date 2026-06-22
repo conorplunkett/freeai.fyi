@@ -1058,7 +1058,7 @@ function createRepo(pool) {
       const r = await pool.query(
         `select email, sent_at from referral_invites
           where referrer_user_id = $1 and status = 'sent'
-          order by sent_at desc limit 20`,
+          order by sent_at asc limit 20`,
         [userId]
       );
       return r.rows.map((row) => ({ email: maskEmail(row.email), invitedAt: row.sent_at }));
@@ -1299,7 +1299,7 @@ function createRepo(pool) {
          from affiliate_attributions aa
          join users u on u.id = aa.affiliated_user_id
         where aa.affiliate_id = $1
-        order by your_cut desc, generated desc
+        order by aa.created_at asc
         limit 50`,
         [affiliateId, affiliateUserId]
       );

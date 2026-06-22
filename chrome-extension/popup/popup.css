@@ -124,7 +124,7 @@ body {
 }
 
 /* the one active invite form */
-.invite-form { display: flex; gap: 7px; align-items: center; margin-top: 11px; }
+.invite-form { display: flex; gap: 7px; align-items: center; margin-top: 0; }
 .invite-form input {
   flex: 1; min-width: 0; padding: 10px 11px; font-family: var(--sans); font-size: 13px; color: var(--ink);
   background: var(--surface-inset); border: 1px solid var(--line); border-radius: var(--radius-md);
@@ -137,7 +137,7 @@ body {
 }
 .invite-form button:hover { filter: brightness(1.05); }
 .invite-form button:disabled { opacity: .6; cursor: default; }
-.invite-hint { font-size: 10.5px; color: var(--gray-2); font-family: var(--mono); margin: 6px 0 0; }
+.invite-hint { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--gray-2); font-family: var(--mono); margin: 14px 0 7px; }
 .invite-msg { font-size: 11.5px; margin: 6px 0 0; font-weight: 600; }
 .invite-msg.ok { color: var(--ok-fg); }
 .invite-msg.err { color: var(--danger-fg, #c0392b); }
