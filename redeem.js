@@ -296,7 +296,9 @@ $("ref-invite-form").addEventListener("submit", async (e) => {
   btn.disabled = false;
   if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
   if (status === 200) {
-    setInviteMsg(`Invite sent to ${email}.`, "ok");
+    // The backend records the invite even if the email itself can't go out yet
+    // (e.g. sending domain not verified); reflect that honestly.
+    setInviteMsg(body && body.sent === false ? `Invite saved for ${email}.` : `Invite sent to ${email}.`, "ok");
     $("ref-invite-email").value = "";
     loadReferrals();
   } else {
@@ -563,24 +565,33 @@ function setOnboardError(msg) {
 
 $("onboard-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const email = ($("onboard-email").value || "").trim();
-  if (!email) return;
+  const email1 = ($("onboard-email").value || "").trim();
+  const email2 = ($("onboard-email-2").value || "").trim();
+  if (!email1 || !email2) return;
+  // Two distinct friends — the same address twice is one invite, not two.
+  if (email1.toLowerCase() === email2.toLowerCase()) {
+    setOnboardError("Please enter two different friends' emails.");
+    return;
+  }
   const btn = $("onboard-btn");
   setOnboardError("");
   btn.disabled = true;
   btn.textContent = "Sending…";
-  // A valid email is all that's required — the friend never has to sign up for
-  // the user to progress past onboarding. The server validates the address and
-  // rejects the user's own email.
-  const { status, body } = await apiPost("/v1/web/referrals/invite", { email });
-  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
-  if (status === 200) {
-    enterDashboard(accountEmail);
-    return;
+  // Valid emails are all that's required — the friends never have to sign up for
+  // the user to progress past onboarding. The server validates each address and
+  // rejects the user's own email. Both invites must be accepted before the
+  // dashboard unlocks.
+  for (const email of [email1, email2]) {
+    const { status, body } = await apiPost("/v1/web/referrals/invite", { email });
+    if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+    if (status !== 200) {
+      btn.disabled = false;
+      btn.textContent = "Send invites & continue";
+      setOnboardError((body && body.error) || `Couldn't send the invite to ${email}. Check the email and try again.`);
+      return;
+    }
   }
-  btn.disabled = false;
-  btn.textContent = "Send invite & continue";
-  setOnboardError((body && body.error) || "Couldn't send that invite. Check the email and try again.");
+  enterDashboard(accountEmail);
 });
 
 // ---- state ----

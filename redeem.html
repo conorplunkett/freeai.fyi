@@ -278,8 +278,8 @@
     <div class="portal-right">
       <div class="auth-card">
         <div class="auth-sent-icon">🎁</div>
-        <h2 class="onboard-title">Invite a friend</h2>
-        <p class="auth-sent-msg">Send one invite to open your earnings dashboard.</p>
+        <h2 class="onboard-title">Invite two friends</h2>
+        <p class="auth-sent-msg">Send two invites to open your earnings dashboard.</p>
 
         <form id="onboard-form">
           <input
@@ -289,15 +289,24 @@
             placeholder="friend@example.com"
             autocomplete="off"
             required
-            aria-label="Friend's email"
+            aria-label="First friend's email"
+          />
+          <input
+            class="auth-input"
+            type="email"
+            id="onboard-email-2"
+            placeholder="another@example.com"
+            autocomplete="off"
+            required
+            aria-label="Second friend's email"
           />
           <button class="auth-btn-primary" id="onboard-btn" type="submit">
-            Send invite &amp; continue
+            Send invites &amp; continue
           </button>
         </form>
 
         <p class="auth-referral-note">
-          Their email just needs to be valid — they don't have to sign up for you
+          Their emails just need to be valid — they don't have to sign up for you
           to continue.
         </p>
         <p class="auth-error" id="onboard-error" hidden></p>

@@ -2309,13 +2309,31 @@ route("POST", "/v1/web/referrals/invite", async (ctx: any) => {
   const email = String(ctx.body?.email || "").trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
   if (email.toLowerCase() === String(user.email || "").toLowerCase()) {
-    return json(400, { error: "you can't refer your own email" });
+    return json(400, { error: "You can't refer your own email" });
   }
   const code = await repo.getOrCreateReferralCode(user.id);
   const link = `${config.siteUrl}/redeem.html?ref=${code}`;
   const invite = await repo.createReferralInvite(user.id, email, code);
-  await mailer.sendReferralInviteEmail(email, { inviterEmail: user.email, link, rewardUsd: config.referralRewardCents / 100 });
-  return json(200, { ok: true, sent: true, invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at } });
+  // The invite row above is the onboarding gate and the source of truth: a
+  // friend never has to act for the inviter to progress. Delivering the email
+  // is best-effort — if the mail provider rejects it (e.g. an unverified
+  // sending domain), record it for the admin diag but don't fail the request,
+  // or the user is stranded on onboarding behind an "internal error" for an
+  // invite that was actually saved.
+  let sent = true;
+  try {
+    await mailer.sendReferralInviteEmail(email, { inviterEmail: user.email, link, rewardUsd: config.referralRewardCents / 100 });
+  } catch (err: any) {
+    sent = false;
+    console.error("[freeai] referral invite email failed:", err?.message);
+    try {
+      await pool.query(
+        "insert into diag_errors (method, path, message, stack) values ($1,$2,$3,$4)",
+        ["POST", "/v1/web/referrals/invite", String(err?.message || err), String(err?.stack || "")]
+      );
+    } catch (_e) { /* logging is best-effort too */ }
+  }
+  return json(200, { ok: true, sent, invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at } });
 });
 // ── affiliate program ──
 route("GET", "/v1/web/affiliate", async (ctx: any) => {
