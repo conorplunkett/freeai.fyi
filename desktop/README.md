@@ -107,9 +107,12 @@ design's HTML/CSS/JS rendered in a `WKWebView`, living under
 The web UI is wired to real app state through a JS↔Swift bridge
 (`WKScriptMessageHandler`, see `showSetup()` in `main.swift`): "Open System
 Settings" opens the Accessibility pane and the app **polls the live permission**
-so the step flips to "Granted" (unlocking Continue) the moment access is toggled
-on; "Launch at login" registers/unregisters via `SMAppService`; the sign-in step
-opens FreeAI's web sign-in in the browser; "Open FreeAI" closes the window.
+so the step flips to "Granted" the moment access is toggled on; "Launch at login"
+registers/unregisters via `SMAppService`. Both Accessibility **and** launch-at-login
+are required to advance past "Grant access", and each shows a matching Granted/
+Enabled card. The sign-in step opens FreeAI's web sign-in in the browser; the rail
+steps are clickable to revisit any completed step (their ✓ persists); and the final
+"Open FreeAI" button closes the window and pops open the menu-bar item's menu.
 
 `Package.swift` declares the directory as a resource; `swift run` finds it via
 `Bundle.module` and `packaging/bundle.sh` copies the generated resource bundle
@@ -188,20 +191,22 @@ through `/v1/go/:token` and credits the click.
 **CI** builds the Swift app on a `macos-14` runner on every push/PR, packages
 it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` + `.dmg` as the
 `SponsorOverlay-macos` artifact. Download it from the Actions run, open the dmg
-(or unzip), clear quarantine (`xattr -dr com.apple.quarantine SponsorOverlay.app`),
+(or unzip), clear quarantine (`xattr -dr com.apple.quarantine freeai.fyi.app`),
 and open. The CI build is **ad-hoc signed**, so it only runs on the machine that
 built it (or after clearing quarantine) — a notarized build needs a Developer ID cert.
 
 ## Packaging & distribution
 
-`packaging/bundle.sh` wraps the SwiftPM executable into `SponsorOverlay.app`
-(menu-bar-only via `LSUIElement`), code-signs it, and produces both a `.zip` and
-a drag-to-Applications `.dmg`:
+`packaging/bundle.sh` wraps the SwiftPM executable into `freeai.fyi.app` (the
+user-facing name, so Finder + Login Items read "freeai.fyi"; the executable and
+the zip/dmg keep the internal `SponsorOverlay` name), menu-bar-only via
+`LSUIElement`, code-signs it, and produces both a `.zip` and a
+drag-to-Applications `.dmg`:
 
 ```sh
 cd desktop/macos/SponsorOverlay
 ./packaging/bundle.sh                  # ad-hoc signed, for local use
-# -> build/SponsorOverlay.app, build/SponsorOverlay.zip, build/SponsorOverlay.dmg
+# -> build/freeai.fyi.app, build/SponsorOverlay.zip, build/SponsorOverlay.dmg
 ```
 
 The app carries an icon (`AppIcon.icns`, built from `packaging/assets/AppIcon-1024.png`

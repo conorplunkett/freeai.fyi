@@ -23,7 +23,7 @@
   var STEPS = [
     { t: "Welcome",      s: "what FreeAI is" },
     { t: "How it works", s: "the 10-second tour" },
-    { t: "Grant access", s: "one permission" },
+    { t: "Grant access", s: "access + login" },
     { t: "Save credits", s: "connect account" },
     { t: "All set",      s: "start earning" },
   ];
@@ -40,6 +40,7 @@
 
   // ── State ──
   var step = 0;
+  var maxStep = 0;         // furthest step reached — completed steps keep their ✓
   var perm = "off";        // off | wait | ok
   var launch = false;      // reflects the app's real launch-at-login status
   var email = "";
@@ -81,6 +82,18 @@
   var PRIVACY_SVG =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" /><path d="M9 12l2 2 4-4" /></svg>';
+  // Power glyph for the "Launch at login" card.
+  var LAUNCH_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M12 2v9" /><path d="M6.4 6.4a9 9 0 1 0 11.2 0" /></svg>';
+  // The actual menu-bar mark, as a wireframe: a hollow rounded chip with the
+  // mono "F$" inside — mirrors makeStatusIcon() in main.swift. Inherits the
+  // surrounding text colour via currentColor.
+  var MENUBAR_WIRE_SVG =
+    '<svg class="mb-wire" viewBox="0 0 28 18" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect x="1.1" y="1.1" width="25.8" height="15.8" rx="4.6" stroke="currentColor" stroke-width="1.3" />' +
+    '<text x="14" y="12.7" text-anchor="middle" font-family="\'JetBrains Mono\', ui-monospace, monospace" ' +
+    'font-size="9" font-weight="700" fill="currentColor">F$</text></svg>';
   var GOOGLE_SVG =
     '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/>' +
     '<path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/>' +
@@ -116,6 +129,13 @@
         '<span class="eyebrow">How it works</span>' +
         '<h1 class="h-title">We turned the spinner into income.</h1>' +
         '<div class="how">' +
+          '<div class="demo">' +
+            '<div class="demo-lbl">On claude.ai · live</div>' +
+            '<div class="chat">' +
+              '<div class="msg me">Refactor this auth flow for me</div>' +
+              '<div class="msg">On it — reading through your handlers…</div>' +
+            '</div>' +
+          '</div>' +
           '<div class="how-col">' +
             '<ul class="how-list">' +
               '<li><span class="how-num">1</span><div><div class="ht">Keep FreeAI running</div>' +
@@ -126,46 +146,48 @@
                 '<div class="hs">Half the revenue becomes Claude credits — redeem for gift cards.</div></div></li>' +
             '</ul>' +
           '</div>' +
-          '<div class="demo">' +
-            '<div class="demo-lbl">On claude.ai · live</div>' +
-            '<div class="chat">' +
-              '<div class="msg me">Refactor this auth flow for me</div>' +
-              '<div class="msg">On it — reading through your handlers…</div>' +
-            '</div>' +
-          '</div>' +
         '</div>' +
       '</div>';
   }
 
-  function paneStatusBadge() {
+  function permBadge() {
     if (perm === "ok")   return '<span class="status ok"><span class="d"></span>Granted</span>';
     if (perm === "wait") return '<span class="status wait"><span class="d"></span>Waiting for System Settings…</span>';
     return '<span class="status off"><span class="d"></span>Not granted</span>';
+  }
+  function launchBadge() {
+    return launch
+      ? '<span class="status ok"><span class="d"></span>Enabled</span>'
+      : '<span class="status off"><span class="d"></span>Not enabled</span>';
   }
 
   function panePermission() {
     return '' +
       '<div class="fade">' +
-        '<span class="eyebrow">One permission</span>' +
+        '<span class="eyebrow">Two quick toggles</span>' +
         '<h1 class="h-title">Let FreeAI see the spinner.</h1>' +
-        '<p class="h-sub">macOS <b>Accessibility</b> access lets FreeAI tell when your assistant starts thinking, so it can place the line correctly. It never reads your screen or prompts.</p>' +
+        '<p class="h-sub">macOS <b>Accessibility</b> access lets FreeAI tell when your assistant starts thinking, so it can place the line correctly.<br><b>It never reads your screen or prompts.</b></p>' +
         '<div class="perm-card">' +
           '<div class="perm-icon">' + PERM_SVG + '</div>' +
           '<div class="perm-main">' +
             '<div class="pt">Accessibility access</div>' +
             '<div class="ps">Required to position the line. Toggle FreeAI on under Privacy &amp; Security ▸ Accessibility.</div>' +
             '<div class="perm-row">' +
-              paneStatusBadge() +
+              permBadge() +
               (perm !== "ok" ? '<button class="btn-sys" data-act="open-settings">Open System Settings</button>' : '') +
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="toggle-row">' +
-          '<div class="tr-txt">' +
-            '<div class="t">Launch at login</div>' +
-            '<div class="s">Start earning automatically every time you sign in.</div>' +
+        '<div class="perm-card">' +
+          '<div class="perm-icon">' + LAUNCH_SVG + '</div>' +
+          '<div class="perm-main">' +
+            '<div class="pt">Launch at login</div>' +
+            '<div class="ps">Start earning automatically every time you sign in — required so FreeAI keeps running.</div>' +
+            '<div class="perm-row">' +
+              launchBadge() +
+              '<label class="switch"><input type="checkbox" data-act="launch"' + (launch ? " checked" : "") + '><span class="slider"></span></label>' +
+            '</div>' +
           '</div>' +
-          '<label class="switch"><input type="checkbox" data-act="launch"' + (launch ? " checked" : "") + '><span class="slider"></span></label>' +
         '</div>' +
         '<div class="privacy">' + PRIVACY_SVG + ' Open-source &amp; auditable — clicks are counted server-side, never your keystrokes.</div>' +
       '</div>';
@@ -200,18 +222,20 @@
 
   function paneDone() {
     return '' +
-      '<div class="fade done-wrap">' +
-        ringHTML() +
-        '<div>' +
-          '<span class="eyebrow">You\'re all set</span>' +
-          '<h1 class="h-title">FreeAI is earning.</h1>' +
-          '<ul class="done-list">' +
-            '<li><span class="tick">✓</span>Running in your menu bar</li>' +
-            '<li><span class="tick">✓</span>Accessibility granted · launches at login</li>' +
-            '<li><span class="tick">✓</span>Credits will accrue to your account</li>' +
-          '</ul>' +
-          '<div class="callout"><span class="up">↑</span>Find FreeAI as the <b style="margin:0 3px">F$</b> icon up in your menu bar anytime.</div>' +
+      '<div class="fade done-pane">' +
+        '<div class="done-top">' +
+          ringHTML() +
+          '<div class="done-copy">' +
+            '<span class="eyebrow">You\'re all set</span>' +
+            '<h1 class="h-title">FreeAI is earning.</h1>' +
+            '<ul class="done-list">' +
+              '<li><span class="tick">✓</span>Running in your menu bar</li>' +
+              '<li><span class="tick">✓</span>Accessibility granted · launches at login</li>' +
+              '<li><span class="tick">✓</span>Credits will accrue to your account</li>' +
+            '</ul>' +
+          '</div>' +
         '</div>' +
+        '<div class="callout">Find FreeAI as the ' + MENUBAR_WIRE_SVG + ' icon up in your menu bar anytime.</div>' +
       '</div>';
   }
 
@@ -246,11 +270,17 @@
   }
 
   // ── Rail + nav ──
+  // Completed steps (anything up to the furthest reached) keep their ✓ even when
+  // you navigate back, and every visited step is clickable to jump to it.
   function railHTML() {
     var items = STEPS.map(function (st, i) {
-      var cls = i === step ? "active" : i < step ? "done" : "";
-      var dot = i < step ? "✓" : (i + 1);
-      return '<li class="' + cls + '"><span class="step-dot">' + dot + '</span>' +
+      var active = i === step;
+      var done = !active && i <= maxStep;     // ✓ persists for visited steps
+      var visited = i <= maxStep;
+      var cls = (active ? "active" : done ? "done" : "") + (visited ? " clickable" : "");
+      var dot = done ? "✓" : (i + 1);
+      var attr = visited ? ' data-step="' + i + '"' : "";
+      return '<li class="' + cls.trim() + '"' + attr + '><span class="step-dot">' + dot + '</span>' +
         '<span class="step-txt"><span class="t">' + esc(st.t) + '</span><span class="s">' + esc(st.s) + '</span></span></li>';
     }).join("");
     return '' +
@@ -262,7 +292,8 @@
   }
 
   function navHTML() {
-    var canNext = step !== 2 || perm === "ok";
+    // Step 3 (Grant access) needs both Accessibility *and* launch-at-login.
+    var canNext = step !== 2 || (perm === "ok" && launch);
     var dots = STEPS.map(function (_, i) {
       var cls = i === step ? "on" : i < step ? "past" : "";
       return '<i class="' + cls + '"></i>';
@@ -288,8 +319,16 @@
   }
 
   // ── Behaviour ──
-  function next() { if (step < LAST) { step += 1; render(); } }
-  function back() { if (step > 0)   { step -= 1; render(); } }
+  function next() { if (step < LAST) { step += 1; if (step > maxStep) maxStep = step; render(); } }
+  function back() { if (step > 0)    { step -= 1; render(); } }
+  // Jump straight to an already-visited step from the rail.
+  function goTo(i) { if (i >= 0 && i <= maxStep && i !== step) { step = i; render(); } }
+
+  function setLaunch(on) {
+    launch = on;                               // optimistic; the app re-syncs the
+    native("setLaunchAtLogin", { on: on });    // real registration state via setLaunchState
+    if (step === 2) render();                  // refresh the badge + the Continue gate
+  }
 
   function requestPermission() {
     if (perm !== "off") return;
@@ -299,11 +338,6 @@
       // Browser preview: simulate the grant like the prototype did.
       setTimeout(function () { perm = "ok"; if (step === 2) render(); }, 1500);
     }
-  }
-
-  function setLaunch(on) {
-    launch = on;
-    if (!native("setLaunchAtLogin", { on: on })) { /* preview: state only */ }
   }
 
   function sendEmail() {
@@ -342,6 +376,13 @@
         google: signinGoogle,
       };
       if (handlers[act]) node.addEventListener("click", handlers[act]);
+    });
+
+    // Rail navigation — click any visited step to jump back to it.
+    root.querySelectorAll(".steps li[data-step]").forEach(function (li) {
+      li.addEventListener("click", function () {
+        goTo(parseInt(li.getAttribute("data-step"), 10));
+      });
     });
 
     var input = root.querySelector(".signin .inp");

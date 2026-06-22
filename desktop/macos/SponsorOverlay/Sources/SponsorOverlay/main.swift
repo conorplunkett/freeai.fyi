@@ -749,6 +749,9 @@ extension AppDelegate: WKScriptMessageHandler {
             openWebSignin(email: nil, google: true)
         case "finish":
             closeSetup()
+            // The last step's button drops the user straight into the menu-bar
+            // item so they see where FreeAI now lives.
+            DispatchQueue.main.async { [weak self] in self?.statusItem?.button?.performClick(nil) }
         default:
             break
         }
