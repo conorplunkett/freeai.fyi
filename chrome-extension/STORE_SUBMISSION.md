@@ -55,11 +55,11 @@ manifest and pre-fills name, version, and icons. Then complete the tabs below.
 | Field | Value |
 | --- | --- |
 | **Name** | `FreeAI.fyi — Earn from ChatGPT, Claude & Gemini` (from manifest) |
-| **Summary** (132 char max) | `A subtle sponsored line shows while ChatGPT, Claude & Gemini think — 50% of the revenue comes back as Claude credits.` |
+| **Summary** (132 char max) | `Earn money while you use AI. Ads appear while AI thinks — 50% of revenue goes to you.` |
 | **Category** | Productivity |
 | **Language** | English |
 | **Official website** | `https://freeai.fyi` |
-| **Support / contact** | `privacy@freeai.fyi` (or your support inbox) |
+| **Support / contact** | `hello@contact.freeai.fyi` |
 | **Privacy policy URL** | `https://freeai.fyi/privacy` |
 
 **Detailed description** (paste into the description box):

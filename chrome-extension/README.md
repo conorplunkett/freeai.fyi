@@ -1,6 +1,6 @@
 # FreeAI.fyi — Chrome extension
 
-> Get **Claude** for free with ads while you use **ChatGPT, Claude, and Gemini**. **50%** of the revenue comes back as Claude credits.
+> Earn money while you use AI. Ads appear while **ChatGPT, Claude & Gemini** think — **50%** of revenue goes to you.
 
 While the assistant is thinking/streaming, FreeAI shows one subtle, clickable
 sponsored line near the composer — and 50% of the revenue becomes credits you
