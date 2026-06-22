@@ -119,17 +119,21 @@ FREEAI_PROBE=1 swift run SponsorOverlay
 ```
 Both apps are Electron, so their web contents are invisible to the AX API
 until a client sets `AXManualAccessibility` — probe mode (and the real
-detector) set it, then dump every labeled element/button (plus any element
-whose DOM classes look star-like) in the **frontmost** supported assistant's
-focused window every 2s, with an
-`app=<name> generating=true/false stopButton=… composer=… star=<frame|n/a>`
-verdict. Focus Claude or ChatGPT, start a generation, and watch the terminal:
-a "Stop …" button appearing while streaming means detection works for either
-app; on Claude a `class="…epitaxy-spark-working…"` element also appears and its
-frame is what the card anchors to. If Claude ships a redesign that renames the
-class, the probe dump shows the new star-like classes to put in
-`isThinkingStar`; if ChatGPT renames its composer placeholder, update
-`AssistantTarget.chatgpt.composerHints`.
+detector) set it, then, for the **frontmost** supported assistant every 2s,
+print a one-line verdict
+`<Name> — generating=… stopButton=… composer=… star=<frame|n/a>` followed by
+just the elements that matter for tuning: text inputs (composer candidates,
+with their `placeholder=`), Stop buttons, and any star-like nodes. Focus Claude
+or ChatGPT, start a generation, and watch the terminal: a "Stop …" button
+appearing while streaming means detection works for either app; on Claude a
+`class="…epitaxy-spark-working…"` element also appears and its frame is what the
+card anchors to.
+
+Set `FREEAI_PROBE_VERBOSE=1` to dump *every* labeled element/button instead
+(use when nothing matches and you need the full tree). If Claude renames the
+star class, the verbose dump shows the new star-like classes to put in
+`isThinkingStar`; if ChatGPT renames its composer placeholder, the concise dump
+shows the text input's `placeholder=` to add to `AssistantTarget.chatgpt.composerHints`.
 
 **Window-tracking gates — manual checks (demo mode or real Claude):**
 ```sh
