@@ -47,7 +47,7 @@ body {
 .ring-track { stroke: var(--line); }
 .ring-arc { stroke: url(#fr); transition: stroke-dashoffset 1.3s cubic-bezier(.4, 0, .2, 1); }
 .ring-spin {
-  stroke: rgba(var(--accent-rgb), .3);
+  stroke: rgba(var(--accent-rgb), .5);
   transform-box: fill-box; transform-origin: center;
   animation: ringspin 9s linear infinite;
 }
@@ -81,9 +81,13 @@ body {
 }
 .sec-head .sum { font-size: 12px; font-weight: 800; color: var(--ok-fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* CREW — friends with what they earned you (no avatars by design) */
-.friend { display: flex; align-items: center; gap: 11px; padding: 10px 0; }
-.friend + .friend { border-top: 1px solid var(--line); }
+/* CREW — every slot (joined friend, pending invite, open slot) is a full-width
+ * card so they all line up at the same width with a clear, finished border. */
+.friend {
+  display: flex; align-items: center; gap: 11px;
+  width: 100%; margin-top: 9px; padding: 11px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+}
 .friend .meta { min-width: 0; flex: 1; }
 .friend .nm { font-size: 13px; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 6px; }
 .plan {
@@ -111,8 +115,8 @@ body {
 .crew-intro { font-size: 12px; color: var(--gray); line-height: 1.5; margin: 0 0 6px; }
 .crew-intro b { color: var(--accent-d); font-weight: 800; }
 
-/* a pending (sent, not joined) invite reuses the friend row, muted */
-.friend.invited { opacity: .85; }
+/* a pending (sent, not joined) invite reuses the friend card, muted */
+.friend.invited { background: var(--surface-inset); }
 .friend.invited .nm { color: var(--gray); }
 .friend .badge {
   flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
@@ -138,10 +142,10 @@ body {
 .invite-msg.ok { color: var(--ok-fg); }
 .invite-msg.err { color: var(--danger-fg, #c0392b); }
 
-/* remaining open slots — subtle dashed placeholders */
+/* remaining open slots — same card footprint as the others, dashed to read as empty */
 .slot-empty {
-  display: flex; align-items: center; gap: 9px; margin-top: 9px; padding: 10px 12px;
-  border: 1px dashed var(--line); border-radius: var(--radius-md); color: var(--gray-2); font-size: 12px;
+  display: flex; align-items: center; gap: 9px; width: 100%; margin-top: 9px; padding: 11px 12px;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--gray-2); font-size: 12px;
 }
 .slot-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--bg-tint); color: var(--gray-2); display: grid; place-items: center; font-size: 14px; line-height: 1; flex: none; }
 .crew-full { font-size: 12px; color: var(--ok-fg); font-weight: 700; margin: 12px 0 2px; }
