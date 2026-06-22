@@ -192,14 +192,21 @@ final class AssistantDetector {
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         let role = roleRef as? String
 
-        // Composer: the AXTextArea whose placeholder description matches one of
-        // the target's hints (Claude: "prompt"; ChatGPT: "ask anything" / …).
-        if scan.composer == nil, role == kAXTextAreaRole as String {
-            var v: CFTypeRef?
-            AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &v)
-            if let s = (v as? String)?.lowercased(),
-               target.composerHints.contains(where: { s.contains($0) }) {
-                scan.composer = element
+        // Composer: a text-input element whose placeholder matches one of the
+        // target's hints (Claude: "prompt"; ChatGPT: "ask anything" / …). The
+        // placeholder surfaces under different AX attributes across apps —
+        // Claude puts it in the description, ChatGPT in AXPlaceholderValue — so
+        // check all of them. Restricted to text-input roles so an ordinary
+        // label can never be mistaken for the composer.
+        if scan.composer == nil, role == kAXTextAreaRole as String || role == kAXTextFieldRole as String {
+            for attr in [kAXDescriptionAttribute, kAXPlaceholderValueAttribute, kAXTitleAttribute] {
+                var v: CFTypeRef?
+                AXUIElementCopyAttributeValue(element, attr as CFString, &v)
+                if let s = (v as? String)?.lowercased(),
+                   target.composerHints.contains(where: { s.contains($0) }) {
+                    scan.composer = element
+                    break
+                }
             }
         }
 
@@ -247,9 +254,12 @@ final class AssistantDetector {
 
     // MARK: probe mode (FREEAI_PROBE=1)
 
-    /// Dumps every labeled element / button in the focused assistant's window
-    /// plus the generating verdict. Diagnostic only — prints locally, sends
-    /// nothing.
+    /// Prints the generating verdict for the focused assistant plus only the
+    /// elements that matter for tuning detection — text inputs (composer
+    /// candidates, with their placeholder), Stop buttons, and star-like nodes.
+    /// Set FREEAI_PROBE_VERBOSE=1 to dump every labeled element/button instead
+    /// (e.g. when nothing matches and you need the full tree). Diagnostic only —
+    /// prints locally, sends nothing.
     func probeDump() {
         var focused: (app: NSRunningApplication, target: AssistantTarget)?
         for target in AssistantTarget.all {
@@ -269,38 +279,50 @@ final class AssistantDetector {
             print("probe: no focused \(target.displayName) window (is Accessibility granted? is the app frontmost?)")
             return
         }
-        print("probe: --- focused \(target.displayName) window, labeled elements ---")
-        dump(window, depth: 0)
         var scan = TreeScan(wantStar: target.hasThinkingStar)
         scanTree(window, depth: 0, into: &scan, target: target)
         let starFrame = scan.star.flatMap(frame(of:)).map { "\($0)" }
             ?? (target.hasThinkingStar ? "not found" : "n/a")
-        print("probe: app=\(target.displayName) generating=\(scan.hasStopButton || scan.star != nil) stopButton=\(scan.hasStopButton) composer=\(scan.composer != nil) star=\(starFrame)")
+        print("probe: \(target.displayName) — generating=\(scan.hasStopButton || scan.star != nil) stopButton=\(scan.hasStopButton) composer=\(scan.composer != nil) star=\(starFrame)")
+        let verbose = ProcessInfo.processInfo.environment["FREEAI_PROBE_VERBOSE"] == "1"
+        dump(window, depth: 0, verbose: verbose)
     }
 
-    private func dump(_ element: AXUIElement, depth: Int) {
+    private func dump(_ element: AXUIElement, depth: Int, verbose: Bool) {
         guard depth < Self.maxScanDepth else { return }
-        var roleRef: CFTypeRef?, titleRef: CFTypeRef?, descRef: CFTypeRef?, classRef: CFTypeRef?
+        var roleRef: CFTypeRef?, titleRef: CFTypeRef?, descRef: CFTypeRef?
+        var placeholderRef: CFTypeRef?, classRef: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
         AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descRef)
+        AXUIElementCopyAttributeValue(element, kAXPlaceholderValueAttribute as CFString, &placeholderRef)
         AXUIElementCopyAttributeValue(element, "AXDOMClassList" as CFString, &classRef)
         let role = roleRef as? String ?? "?"
         let title = titleRef as? String ?? ""
         let desc = descRef as? String ?? ""
+        let placeholder = placeholderRef as? String ?? ""
         // DOM classes are how the star is matched — print them so a probe run
         // against a new build shows what to update in isThinkingStar.
-        // Every div has classes, so they only force a line when star-like.
         let classes = (classRef as? [String])?.joined(separator: ".") ?? ""
         let starLike = classes.contains("spark") || classes.contains("thinking")
-        if role == kAXButtonRole as String || !title.isEmpty || !desc.isEmpty || starLike {
-            let suffix = classes.isEmpty ? "" : " class=\"\(classes)\""
-            print("probe: \(String(repeating: " ", count: min(depth, 12)))\(role) title=\"\(title)\" desc=\"\(desc)\"\(suffix)")
+        let isTextInput = role == kAXTextAreaRole as String || role == kAXTextFieldRole as String
+        let isStopButton = role == kAXButtonRole as String
+            && (title + " " + desc).lowercased().contains("stop")
+        // Concise mode keeps only what we tune on; verbose keeps the old
+        // "every labeled element / button" dump for deep debugging.
+        let show = verbose
+            ? (role == kAXButtonRole as String || !title.isEmpty || !desc.isEmpty || starLike)
+            : (isTextInput || isStopButton || starLike)
+        if show {
+            var extra = classes.isEmpty ? "" : " class=\"\(classes)\""
+            if !placeholder.isEmpty { extra += " placeholder=\"\(placeholder)\"" }
+            let indent = verbose ? String(repeating: " ", count: min(depth, 12)) : ""
+            print("probe: \(indent)\(role) title=\"\(title)\" desc=\"\(desc)\"\(extra)")
         }
         var childrenRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
               let children = childrenRef as? [AXUIElement] else { return }
-        for child in children { dump(child, depth: depth + 1) }
+        for child in children { dump(child, depth: depth + 1, verbose: verbose) }
     }
 }
 
