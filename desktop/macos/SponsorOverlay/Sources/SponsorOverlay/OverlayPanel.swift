@@ -64,6 +64,9 @@ final class OverlayPanelController {
     /// adjustable from the menu so users place it to taste. Clamped in `show`
     /// so it can never leave the top of the window.
     var verticalLift: CGFloat = 0
+    /// Horizontal nudge from the anchor default (+right / -left), clamped to the
+    /// window in `show`. 0 keeps the original left/centered position.
+    var horizontalShift: CGFloat = 0
 
     /// Fade timings mirror the Chrome extension's inline bar: quick fade-in,
     /// slow drift-out (inject.css: `transition: opacity 0.25s` in, `2s` out).
@@ -114,7 +117,9 @@ final class OverlayPanelController {
         }
         // The lift must never push the card off the top of the window.
         axTop = max(appBounds.minY + 8, axTop)
-        // Keep the pill inside the assistant window horizontally.
+        // Apply the user's left/right shift (0 = the anchor default), then keep
+        // the pill inside the assistant window horizontally.
+        x += horizontalShift
         let lower = appBounds.minX + 16
         let upper = max(lower, appBounds.maxX - width - 16)
         x = min(max(x, lower), upper)
