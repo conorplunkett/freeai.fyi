@@ -219,7 +219,7 @@ function createMailer(cfg: any) {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${cfg.resendApiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: cfg.mailFrom || "FreeAI <hello@freeai.fyi>", to, subject, html: htmlBody }),
+        body: JSON.stringify({ from: cfg.mailFrom || "FreeAI <contact@freeai.fyi>", to, subject, html: htmlBody }),
       });
       if (!res.ok) throw new Error("resend send failed: " + res.status + " " + (await res.text().catch(() => "")).slice(0, 300));
       return;
