@@ -65,6 +65,7 @@ const fakeMailer = {
   const config = {
     revenueShare: 0.9, dailyImpressionCap: 5000, ipDailyImpressionCap: 0, dailyClickCap: 5, payoutThresholdCents: 1000,
     referralRewardCents: 2000, referralCap: 10,
+    affiliateRewardBps: 1000, affiliateCapCents: 100000,
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
     emailTokenTtlMs: 1800000, emailCooldownMs: 0, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
@@ -701,6 +702,39 @@ const fakeMailer = {
     assert.strictEqual(
       (await repo.balanceForUser(await userId("affiliate@example.com"))).balanceMillicents, 50000,
       "affiliate credit clamps to the cap");
+  });
+
+  await check("admin grants an influencer upgrade: custom rate, uncapped cap, vanity code", async () => {
+    const sess = await loginVia("creator@example.com");
+    // starts on the self-serve base tier
+    let dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${sess}` });
+    assert.strictEqual(dash.body.rewardPct, 10);
+    assert.strictEqual(dash.body.upgraded, false);
+
+    const adminList = (await api("GET", "/v1/admin/affiliates", undefined, { "X-Admin-Key": "test-admin" })).body.affiliates;
+    const row = adminList.find((a) => a.email === "creator@example.com");
+    const takenCode = adminList.find((a) => a.email === "affiliate@example.com")?.code;
+
+    // validation: rate out of range, and a code another affiliate already owns
+    assert.strictEqual(
+      (await api("POST", "/v1/admin/affiliates/grant", { affiliateId: row.id, rewardBps: 0, capMillicents: 0 }, { "X-Admin-Key": "test-admin" })).status,
+      400, "rewardBps must be ≥ 1");
+    if (takenCode) assert.strictEqual(
+      (await api("POST", "/v1/admin/affiliates/grant", { affiliateId: row.id, rewardBps: 2500, capMillicents: 100000000000000, code: takenCode }, { "X-Admin-Key": "test-admin" })).status,
+      400, "can't take a code another affiliate already owns");
+
+    // grant 25%, uncapped, with a vanity code (case-normalised)
+    const granted = await api("POST", "/v1/admin/affiliates/grant",
+      { affiliateId: row.id, rewardBps: 2500, capMillicents: 100000000000000, code: "creator1" },
+      { "X-Admin-Key": "test-admin" });
+    assert.strictEqual(granted.status, 200);
+    assert.strictEqual(granted.body.affiliate.code, "CREATOR1", "vanity code is upper-cased");
+
+    dash = await api("GET", "/v1/web/affiliate", undefined, { Authorization: `Bearer ${sess}` });
+    assert.strictEqual(dash.body.rewardPct, 25, "custom rate is live");
+    assert.strictEqual(dash.body.upgraded, true);
+    assert.strictEqual(dash.body.code, "CREATOR1", "vanity code is the affiliate's link");
+    assert.ok(dash.body.capUsd >= 10000000, "cap is effectively uncapped");
   });
 
   await check("affiliate codes apply retroactively; referred users can't; self/unknown codes rejected", async () => {

@@ -493,21 +493,35 @@ async function renderAffiliates(view) {
   const pending = d.affiliates.filter((a) => a.status === "pending").length;
   navDot("affiliates", pending || null);
   view.append(h("div", { class: "card" },
-    h("div", { class: "card-head" }, h("h2", {}, "Affiliate applications"),
-      h("p", { class: "hint" }, "Approve to mint a shareable code. Approved affiliates earn 10% of their referred users’ ad revenue as credits, up to a per-affiliate cap.")),
+    h("div", { class: "card-head" }, h("h2", {}, "Affiliates"),
+      h("p", { class: "hint" }, "Everyone’s auto-enrolled at 10% (self-serve). An “upgrade?” badge means a creator submitted socials wanting more — use Grant upgrade to set a custom rate, raise/remove the cap, and (optionally) give them a vanity code. Reject bans an affiliate.")),
     table([
-      { label: "Applicant" }, { label: "Status" }, { label: "Code" }, { label: "Socials" },
-      { label: "Referred", num: true }, { label: "Credited", num: true }, { label: "Applied" }, { label: "" },
+      { label: "Applicant" }, { label: "Status" }, { label: "Code" }, { label: "Tier" }, { label: "Socials" },
+      { label: "Referred", num: true }, { label: "Credited", num: true }, { label: "Joined" }, { label: "" },
     ], d.affiliates, (a) => [
       td(h("span", { class: "mono" }, a.email || "—")),
       td(badge(a.status)),
       td(h("span", { class: "mono" }, a.code || "—")),
+      td(affiliateTier(a)),
       td(affiliateSocials(a), "wrap"),
       num(a.attributed_count),
       usd((a.credited_millicents || 0) / 100000),
       dShort(a.created_at),
       td(affiliateActions(a, () => route(true))),
     ])));
+}
+// Current rate + cap, with a cue for who's base-tier-with-socials (an upgrade
+// request) vs already upgraded. A cap at/above $10M reads as uncapped.
+function affiliateTier(a) {
+  const bps = a.reward_bps ?? 1000;
+  const capMc = Number(a.cap_millicents ?? 100000000);
+  const capLabel = capMc >= 1e12 ? "uncapped" : usd(capMc / 100000);
+  const base = bps === 1000 && capMc === 100000000;
+  const hasSocials = a.instagram_handle || a.linkedin_handle || a.twitter_handle;
+  const label = h("span", {}, `${bps / 100}% · ${capLabel}`);
+  if (!base) return h("div", { class: "actions" }, label, h("span", { class: "badge approved" }, "upgraded"));
+  if (hasSocials) return h("div", { class: "actions" }, label, h("span", { class: "badge pending" }, "upgrade?"));
+  return label;
 }
 function affiliateSocials(a) {
   const wrap = h("div", { class: "actions" });
@@ -522,17 +536,46 @@ function affiliateSocials(a) {
 }
 function affiliateActions(a, reload) {
   const wrap = h("div", { class: "actions" });
-  if (a.status !== "approved") wrap.append(h("button", { class: "btn btn-sm btn-accent", onclick: async () => {
-    try { const r = await api("/v1/admin/affiliates/approve", { method: "POST", body: { affiliateId: a.id } }); toast("Approved — code " + r.code); reload(); }
+  wrap.append(h("button", { class: "btn btn-sm btn-accent", onclick: () => grantUpgrade(a, reload) }, "Grant upgrade"));
+  if (a.status === "rejected") wrap.append(h("button", { class: "btn btn-sm", onclick: async () => {
+    try { const r = await api("/v1/admin/affiliates/approve", { method: "POST", body: { affiliateId: a.id } }); toast("Reinstated — code " + r.code); reload(); }
     catch (e) { toast(e.message, true); }
-  } }, "Approve"));
-  if (a.status !== "rejected") wrap.append(h("button", { class: "btn btn-sm btn-danger", onclick: async () => {
+  } }, "Reinstate"));
+  else wrap.append(h("button", { class: "btn btn-sm btn-danger", onclick: async () => {
     const note = prompt("Reject reason (optional):");
     if (note === null) return;
     try { await api("/v1/admin/affiliates/reject", { method: "POST", body: { affiliateId: a.id, note } }); toast("Rejected"); reload(); }
     catch (e) { toast(e.message, true); }
   } }, "Reject"));
   return wrap;
+}
+// Grant an influencer upgrade: a custom rate, a raised/uncapped cap, and an
+// optional vanity code. Three quick prompts keep it consistent with the rest of
+// this minimal admin (blank cap = uncapped; blank code keeps the current one).
+async function grantUpgrade(a, reload) {
+  const curPct = (a.reward_bps ?? 1000) / 100;
+  const pctStr = prompt(`Reward % for ${a.email || "this affiliate"} (0.01–100):`, String(curPct));
+  if (pctStr === null) return;
+  const pct = parseFloat(pctStr);
+  if (!(pct >= 0.01 && pct <= 100)) { toast("Rate must be between 0.01% and 100%", true); return; }
+  const capStr = prompt("Cap in USD — blank or 0 = uncapped:", "");
+  if (capStr === null) return;
+  const trimmed = capStr.trim();
+  const capUsd = parseFloat(trimmed);
+  const uncapped = !trimmed || capUsd === 0;
+  if (!uncapped && !(capUsd > 0)) { toast("Cap must be a positive number, or blank for uncapped", true); return; }
+  const capMillicents = uncapped ? 100000000000000 : Math.round(capUsd * 100000);
+  const code = (prompt("Custom vanity code — 3–16 A–Z/0–9, blank keeps current:", a.code || "") || "").trim();
+  try {
+    const r = await api("/v1/admin/affiliates/grant", { method: "POST", body: {
+      affiliateId: a.id,
+      rewardBps: Math.round(pct * 100),
+      capMillicents,
+      code: code && code !== (a.code || "") ? code : undefined,
+    } });
+    toast(`Upgraded — ${r.affiliate.reward_bps / 100}% · code ${r.affiliate.code}`);
+    reload();
+  } catch (e) { toast(e.message, true); }
 }
 
 async function renderWaitlist(view) {

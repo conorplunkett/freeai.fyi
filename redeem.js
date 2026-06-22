@@ -322,16 +322,17 @@ async function loadAffiliate() {
 
   const upgraded = !!body.upgraded;
   const requested = !!body.upgradeRequested;
+  const uncapped = (body.capUsd || 0) >= 10000000; // $10M+ cap = effectively uncapped
 
   // Base enrollment — link + stats, always shown.
   show("aff-approved", true);
   $("aff-pct").textContent = (body.rewardPct ?? 10) + "%";
-  $("aff-cap").textContent = upgraded ? "no cap" : usdWhole(body.capUsd ?? 1000);
+  $("aff-cap").textContent = uncapped ? "no cap" : usdWhole(body.capUsd ?? 1000);
   $("aff-link").value = body.link || "";
   $("aff-users").textContent = body.attributedCount || 0;
   $("aff-earned").textContent = usd(body.creditedUsd || 0);
   const remaining = Math.max(0, (body.capUsd || 0) - (body.creditedUsd || 0));
-  $("aff-remaining").textContent = upgraded ? "Uncapped" : usd(remaining);
+  $("aff-remaining").textContent = uncapped ? "Uncapped" : usd(remaining);
 
   // Influencer upgrade — form, or its requested / granted state.
   show("aff-upgrade", !upgraded && !requested);

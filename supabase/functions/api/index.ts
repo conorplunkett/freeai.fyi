@@ -1292,6 +1292,34 @@ function createRepo(pool: any) {
       );
       return rows[0] || null;
     },
+    // Admin grants an influencer upgrade: a custom rate (reward_bps), a raised /
+    // uncapped cap, and optionally a vanity code. Stays 'approved' so the cut
+    // keeps flowing. rewardBps/capMillicents are validated by the route.
+    async grantAffiliateUpgrade(affiliateId: string, opts: any) {
+      const ex = await pool.query("select id, code from affiliates where id = $1", [affiliateId]);
+      if (!ex.rows[0]) return { ok: false, error: "not found" };
+      let newCode: string | null = null;
+      if (opts.code != null && String(opts.code).trim() !== "") {
+        newCode = String(opts.code).trim().toUpperCase();
+        if (!/^[A-Z0-9]{3,16}$/.test(newCode)) return { ok: false, error: "code must be 3–16 letters or numbers" };
+        if (newCode !== ex.rows[0].code) {
+          const clash = await pool.query(
+            `select 1 from users where upper(referral_code) = $1
+              union all select 1 from affiliates where upper(code) = $1 and id <> $2`,
+            [newCode, affiliateId]
+          );
+          if (clash.rows[0]) return { ok: false, error: "that code is already taken" };
+        }
+      }
+      const upd = await pool.query(
+        `update affiliates set status = 'approved', approved_at = coalesce(approved_at, now()),
+            reward_bps = $2, cap_millicents = $3, code = coalesce($4, code), review_note = null
+          where id = $1
+          returning id, reward_bps, cap_millicents, code`,
+        [affiliateId, opts.rewardBps, String(opts.capMillicents), newCode]
+      );
+      return { ok: true, affiliate: upd.rows[0] };
+    },
     async recordPayout(userId: string, amountCents: number, transferId: string) {
       return tx(async (c: any) => {
         await c.query(
@@ -2368,6 +2396,16 @@ route("POST", "/v1/admin/affiliates/reject", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
   const result = await repo.rejectAffiliate(ctx.body?.affiliateId, ctx.body?.note);
   return json(result ? 200 : 404, { ok: !!result });
+});
+route("POST", "/v1/admin/affiliates/grant", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const b = ctx.body || {};
+  const rewardBps = Number(b.rewardBps);
+  const capMillicents = Number(b.capMillicents);
+  if (!Number.isInteger(rewardBps) || rewardBps < 1 || rewardBps > 10000) return json(400, { error: "rewardBps must be 1–10000 (0.01%–100%)" });
+  if (!Number.isInteger(capMillicents) || capMillicents < 0) return json(400, { error: "capMillicents must be a whole number ≥ 0" });
+  const result = await repo.grantAffiliateUpgrade(b.affiliateId, { rewardBps, capMillicents, code: b.code });
+  return json(result.ok ? 200 : (result.error === "not found" ? 404 : 400), result);
 });
 route("GET", "/admin", async (ctx: any) => {
   if (!adminOk(ctx)) return htmlResp(401, "<h1>401</h1><p>Append ?adminKey=…</p>");

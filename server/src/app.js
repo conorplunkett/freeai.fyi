@@ -866,6 +866,17 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     json(res, result ? 200 : 404, { ok: !!result });
   });
 
+  // Grant an influencer upgrade: custom rate, raised/uncapped cap, optional code.
+  route("POST", "/v1/admin/affiliates/grant", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    const rewardBps = Number(body.rewardBps);
+    const capMillicents = Number(body.capMillicents);
+    if (!Number.isInteger(rewardBps) || rewardBps < 1 || rewardBps > 10000) return json(res, 400, { error: "rewardBps must be 1–10000 (0.01%–100%)" });
+    if (!Number.isInteger(capMillicents) || capMillicents < 0) return json(res, 400, { error: "capMillicents must be a whole number ≥ 0" });
+    const result = await repo.grantAffiliateUpgrade(body.affiliateId, { rewardBps, capMillicents, code: body.code });
+    json(res, result.ok ? 200 : (result.error === "not found" ? 404 : 400), result);
+  });
+
   // Minimal moderation UI. Admin key passed in the query; ad lines are escaped.
   route("GET", "/admin", async (req, res, body, rawBody, query) => {
     if (!adminOk(req, body, query)) return html(res, 401, "<h1>401</h1><p>Append ?adminKey=…</p>");
