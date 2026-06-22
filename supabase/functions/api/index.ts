@@ -1770,7 +1770,7 @@ route("POST", "/v1/checkout", async (ctx: any) => {
     mode: "payment", customer_email: email,
     // receipt_email isn't a Checkout Session param; it lives on the PaymentIntent.
     payment_intent_data: { receipt_email: email },
-    line_items: [{ quantity: nBlocks, price_data: { currency: "usd", unit_amount: priceCents, product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `"${adLine}"` } } }],
+    line_items: [{ quantity: nBlocks, price_data: { currency: "usd", unit_amount: priceCents, product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `${brand ? brand + " — " : ""}"${adLine}" → ${url}`, images: ["https://freeai.fyi/og.png"] } } }],
     metadata: { campaign_id: campaignId },
     success_url: `${config.siteUrl}/?checkout=success`,
     cancel_url: `${config.siteUrl}/?checkout=cancelled`,

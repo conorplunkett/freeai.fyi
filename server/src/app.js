@@ -186,7 +186,11 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
         quantity: nBlocks,
         price_data: {
           currency: "usd", unit_amount: priceCents,
-          product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `"${adLine}"` },
+          product_data: {
+            name: "FreeAI spinner block — 1,000 impressions",
+            description: `${brand ? brand + " — " : ""}"${adLine}" → ${url}`,
+            images: ["https://freeai.fyi/og.png"],
+          },
         },
       }],
       metadata: { campaign_id: campaignId },
