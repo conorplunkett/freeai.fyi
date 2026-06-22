@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wrap the SwiftPM executable into SponsorOverlay.app, code-sign it, and produce
+# Wrap the SwiftPM executable into freeai.fyi.app, code-sign it, and produce
 # a drag-to-Applications .dmg (and a .zip) for distribution.
 #
 # Local use (no Apple Developer account needed) — ad-hoc signature, runs on the
@@ -18,14 +18,19 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."        # -> SponsorOverlay package root
 
-APP_NAME="SponsorOverlay"
+APP_NAME="SponsorOverlay"             # SwiftPM product: executable, zip + dmg names
+PRODUCT_NAME="freeai.fyi"             # user-facing .app bundle name (Finder + Login Items)
 VOL_NAME="FreeAI Sponsor Overlay"
 VERSION="${VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"   # default "-" = ad-hoc
 
 BUILD_DIR="build"
-APP="$BUILD_DIR/$APP_NAME.app"
+# The bundle on disk is "freeai.fyi.app" so Finder + System Settings ▸ Login
+# Items show "freeai.fyi", not the internal executable name. The executable
+# inside stays "$APP_NAME" (matches CFBundleExecutable); the zip/dmg keep the
+# "$APP_NAME" name so CI artifact paths are unchanged.
+APP="$BUILD_DIR/$PRODUCT_NAME.app"
 MACOS_DIR="$APP/Contents/MacOS"
 RES_DIR="$APP/Contents/Resources"
 
@@ -123,7 +128,7 @@ tell application "Finder"
     set arrangement of opts to not arranged
     set icon size of opts to 128
     set background picture of opts to file ".background:dmg-background.png"
-    set position of item "$APP_NAME.app" of container window to {165, 175}
+    set position of item "$PRODUCT_NAME.app" of container window to {165, 175}
     set position of item "Applications" of container window to {435, 175}
     update without registering applications
     delay 1

@@ -395,3 +395,45 @@ body {
   box-shadow: none;
   transform: none;
 }
+
+/* The panes can be taller than the window (two permission cards, the demo card
+ * stacked above the steps), so let the content scroll instead of clipping. */
+.pane {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 24px;
+}
+
+/* Step 2 "How it works" — stack the live demo card above the steps. */
+.how { flex-direction: column; align-items: stretch; gap: 18px; }
+.how-col { width: 100%; }
+.how-list { margin-top: 0; }
+.demo {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  min-height: 196px;
+  align-self: center;
+}
+
+/* Rail navigation — visited steps are clickable. */
+.steps li.clickable { cursor: pointer; }
+.steps li.clickable:not(.active):hover { background: rgba(255, 255, 255, .05); }
+
+/* Step 5 "All set" — ring + copy on top, then a full-width menu-bar hint so the
+ * dashed callout reads on one line instead of cramming beside the ring. */
+.done-pane { display: flex; flex-direction: column; }
+.done-top { display: flex; gap: 28px; align-items: center; }
+.done-copy { min-width: 0; }
+.callout {
+  display: block;
+  margin-top: 22px;
+  padding: 11px 14px;
+  line-height: 1.55;
+}
+.callout .mb-wire {
+  width: 26px;
+  height: 17px;
+  vertical-align: -4px;
+  margin: 0 3px;
+}

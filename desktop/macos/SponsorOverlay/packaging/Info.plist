@@ -4,8 +4,11 @@
 <dict>
   <key>CFBundleExecutable</key>          <string>SponsorOverlay</string>
   <key>CFBundleIdentifier</key>          <string>fyi.freeai.SponsorOverlay</string>
-  <key>CFBundleName</key>                <string>SponsorOverlay</string>
-  <key>CFBundleDisplayName</key>         <string>FreeAI Sponsor Overlay</string>
+  <!-- Name shown to the user (menu-bar About, and the System Settings ▸ Login
+       Items row). LaunchServices shows CFBundleDisplayName/CFBundleName here, so
+       both read "freeai.fyi" rather than the internal "SponsorOverlay". -->
+  <key>CFBundleName</key>                <string>freeai.fyi</string>
+  <key>CFBundleDisplayName</key>         <string>freeai.fyi</string>
   <key>CFBundlePackageType</key>         <string>APPL</string>
   <key>CFBundleIconFile</key>            <string>AppIcon</string>
   <key>CFBundleShortVersionString</key>  <string>__VERSION__</string>
