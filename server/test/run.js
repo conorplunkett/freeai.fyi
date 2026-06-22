@@ -46,6 +46,7 @@ const fakeMailer = {
   sendCampaignRejectedEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendReferralInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  sendCrewInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
 };
 
 (async () => {
@@ -759,6 +760,46 @@ const fakeMailer = {
     const aff = await api("GET", `/v1/me/affiliate?deviceId=${dev.deviceId}&deviceKey=${dev.deviceKey}`);
     assert.strictEqual(aff.body.linked, true);
     assert.ok(/^[A-Z0-9]{8}$/.test(aff.body.code), "linked device is auto-enrolled with an affiliate code");
+    assert.strictEqual(aff.body.crewSize, 5, "crew exposes its 5-slot size");
+    assert.deepStrictEqual(aff.body.invited, [], "no pending invites yet");
+  });
+
+  await check("crew invite: device-scoped, emails the affiliate link, fills a slot, guards bad input", async () => {
+    const dev = (await api("POST", "/v1/devices/register")).body;
+    const sess = await loginVia("crewboss@example.com");
+    await api("POST", "/v1/devices/link", { deviceId: dev.deviceId, deviceKey: dev.deviceKey, session: sess });
+    const code = (await api("GET", `/v1/me/affiliate?deviceId=${dev.deviceId}&deviceKey=${dev.deviceKey}`)).body.code;
+
+    // bad device creds are rejected; an unlinked device can't invite
+    assert.strictEqual(
+      (await api("POST", "/v1/me/affiliate/invite", { deviceId: dev.deviceId, deviceKey: "wrong", email: "f@x.com" })).status,
+      401, "bad device creds rejected");
+    const stranger = (await api("POST", "/v1/devices/register")).body;
+    assert.strictEqual(
+      (await api("POST", "/v1/me/affiliate/invite", { deviceId: stranger.deviceId, deviceKey: stranger.deviceKey, email: "f@x.com" })).status,
+      401, "unlinked device can't invite");
+
+    // a malformed email and inviting yourself are both rejected
+    assert.strictEqual(
+      (await api("POST", "/v1/me/affiliate/invite", { deviceId: dev.deviceId, deviceKey: dev.deviceKey, email: "nope" })).status,
+      400, "malformed email rejected");
+    assert.strictEqual(
+      (await api("POST", "/v1/me/affiliate/invite", { deviceId: dev.deviceId, deviceKey: dev.deviceKey, email: "crewboss@example.com" })).status,
+      400, "can't invite your own email");
+
+    // a valid invite sends the affiliate-link email and records the invite
+    mailbox.length = 0;
+    const inv = await api("POST", "/v1/me/affiliate/invite", { deviceId: dev.deviceId, deviceKey: dev.deviceKey, email: "crewmate@example.com" });
+    assert.strictEqual(inv.status, 200);
+    assert.strictEqual(inv.body.invite.status, "sent");
+    const mail = mailbox.find((m) => m.to === "crewmate@example.com");
+    assert.ok(mail && mail.link.includes(`ref=${code}`), "invite email carries the affiliate code link");
+
+    // the pending invite now fills a crew slot (masked), still open slots remain
+    const crew = (await api("GET", `/v1/me/affiliate?deviceId=${dev.deviceId}&deviceKey=${dev.deviceKey}`)).body;
+    assert.strictEqual(crew.invited.length, 1, "pending invite occupies a slot");
+    assert.strictEqual(crew.invited[0].email, "c•••@example.com", "invited email is masked");
+    assert.ok(!JSON.stringify(crew.invited).includes("crewmate@example.com"), "full email never leaves the server");
   });
 
   await check("affiliate codes apply retroactively; referred users can't; self/unknown codes rejected", async () => {

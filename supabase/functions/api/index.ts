@@ -24,6 +24,10 @@ import crypto from "node:crypto";
 import { Buffer } from "node:buffer";
 import postgres from "npm:postgres@3.4.4";
 
+// Crew = the affiliate "earn with your friends" panel in the extension popup.
+// Five slots: each is a joined friend, a pending invite, or an open invite form.
+const CREW_SIZE = 5;
+
 // ───────────────────────────── config ──────────────────────────────────────
 const env = (k: string, d = "") => Deno.env.get(k) ?? d;
 const SUPABASE_URL = env("SUPABASE_URL");
@@ -278,6 +282,17 @@ function createMailer(cfg: any) {
        <p><a href="${link}">Accept the invite and claim your credits</a></p>
        <p>When you sign up with this link and redeem your first Claude gift card,
           ${inviterEmail} earns a one-time $${Math.round(rewardUsd)} bonus — at no cost to you.</p>`),
+    // Crew invite from the extension popup: the friend is attributed to the
+    // inviter's affiliate code, so the inviter earns their cut of everything the
+    // friend makes — forever. The friend keeps 100% of their own earnings.
+    sendCrewInviteEmail: (to: string, { inviterEmail, link, rewardPct }: any) =>
+      send(to, `${inviterEmail} added you to their FreeAI crew`,
+      `<p>${inviterEmail} is earning free Claude credits with FreeAI and wants you on their crew.</p>
+       <p>FreeAI shows one subtle sponsored line while you use ChatGPT, Claude, or
+          Gemini, and pays you back 50% of the revenue as Claude credits.</p>
+       <p><a href="${link}">Join the crew and start earning</a></p>
+       <p>You keep 100% of what you earn. ${inviterEmail} earns an extra
+          ${Math.round(rewardPct)}% on top — at no cost to you.</p>`),
   };
 }
 const mailer = createMailer(config);
@@ -1081,6 +1096,19 @@ function createRepo(pool: any) {
         [referrerUserId, email, code]
       );
       return r.rows[0];
+    },
+    // Pending crew invites (email sent, friend hasn't signed up yet) for the
+    // device-scoped affiliate panel in the extension. Masked emails only — the
+    // full address never leaves the server. Friends who've already joined are
+    // filtered out by the caller (they surface via affiliateCrew instead).
+    async pendingInvitesForUser(userId: string) {
+      const r = await pool.query(
+        `select email, sent_at from referral_invites
+          where referrer_user_id = $1 and status = 'sent'
+          order by sent_at desc limit 20`,
+        [userId]
+      );
+      return r.rows.map((row: any) => ({ email: maskEmail(row.email), invitedAt: row.sent_at }));
     },
     // First-login onboarding gate: true once the user has referred anyone — either
     // sent at least one invite, or has a friend who joined with their code. Drives
@@ -2054,16 +2082,43 @@ route("GET", "/v1/me/affiliate", async (ctx: any) => {
   if (!user) return json(200, { linked: false, rewardPct });
   const aff = await repo.getOrCreateAffiliate(user.id);
   const crew = await repo.affiliateCrew(aff.id, user.id);
+  // Pending invites you've sent that haven't joined yet — surfaced so the popup's
+  // crew slots stay filled across reopens. Drop any whose masked address already
+  // matches a joined friend (an invited friend who accepted shows up in `friends`).
+  const friendNames = new Set(crew.friends.map((f: any) => f.name));
+  const invited = (await repo.pendingInvitesForUser(user.id)).filter((i: any) => !friendNames.has(i.email));
   return json(200, {
     linked: true,
     email: user.email,
     code: aff.code,
     link: `${config.siteUrl}/redeem.html?ref=${aff.code}`,
     rewardPct,
+    crewSize: CREW_SIZE,
     attributedCount: crew.count,
     creditedUsd: crew.creditedMillicents / 100000,
     friends: crew.friends,
+    invited,
   });
+});
+
+// Invite a friend to your crew from the extension popup. Device-scoped (no web
+// session): authed by device credentials, the invite carries the user's affiliate
+// link so the friend is attributed to them — earning the affiliate's cut forever.
+route("POST", "/v1/me/affiliate/invite", async (ctx: any) => {
+  const device = await authDeviceFrom(ctx);
+  if (!device) return json(401, { error: "bad device credentials" });
+  const user = await repo.userForDevice(device.id);
+  if (!user) return json(401, { error: "link this device to invite friends" });
+  const email = String(ctx.body?.email || "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
+  if (email.toLowerCase() === String(user.email || "").toLowerCase()) {
+    return json(400, { error: "you can't invite your own email" });
+  }
+  const aff = await repo.getOrCreateAffiliate(user.id);
+  const link = `${config.siteUrl}/redeem.html?ref=${aff.code}`;
+  const invite = await repo.createReferralInvite(user.id, email, aff.code);
+  await mailer.sendCrewInviteEmail(email, { inviterEmail: user.email, link, rewardPct: config.affiliateRewardBps / 100 });
+  return json(200, { ok: true, sent: true, invite: { email: invite.email, status: invite.status, createdAt: invite.sent_at } });
 });
 
 // ── gift card catalog & device-scoped redemption ──

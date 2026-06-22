@@ -134,7 +134,23 @@ function createMailer(config) {
     );
   }
 
-  return { sendVerifyEmail, sendWebLoginEmail, sendAdvertiserReceiptEmail, sendCampaignRejectedEmail, sendGiftRedemptionEmail, sendReferralInviteEmail };
+  // Crew invite from the extension popup: the friend is attributed to the
+  // inviter's affiliate code, so the inviter earns their cut of everything the
+  // friend makes — forever. The friend keeps 100% of their own earnings.
+  async function sendCrewInviteEmail(to, { inviterEmail, link, rewardPct }) {
+    await send(
+      to,
+      `${inviterEmail} added you to their FreeAI crew`,
+      `<p>${inviterEmail} is earning free Claude credits with FreeAI and wants you on their crew.</p>
+       <p>FreeAI shows one subtle sponsored line while you use ChatGPT, Claude, or
+          Gemini, and pays you back 50% of the revenue as Claude credits.</p>
+       <p><a href="${link}">Join the crew and start earning</a></p>
+       <p>You keep 100% of what you earn. ${inviterEmail} earns an extra
+          ${Math.round(rewardPct)}% on top — at no cost to you.</p>`
+    );
+  }
+
+  return { sendVerifyEmail, sendWebLoginEmail, sendAdvertiserReceiptEmail, sendCampaignRejectedEmail, sendGiftRedemptionEmail, sendReferralInviteEmail, sendCrewInviteEmail };
 }
 
 module.exports = { createMailer };

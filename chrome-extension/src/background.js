@@ -232,6 +232,28 @@ async function getCrew() {
   }
 }
 
+// Invite a friend to the crew from the popup. Device-scoped: the backend reads
+// the linked user from the device credentials and sends an invite carrying the
+// user's affiliate link, so the friend is attributed to them (10% forever). Only
+// works once the device is linked to an account.
+async function inviteFriend(email) {
+  if (!email || typeof fetch !== "function") return { ok: false, error: "no email" };
+  const device = await getDevice();
+  if (!device) return { ok: false, error: "sign in to invite friends" };
+  try {
+    const res = await fetch(`${API_BASE}/v1/me/affiliate/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: device.deviceId, deviceKey: device.deviceKey, email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || "could not send invite" };
+    return { ok: true, invite: data.invite };
+  } catch (_) {
+    return { ok: false, error: "network error" };
+  }
+}
+
 // Link this device to the freeai.fyi account whose web session the link bridge
 // (src/link.js) found in the site's localStorage. Authed by device creds + that
 // web session; the server sets devices.user_id and auto-enrolls the affiliate.
@@ -287,6 +309,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         break;
       case "BB_LINK":
         sendResponse(await linkDevice((msg.session || "").trim()));
+        break;
+      case "BB_INVITE":
+        sendResponse(await inviteFriend(String(msg.email || "").trim()));
         break;
       case "BB_GET_ADS": {
         const s = await getState();

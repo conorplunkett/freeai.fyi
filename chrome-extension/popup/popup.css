@@ -107,6 +107,45 @@ body {
 .invite:hover { background: rgba(var(--accent-rgb), .12); }
 .invite .plus { width: 19px; height: 19px; border-radius: 50%; background: var(--accent-d); color: #fff; display: grid; place-items: center; font-size: 13px; flex: none; }
 
+/* crew slots — value-prop intro, pending invites, the invite form, open slots */
+.crew-intro { font-size: 12px; color: var(--gray); line-height: 1.5; margin: 0 0 6px; }
+.crew-intro b { color: var(--accent-d); font-weight: 800; }
+
+/* a pending (sent, not joined) invite reuses the friend row, muted */
+.friend.invited { opacity: .85; }
+.friend.invited .nm { color: var(--gray); }
+.friend .badge {
+  flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+  font-weight: 700; color: var(--gray); background: var(--bg-tint); border-radius: 4px; padding: 3px 7px;
+}
+
+/* the one active invite form */
+.invite-form { display: flex; gap: 7px; align-items: center; margin-top: 11px; }
+.invite-form input {
+  flex: 1; min-width: 0; padding: 10px 11px; font-family: var(--sans); font-size: 13px; color: var(--ink);
+  background: var(--surface-inset); border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+.invite-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .14); }
+.invite-form button {
+  flex: none; padding: 10px 14px; border: none; cursor: pointer; border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--accent-grad-a), var(--accent-grad-b));
+  color: #fff; font-family: var(--sans); font-size: 13px; font-weight: 700; transition: filter .14s;
+}
+.invite-form button:hover { filter: brightness(1.05); }
+.invite-form button:disabled { opacity: .6; cursor: default; }
+.invite-hint { font-size: 10.5px; color: var(--gray-2); font-family: var(--mono); margin: 6px 0 0; }
+.invite-msg { font-size: 11.5px; margin: 6px 0 0; font-weight: 600; }
+.invite-msg.ok { color: var(--ok-fg); }
+.invite-msg.err { color: var(--danger-fg, #c0392b); }
+
+/* remaining open slots — subtle dashed placeholders */
+.slot-empty {
+  display: flex; align-items: center; gap: 9px; margin-top: 9px; padding: 10px 12px;
+  border: 1px dashed var(--line); border-radius: var(--radius-md); color: var(--gray-2); font-size: 12px;
+}
+.slot-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--bg-tint); color: var(--gray-2); display: grid; place-items: center; font-size: 13px; flex: none; }
+.crew-full { font-size: 12px; color: var(--ok-fg); font-weight: 700; margin: 12px 0 2px; }
+
 /* sign-in (link this device to an account to start earning with friends) */
 .signin-form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .signin-form input {

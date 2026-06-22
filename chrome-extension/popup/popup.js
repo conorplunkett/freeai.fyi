@@ -72,9 +72,13 @@ async function refresh() {
 // CREW — the affiliate "earn with your friends" panel. The extension stays
 // anonymous: until the device is linked to an account it shows the sign-in CTA
 // (which opens the freeai.fyi login page); once linked (device-scoped
-// /v1/me/affiliate via the background) it shows each friend, what they've
-// generated, and your 10% cut — which accrues forever.
-function friendRow(f) {
+// /v1/me/affiliate via the background) it shows up to 5 slots — each a joined
+// friend (with their generated credits + your 10% cut, forever), a pending
+// invite, or an open invite form to add the next friend.
+const CREW_SIZE = 5;
+
+// A joined friend: what they've generated and the 10% it earned you.
+function friendSlot(f) {
   const cut = `<div class="cut"><div class="v">+${esc(money(f.youUsd || 0))}</div><div class="k">your 10%</div></div>`;
   return (
     `<div class="friend">` +
@@ -85,31 +89,104 @@ function friendRow(f) {
   );
 }
 
+// A sent-but-not-yet-joined invite (email is masked server-side).
+function invitedSlot(inv) {
+  return (
+    `<div class="friend invited">` +
+    `<div class="meta">` +
+    `<div class="nm">${esc(inv.email || "a friend")}</div>` +
+    `<div class="sub">invite sent — waiting to join</div>` +
+    `</div><div class="badge">Invited</div></div>`
+  );
+}
+
+// The single active invite form, shown in the first open slot.
+function formSlot(open) {
+  const left = open === 1 ? "1 slot open" : `${open} slots open`;
+  return (
+    `<form class="invite-form" id="invite-form">` +
+    `<input type="email" id="invite-email" placeholder="friend@email.com" autocomplete="off" spellcheck="false" />` +
+    `<button type="submit" id="invite-send">Invite</button>` +
+    `</form>` +
+    `<p class="invite-hint" id="invite-hint">${left}</p>` +
+    `<p class="invite-msg" id="invite-msg" hidden></p>`
+  );
+}
+
+// Muted placeholder for any remaining open slots beyond the active form.
+function emptySlot() {
+  return `<div class="slot-empty"><span class="slot-dot">+</span>Open slot</div>`;
+}
+
+function renderCrewSlots(friends, invited, size) {
+  const wrap = $("crew-slots");
+  if (!wrap) return;
+  const rows = [];
+  let used = 0;
+  for (const f of friends) { if (used >= size) break; rows.push(friendSlot(f)); used++; }
+  for (const inv of invited) { if (used >= size) break; rows.push(invitedSlot(inv)); used++; }
+  const open = Math.max(0, size - used);
+  if (open > 0) {
+    rows.push(formSlot(open));
+    for (let i = 1; i < open; i++) rows.push(emptySlot());
+  } else {
+    rows.push(`<p class="crew-full">Crew full — all ${size} slots taken 🎉</p>`);
+  }
+  wrap.innerHTML = rows.join("");
+  bindInviteForm();
+}
+
+function bindInviteForm() {
+  const form = $("invite-form");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("invite-email");
+    const btn = $("invite-send");
+    const msg = $("invite-msg");
+    const email = (input && input.value || "").trim();
+    if (!email) return;
+    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    const r = (await send({ type: "BB_INVITE", email })) || {};
+    if (r.ok) {
+      // The new pending invite repaints as its own slot on the refresh below; the
+      // fresh form lands in the next open slot, ready for another friend.
+      crewSig = null;
+      await refreshCrew();
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = "Invite"; }
+      if (msg) { msg.hidden = false; msg.className = "invite-msg err"; msg.textContent = r.error || "Couldn't send — try again"; }
+    }
+  });
+}
+
+// Re-render only when the crew actually changes, so an 8s poll never wipes an
+// email the user is mid-way through typing.
+let crewSig = null;
 async function refreshCrew() {
   const crew = (await send({ type: "BB_GET_CREW" })) || {};
-  const list = $("crew-list");
   const sum = $("crew-sum");
   const signedout = $("crew-signedout");
+  const linkedWrap = $("crew-linked");
   const linked = crew.linked === true;
-  const friends = Array.isArray(crew.friends) ? crew.friends : [];
 
   if (signedout) signedout.hidden = linked;
+  if (linkedWrap) linkedWrap.hidden = !linked;
 
   if (!linked) {
     setText("crew-label", "Your crew");
-    if (list) list.innerHTML = "";
     if (sum) sum.hidden = true;
+    crewSig = null;
     return;
   }
 
-  setText("crew-label", friends.length
-    ? `Your crew · ${friends.length} ${friends.length === 1 ? "friend" : "friends"}`
-    : "Your crew");
-  if (list) {
-    list.innerHTML = friends.length
-      ? friends.map(friendRow).join("")
-      : `<p class="crew-empty">No friends yet — share your link and earn <b>10%</b> of their credits, forever.</p>`;
-  }
+  const friends = Array.isArray(crew.friends) ? crew.friends : [];
+  const invited = Array.isArray(crew.invited) ? crew.invited : [];
+  const size = crew.crewSize || CREW_SIZE;
+  if (crew.rewardPct && $("crew-pct")) setText("crew-pct", Math.round(crew.rewardPct) + "%");
+
+  const filled = Math.min(friends.length + invited.length, size);
+  setText("crew-label", `Your crew · ${filled} of ${size}`);
   if (sum) {
     if (crew.creditedUsd > 0) {
       sum.textContent = `+${money(crew.creditedUsd)} to you`;
@@ -118,6 +195,11 @@ async function refreshCrew() {
       sum.hidden = true;
     }
   }
+
+  const sig = JSON.stringify({ friends, invited, size });
+  if (sig === crewSig) return;
+  crewSig = sig;
+  renderCrewSlots(friends, invited, size);
 }
 
 // Sign-in: open the freeai.fyi login page in a new tab. No magic link in the
