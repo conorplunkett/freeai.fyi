@@ -383,7 +383,7 @@ function createRepo(pool) {
     // One batch = { batchKey, events: [{ campaignId, impressions, clicks }] }.
     // A click bills the campaign at 50x an impression. The user's share
     // (revenueShare, 0.5 by default) credits the device; the rest is the platform fee.
-    async ingestBatch({ deviceId, batchKey, events, revenueShare, dailyCap, ipHash, ipDailyCap }) {
+    async ingestBatch({ deviceId, batchKey, events, source, revenueShare, dailyCap, ipHash, ipDailyCap }) {
       return tx(async (c) => {
         const claimedImpressions = events.reduce((n, e) => n + (e.impressions || 0), 0);
         const claimedClicks = events.reduce((n, e) => n + (e.clicks || 0), 0);
@@ -465,7 +465,7 @@ function createRepo(pool) {
           await c.query(
             `insert into ledger (entry_type, amount_millicents, device_id, campaign_id, meta)
              values ('impression_credit', $1, $2, $3, $4)`,
-            [dev.toString(), deviceId, ev.campaignId, JSON.stringify({ impressions: imp, billed })]
+            [dev.toString(), deviceId, ev.campaignId, JSON.stringify(source ? { impressions: imp, billed, source } : { impressions: imp, billed })]
           );
           await c.query(
             `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
@@ -892,6 +892,22 @@ function createRepo(pool) {
         advertiser: r.brand || null,
         meta: r.meta || {},
       }));
+    },
+
+    // Which surfaces this account has ever received a credit from, read from the
+    // source tag stamped on impression credits at ingest. Drives the Install
+    // tab's per-service "active" logo (grey → colored on the first credit).
+    async sourcesForUser(userId) {
+      const { rows } = await pool.query(
+        `select distinct meta->>'source' as source
+           from ledger
+          where (user_id = $1 or device_id in (select id from devices where user_id = $1))
+            and entry_type in ('impression_credit','click_credit')
+            and meta->>'source' is not null`,
+        [userId]
+      );
+      const seen = new Set(rows.map((r) => r.source));
+      return { chrome: seen.has("chrome"), claude_code: seen.has("claude_code"), desktop: seen.has("desktop") };
     },
 
     // User-scoped gift redemption (website flow). Re-checks the user's balance

@@ -578,3 +578,60 @@ html.auth-pending #portal-loading { display: flex; }
     min-height: 48px;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   INSTALL TAB — a self-serve setup checklist plus a per-service
+   "active" status. Each service's F$ logo is the colored brand chip
+   desaturated to grey (.is-inactive) until the account receives its
+   first credit from that service (GET /v1/web/sources, see redeem.js),
+   then it fills back into full color.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Greyed-out logo = the exact same F$ chip, desaturated + dimmed. Dropping
+   .is-inactive restores the colored brand logo; the transition does the fill. */
+.logo.is-inactive { filter: grayscale(1) opacity(.5); box-shadow: none; }
+
+/* "Active status at the top" — aggregate: lit once any service is earning. */
+.install-hero {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px; margin-bottom: 26px;
+  border: 1px solid var(--line); border-radius: 16px; background: #fcfbf9;
+}
+.install-hero-logo {
+  width: 54px; height: 54px; border-radius: 15px; font-size: 23px; flex: none;
+  transition: filter .45s ease, box-shadow .45s ease;
+}
+.install-hero-text .eyebrow { margin-bottom: 4px; }
+.install-hero-text .earn-title { margin: 0 0 4px; }
+.install-hero-text .redeem-lead { margin: 0; }
+
+.install-h { font-size: 17px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 6px; }
+
+/* Rows: the install checklist (left) + per-service active status (right). */
+.install-list { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.install-row { display: grid; grid-template-columns: 1fr auto; align-items: stretch; gap: 14px; }
+
+/* The checkbox reuses the .survey-opt chip; widen it and stack name + sub. */
+.install-check { align-items: center; padding: 15px 18px; }
+.install-check .ic-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ic-name { font-size: 15px; font-weight: 700; color: var(--ink); }
+.ic-sub { font-size: 13px; font-weight: 500; color: var(--gray); }
+.ic-sub code { font-family: var(--mono); font-size: 12px; background: var(--bg-tint); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+/* Per-service active status — logo + label + guide link. */
+.install-active {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-width: 128px; padding: 12px 14px; text-align: center;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff;
+}
+.install-active .logo { transition: filter .45s ease, box-shadow .45s ease; }
+.ia-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; color: var(--gray-2); }
+.install-active.is-live { border-color: var(--ok-line); background: var(--ok-bg); }
+.install-active.is-live .ia-label { color: var(--ok-fg); }
+.ic-link { font-size: 12.5px; font-weight: 600; color: var(--green-d); }
+
+@media (max-width: 560px) {
+  .install-row { grid-template-columns: 1fr; }
+  .install-active { flex-direction: row; justify-content: space-between; min-width: 0; padding: 10px 14px; }
+  .install-active .ic-link { margin-left: auto; }
+}

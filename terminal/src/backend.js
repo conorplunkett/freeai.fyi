@@ -68,6 +68,9 @@ export class FreeAiBackend {
         deviceId: device.deviceId,
         deviceKey: device.deviceKey,
         batchKey,
+        // Tags credits with the surface so the portal's Install tab can light up
+        // the per-service "active" logo (grey → colored on the first credit).
+        source: "claude_code",
         events: [{ campaignId, impressions: 1, clicks: 0 }],
       }),
     });

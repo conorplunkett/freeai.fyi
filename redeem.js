@@ -132,6 +132,7 @@ const SECTION_VIEWS = {
   referrals: "referrals-view",
   ledger: "activity-view",
   redeem: "redeem-view",
+  install: "install-view",
 };
 
 function showSection(name) {
@@ -146,11 +147,85 @@ function showSection(name) {
   });
   if (name === "referrals") { loadReferrals(); loadAffiliate(); }
   if (name === "ledger" && activityRows === null) retrieveActivity();
+  if (name === "install") loadInstall();
 }
 
 $("dash-tabs").addEventListener("click", (e) => {
   const tab = e.target.closest(".dash-tab");
   if (tab) showSection(tab.dataset.section);
+});
+
+// ---- install tab: self-serve checklist + per-service "active" status ----
+// Two independent signals per product:
+//   • the checkbox is the user's own "I've installed this" note, kept locally;
+//   • the F$ logo is server truth — greyed until the account receives its first
+//     credit from that service (GET /v1/web/sources), then filled into color.
+const INSTALL_KEY = "freeai_install_checks";
+const INSTALL_PRODUCTS = ["chrome", "claude_code", "desktop"];
+
+function loadInstallChecks() {
+  try { return JSON.parse(localStorage.getItem(INSTALL_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function saveInstallChecks(state) {
+  try { localStorage.setItem(INSTALL_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function renderInstallChecks() {
+  const state = loadInstallChecks();
+  document.querySelectorAll(".install-check").forEach((btn) => {
+    const on = !!state[btn.dataset.product];
+    btn.classList.toggle("sel", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+// The single source of truth for the logo state — swap the data source here if
+// per-service attribution ever moves off GET /v1/web/sources.
+function applyServiceActivation(sources) {
+  let anyLive = false;
+  for (const product of INSTALL_PRODUCTS) {
+    const live = !!(sources && sources[product]);
+    anyLive = anyLive || live;
+    const logo = document.querySelector(`.logo[data-active="${product}"]`);
+    const label = document.querySelector(`[data-active-label="${product}"]`);
+    if (logo) {
+      logo.classList.toggle("is-inactive", !live);
+      const wrap = logo.closest(".install-active");
+      if (wrap) wrap.classList.toggle("is-live", live);
+    }
+    if (label) label.textContent = live ? "Active" : "Inactive";
+  }
+  const heroLogo = $("install-hero-logo");
+  if (heroLogo) heroLogo.classList.toggle("is-inactive", !anyLive);
+  const heroTitle = $("install-hero-title");
+  const heroSub = $("install-hero-sub");
+  if (heroTitle) heroTitle.textContent = anyLive ? "You're earning" : "Not earning yet";
+  if (heroSub) {
+    heroSub.textContent = anyLive
+      ? "At least one service is live. Each logo below fills in as that service sends its first credit."
+      : "Install a product below — your logo lights up the moment your first credit lands from that service.";
+  }
+}
+
+let installSourcesLoaded = false;
+async function loadInstall() {
+  renderInstallChecks();
+  // Logos only flip on real server data; render greyed until /v1/web/sources answers.
+  const { status, body } = await apiGet("/v1/web/sources");
+  if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
+  if (status !== 200) return;
+  installSourcesLoaded = true;
+  applyServiceActivation(body && body.sources ? body.sources : body);
+}
+
+// Toggle the local "installed" checklist; logos are unaffected (server-driven).
+$("install-list").addEventListener("click", (e) => {
+  const btn = e.target.closest(".install-check");
+  if (!btn) return;
+  const state = loadInstallChecks();
+  state[btn.dataset.product] = !state[btn.dataset.product];
+  saveInstallChecks(state);
+  renderInstallChecks();
 });
 
 async function loadReferrals() {

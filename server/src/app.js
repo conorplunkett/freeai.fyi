@@ -133,6 +133,9 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     try {
       const result = await repo.ingestBatch({
         deviceId: device.id, batchKey: body.batchKey, events: body.events,
+        // Which product reported this batch (chrome / claude_code / desktop), so a
+        // credit can be attributed to its surface; ignored unless allow-listed.
+        source: ["chrome", "claude_code", "desktop"].includes(body.source) ? body.source : null,
         revenueShare: config.revenueShare, dailyCap: config.dailyImpressionCap,
         ipHash: hashIp(req), ipDailyCap: config.ipDailyImpressionCap,
       });
@@ -568,6 +571,15 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
         meta: r.meta,
       })),
     });
+  });
+
+  // Per-service activation for the Install tab: true once the account has
+  // received its first credit from that surface (chrome / claude_code / desktop).
+  route("GET", "/v1/web/sources", async (req, res, body, rawBody, query) => {
+    const user = await repo.userForSession(sessionFrom(req, body, query));
+    if (!user) return json(res, 401, { error: "not signed in" });
+    const sources = await repo.sourcesForUser(user.id);
+    json(res, 200, { sources });
   });
 
   // The user's referral dashboard: their shareable link/code, the reward terms,
