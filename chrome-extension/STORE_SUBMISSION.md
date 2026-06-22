@@ -86,7 +86,7 @@ WHAT IT DOES NOT DO
 
 SUPPORTED SITES
 ChatGPT (chatgpt.com / chat.openai.com), Claude (claude.ai), Gemini
-(gemini.google.com), Google AI Studio, Perplexity, v0.dev, and bolt.new.
+(gemini.google.com).
 
 Not affiliated with Anthropic, OpenAI, or Google.
 ```
@@ -129,7 +129,7 @@ specific justifications keep review fast:
 | --- | --- |
 | `storage` | Stores the user's earnings counters, settings (enabled, test mode, blocked categories), and the anonymous device ID locally via `chrome.storage`. |
 | `alarms` | Schedules periodic background tasks: refreshing the ad inventory/config and flushing batched impression events to the ledger (`chrome.alarms`, every 1–10 min). |
-| **Host permissions** (claude.ai, chatgpt.com, chat.openai.com, gemini.google.com, aistudio.google.com, perplexity.ai, v0.dev, bolt.new) | The content script must run on these AI chat sites to detect the "generating" state and inject the single sponsored line at the reply. |
+| **Host permissions** (claude.ai, chatgpt.com, chat.openai.com, gemini.google.com) | The content script must run on these AI chat sites to detect the "generating" state and inject the single sponsored line at the reply. |
 | Host permission: `wpjfhezklpczxzocgxsb.supabase.co` | The backend API: registers the anonymous device, pulls live ad inventory/config, and reports impression/click counts to compute earnings. |
 
 ---

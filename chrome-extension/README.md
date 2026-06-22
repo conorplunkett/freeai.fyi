@@ -55,8 +55,7 @@ Then verify it two ways:
 
 ## Supported sites
 
-`chatgpt.com` / `chat.openai.com` · `claude.ai` · `gemini.google.com` ·
-`aistudio.google.com` · `perplexity.ai` · `v0.dev` · `bolt.new`
+`chatgpt.com` / `chat.openai.com` · `claude.ai` · `gemini.google.com`
 
 Add more by editing `manifest.json` (`host_permissions` + `content_scripts.matches`).
 Detection selectors live at the top of `src/content.js`.

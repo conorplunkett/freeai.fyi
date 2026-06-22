@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FreeAI.fyi — Earn from ChatGPT, Claude & Gemini",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Earn money while you use AI. Ads appear while AI thinks — 50% of revenue goes to you.",
   "icons": {
     "16": "icons/icon16.png",
@@ -27,12 +27,7 @@
     "https://claude.ai/*",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
-    "https://chatgpt.com/codex/*",
-    "https://gemini.google.com/*",
-    "https://aistudio.google.com/*",
-    "https://www.perplexity.ai/*",
-    "https://v0.dev/*",
-    "https://bolt.new/*"
+    "https://gemini.google.com/*"
   ],
   "content_scripts": [
     {
@@ -40,11 +35,7 @@
         "https://claude.ai/*",
         "https://chatgpt.com/*",
         "https://chat.openai.com/*",
-        "https://gemini.google.com/*",
-        "https://aistudio.google.com/*",
-        "https://www.perplexity.ai/*",
-        "https://v0.dev/*",
-        "https://bolt.new/*"
+        "https://gemini.google.com/*"
       ],
       "js": ["src/ads.js", "src/content.js"],
       "css": ["src/inject.css"],
