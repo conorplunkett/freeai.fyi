@@ -12,10 +12,20 @@ node bin/freeai.js claude setup
 
 | Command | What |
 | --- | --- |
-| `freeai claude setup` | Locate the real `claude`, store it in `~/.freeai/claude/config.json`, and add a marked shell alias/function. |
+| `freeai claude setup` | Locate the real `claude`, store it in `~/.freeai/claude/config.json`, add a marked shell alias/function, then prompt to link your FreeAI account by email. Pass `--email YOU@EXAMPLE.COM` to link non-interactively, or `--no-link` to skip. |
+| `freeai claude link [--email …]` | Email yourself a magic link that attributes this machine's Claude Code credits to your FreeAI account. Run it any time after setup. |
 | `freeai claude run [...args]` | Internal wrapper used by the alias. It forwards args, cwd, env, stdio, signals, and Claude's exit code. |
 | `freeai claude restore` | Remove the marked shell block. Safe to run repeatedly. |
-| `freeai claude doctor` | Print the resolved Claude path, config/shell/rc paths, then probe the backend pipeline (config → ads → device → click-intent) and report an `adsWillServe` verdict. Pass `--no-backend` to skip the network probe. |
+| `freeai claude doctor` | Print the resolved Claude path, config/shell/rc paths, then probe the backend pipeline (config → ads → device → account → click-intent) and report an `adsWillServe` verdict. The `account` step shows whether this device is linked to your FreeAI account. Pass `--no-backend` to skip the network probe. |
+
+## Account Linking
+
+Credits earned in the terminal accrue to an anonymous **device** (`~/.freeai/device.json`)
+until that device is linked to a FreeAI account. Linking emails you a magic link
+(`POST /v1/auth/request-link`); clicking it (`/v1/auth/verify`) sets the device's
+`user_id`, after which Claude Code credits show up in your portal balance. This is
+the same device→account flow the Chrome extension popup uses. Until you link, the
+`account` step in `freeai claude doctor` reports `linked: false`.
 
 ### Debugging "no ad shows"
 
