@@ -17,7 +17,7 @@ The overlay tracks whichever supported app is **frontmost**.
 | Path | What | Status |
 |---|---|---|
 | `core/` | `overlay-core` Rust crate — all decision logic: 5s continuous-visibility impression state machine, frequency caps + fraud throttles, campaign eligibility/selection, retry event queue, privacy-locked event schema | ✅ Built & tested here (`cargo test`, 10 tests) |
-| `macos/SponsorOverlay/` | SwiftPM menu bar shell — Claude & ChatGPT detection via Accessibility API, non-activating overlay `NSPanel`, permission onboarding, pause/quit menu | 🚧 Skeleton; build on a Mac with `swift build` |
+| `macos/SponsorOverlay/` | SwiftPM menu bar shell — Claude & ChatGPT detection via Accessibility API, non-activating overlay `NSPanel`, a 5-step WKWebView onboarding window, pause/quit menu | 🚧 Skeleton; build on a Mac with `swift build` |
 
 ## Architecture
 
@@ -88,6 +88,38 @@ as the other FreeAI clients: `POST /v1/devices/register` (anonymous device auth)
 `POST /v1/clicks/intent` (server-issued single-use click URLs, so clicks
 can't be forged), `GET /v1/me/earnings`. Point the app elsewhere with
 `FREEAI_API_URL`.
+
+## Onboarding window
+
+The Setup window (shown once on first launch, reopenable from the menu bar
+**Setup** item) is the Claude Design handoff onboarding — a 5-step flow
+(Welcome → How it works → Grant access → Save credits → All set). It's the
+design's HTML/CSS/JS rendered in a `WKWebView`, living under
+`Sources/SponsorOverlay/Resources/onboarding/`:
+
+| File | What |
+|---|---|
+| `index.html` | entry point; loads the CSS + JS (no CDN — works offline) |
+| `tokens.css` | DS tokens ported from the root `theme.css` color block (a mirror) |
+| `onboarding.css` | the handoff's stylesheet verbatim + an embed override so `.win` fills the real window |
+| `onboarding.js` | a vanilla-JS port of the handoff's `Onboarding.jsx` |
+
+The web UI is wired to real app state through a JS↔Swift bridge
+(`WKScriptMessageHandler`, see `showSetup()` in `main.swift`): "Open System
+Settings" opens the Accessibility pane and the app **polls the live permission**
+so the step flips to "Granted" (unlocking Continue) the moment access is toggled
+on; "Launch at login" registers/unregisters via `SMAppService`; the sign-in step
+opens FreeAI's web sign-in in the browser; "Open FreeAI" closes the window.
+
+`Package.swift` declares the directory as a resource; `swift run` finds it via
+`Bundle.module` and `packaging/bundle.sh` copies the generated resource bundle
+into the `.app`. To preview the design standalone in a browser (no native
+bridge, so it falls back to the prototype's simulated permission grant):
+
+```sh
+cd desktop/macos/SponsorOverlay/Sources/SponsorOverlay/Resources/onboarding
+python3 -m http.server 8000   # then open http://localhost:8000
+```
 
 ## Testing
 
@@ -224,8 +256,11 @@ them, but verify with `codesign --verify --deep --strict` before notarizing.
    assumptions. Run probe mode against both, see `AssistantDetector.swift`.
 2. Keychain for device credentials (UserDefaults in the rough-out).
 3. cbindgen FFI so the shell links `overlay-core` instead of the Swift port.
-4. Real sign-in (email verify exists server-side) and local frequency caps in
-   the shell. App bundling + ad-hoc signing is done (`packaging/bundle.sh`);
-   Developer ID signing + notarization still needs the paid Apple cert.
+4. In-app magic-link sign-in. The onboarding's "Save credits" step currently
+   opens FreeAI's web sign-in (`freeai.fyi/redeem`) in the browser; email verify
+   exists server-side, so a native magic-link flow could replace the hop. Local
+   frequency caps in the shell are also still TODO. App bundling + ad-hoc signing
+   is done (`packaging/bundle.sh`); Developer ID signing + notarization still
+   needs the paid Apple cert.
 5. Redemption catalog UI (server currently pays out via Stripe Connect;
    PRD wants gift-card style redemptions too).

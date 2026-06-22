@@ -40,6 +40,17 @@ cp "$BIN" "$MACOS_DIR/$APP_NAME"
 sed -e "s/__VERSION__/$VERSION/g" -e "s/__BUILD__/$BUILD_NUMBER/g" \
     packaging/Info.plist > "$APP/Contents/Info.plist"
 
+# SwiftPM resource bundle (the onboarding HTML/CSS/JS, declared in Package.swift).
+# Copy it next to the app's other resources so Bundle.module (which checks
+# Bundle.main.resourceURL) resolves it in the shipped app, as it does under
+# `swift run`. Without this the Setup window falls back to the plain text sheet.
+RES_BUNDLE=".build/release/${APP_NAME}_${APP_NAME}.bundle"
+if [ -d "$RES_BUNDLE" ]; then
+  cp -R "$RES_BUNDLE" "$RES_DIR/"
+else
+  echo "    WARNING: $RES_BUNDLE not found — onboarding assets won't be bundled" >&2
+fi
+
 echo "==> building AppIcon.icns from master"
 ICON_MASTER="packaging/assets/AppIcon-1024.png"
 ICONSET="$BUILD_DIR/AppIcon.iconset"

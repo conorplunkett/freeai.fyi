@@ -14,7 +14,9 @@
 // console instead of POSTed.
 
 import AppKit
+import ServiceManagement
 import Sparkle
+import WebKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     // Sparkle only runs when it's actually configured: a real (non-placeholder)
@@ -483,9 +485,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay.show(over: bounds, composer: lastComposerBounds, star: lastStarBounds)
     }
 
-    // MARK: setup tutorial
+    // MARK: setup / onboarding window
+    //
+    // The 5-step onboarding (Welcome → How it works → Grant access → Save
+    // credits → All set) is the Claude Design handoff, rendered pixel-for-pixel
+    // in a WKWebView from the bundled Resources/onboarding/* assets. The web UI
+    // is wired to real app state through a JS↔Swift bridge: it opens the
+    // Accessibility pane, reflects the live permission, toggles launch-at-login,
+    // opens web sign-in, and closes the window — see userContentController(_:didReceive:).
 
     private var setupWindow: NSWindow?
+    private weak var setupWebView: WKWebView?
+    /// Polls real Accessibility permission while onboarding is open so the
+    /// "Grant access" step flips to "Granted" (and unlocks Continue) the moment
+    /// the user toggles FreeAI on in System Settings.
+    private var permissionPollTimer: Timer?
+    private let onboardingMessage = "freeai"   // JS message-handler name
 
     private func showSetupOnFirstLaunch() {
         guard !demoMode, !UserDefaults.standard.bool(forKey: "didOnboard") else { return }
@@ -495,10 +510,120 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showSetup() {
         if let w = setupWindow {
+            startPermissionPoll()
+            pushLaunchState()   // re-sync in case it changed since last opened
             w.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+        guard let index = onboardingIndexURL() else {
+            // Resource bundle missing (e.g. an old packaging that didn't copy it):
+            // fall back to the plain text setup window so onboarding still works.
+            showSetupFallback()
+            return
+        }
+
+        let contentSize = NSSize(width: 780, height: 608)
+        let config = WKWebViewConfiguration()
+        let controller = WKUserContentController()
+        controller.add(self, name: onboardingMessage)
+        config.userContentController = controller
+
+        let webView = WKWebView(frame: NSRect(origin: .zero, size: contentSize), configuration: config)
+        webView.navigationDelegate = self
+        webView.loadFileURL(index, allowingReadAccessTo: index.deletingLastPathComponent())
+
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: contentSize),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Set up FreeAI"
+        w.isReleasedWhenClosed = false
+        w.contentView = webView
+        w.delegate = self
+        w.center()
+
+        setupWindow = w
+        setupWebView = webView
+        startPermissionPoll()
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func closeSetup() {
+        setupWindow?.close()
+    }
+
+    /// URL of the bundled onboarding entry point. `Bundle.module` resolves this
+    /// in `swift run` and in the packaged .app once bundle.sh has copied the
+    /// generated resource bundle into Contents/Resources.
+    private func onboardingIndexURL() -> URL? {
+        guard let dir = Bundle.module.url(forResource: "onboarding", withExtension: nil) else { return nil }
+        let index = dir.appendingPathComponent("index.html")
+        return FileManager.default.fileExists(atPath: index.path) ? index : nil
+    }
+
+    private func evalOnboardingJS(_ js: String) {
+        setupWebView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    // MARK: onboarding ↔ app bridge
+
+    private func startPermissionPoll() {
+        permissionPollTimer?.invalidate()
+        pushPermissionState()
+        permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.pushPermissionState()
+        }
+    }
+
+    private func stopPermissionPoll() {
+        permissionPollTimer?.invalidate()
+        permissionPollTimer = nil
+    }
+
+    /// Push the live Accessibility permission to the onboarding UI. The JS side
+    /// ignores no-op repeats, so polling every second is cheap.
+    private func pushPermissionState() {
+        let granted = demoMode || AXIsProcessTrusted()
+        evalOnboardingJS("window.freeaiBridge && window.freeaiBridge.setPermission('\(granted ? "ok" : "off")')")
+    }
+
+    private func pushLaunchState() {
+        evalOnboardingJS("window.freeaiBridge && window.freeaiBridge.setLaunchState(\(launchAtLoginEnabled() ? "true" : "false"))")
+    }
+
+    // MARK: launch at login (SMAppService, macOS 13+)
+
+    private func launchAtLoginEnabled() -> Bool {
+        if #available(macOS 13.0, *) { return SMAppService.mainApp.status == .enabled }
+        return false
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        guard #available(macOS 13.0, *) else { return }
+        do {
+            if enabled { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+        } catch {
+            // Registration fails for a loose `swift run` binary (no app bundle);
+            // it works for the packaged .app. Log and re-sync the real state.
+            NSLog("[freeai] launch-at-login \(enabled ? "register" : "unregister") failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Open FreeAI's real web sign-in so the device can be linked to an account
+    /// (credits already accrue to the anonymous device until then).
+    private func openWebSignin(email: String?, google: Bool) {
+        var comps = URLComponents(string: "https://freeai.fyi/redeem")!
+        var items: [URLQueryItem] = []
+        if let email, !email.isEmpty { items.append(URLQueryItem(name: "email", value: email)) }
+        if google { items.append(URLQueryItem(name: "provider", value: "google")) }
+        if !items.isEmpty { comps.queryItems = items }
+        if let url = comps.url { NSWorkspace.shared.open(url) }
+    }
+
+    // MARK: fallback setup window (only if the web assets are unavailable)
+
+    private func showSetupFallback() {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 320),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Setup"
@@ -541,10 +666,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func closeSetup() {
-        setupWindow?.close()
-    }
-
     private func requestAccessibilityIfNeeded() {
         guard !demoMode else { return }
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -556,6 +677,47 @@ extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         refreshAccessibilityState()
         refreshOffsetControl()
+    }
+}
+
+// Onboarding web UI → app. The bundled onboarding.js posts {action, …} messages;
+// each maps to a real app action. Unknown actions are ignored.
+extension AppDelegate: WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController,
+                              didReceive message: WKScriptMessage) {
+        guard message.name == onboardingMessage,
+              let body = message.body as? [String: Any],
+              let action = body["action"] as? String else { return }
+        switch action {
+        case "openSettings":
+            openAccessibilitySettings()
+        case "setLaunchAtLogin":
+            setLaunchAtLogin(body["on"] as? Bool ?? false)
+            pushLaunchState()   // re-sync the toggle to the real registration state
+        case "signinEmail":
+            openWebSignin(email: body["email"] as? String, google: false)
+        case "signinGoogle":
+            openWebSignin(email: nil, google: true)
+        case "finish":
+            closeSetup()
+        default:
+            break
+        }
+    }
+}
+
+extension AppDelegate: WKNavigationDelegate {
+    // Once the onboarding has loaded, seed it with the real permission +
+    // launch-at-login state so its first paint matches reality.
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pushPermissionState()
+        pushLaunchState()
+    }
+}
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        if (notification.object as? NSWindow) === setupWindow { stopPermissionPoll() }
     }
 }
 

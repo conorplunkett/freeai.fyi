@@ -129,9 +129,9 @@ bar), and the macOS app. Always use it.
    success green, `--err-*` warm red) — functional state colors, the one place
    green is allowed, kept deliberately separate from the brand.
 
-3. **Three mirrors must move together.** The website and the extension popup read
-   `theme.css` directly. Three places can't reach it at runtime and mirror its
-   values — when you change a token, update all of them **in the same commit**:
+3. **The mirrors must move together.** The website and the extension popup read
+   `theme.css` directly. The surfaces below can't reach it at runtime and mirror
+   its values — when you change a token, update all of them **in the same commit**:
 
    | Surface | How it consumes tokens |
    | --- | --- |
@@ -139,6 +139,7 @@ bar), and the macOS app. Always use it.
    | Extension popup | `chrome-extension/popup/theme.css` — **byte-identical copy** of root `theme.css` (`cp theme.css chrome-extension/popup/theme.css`) |
    | Injected sponsor bar | `chrome-extension/src/inject.css` — re-declares the `--ov-*` + font tokens on `.bb-bar` (theme.css is **not** loaded on third-party pages like claude.ai), then uses `var(--…)` |
    | macOS overlay | `OverlayPanel.swift` `Palette` enum — each member tagged with its `--ov-*` token name |
+   | macOS onboarding | `desktop/macos/SponsorOverlay/Sources/SponsorOverlay/Resources/onboarding/tokens.css` — the Setup window's WKWebView loads bundled files, so it ports the `theme.css` color block, then uses `var(--…)` |
 
    There is no build step or sync script (by design) — keeping the mirrors honest
    is a manual discipline, enforced by this doc.

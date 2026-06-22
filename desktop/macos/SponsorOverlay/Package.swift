@@ -18,7 +18,13 @@ let package = Package(
             dependencies: [
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
-            path: "Sources/SponsorOverlay"
+            path: "Sources/SponsorOverlay",
+            // The onboarding window (Setup) renders this bundled HTML/CSS/JS in a
+            // WKWebView. `swift run` finds it via Bundle.module; packaging/bundle.sh
+            // copies the generated resource bundle into the .app (see that script).
+            resources: [
+                .copy("Resources/onboarding"),
+            ]
         )
     ]
 )

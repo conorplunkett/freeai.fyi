@@ -1,0 +1,93 @@
+/* FreeAI.fyi — design tokens for the desktop onboarding window.
+ *
+ * A self-contained bundle of the design system's tokens so the onboarding
+ * renders identically inside the app's WKWebView without reaching the network
+ * for CSS. The colour block is a verbatim port of the repo's theme.css (the
+ * single source of truth); spacing/radius/shadow/typography mirror tokens/*.css
+ * from the Claude Design handoff. Keep colours in sync with ../../../../theme.css.
+ */
+
+/* Inter + JetBrains Mono, matching every other FreeAI surface. Loads from
+ * Google Fonts when online; falls back to the system stack offline. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  /* ── Brand / accent — Claude coral ── */
+  --accent: #d97757;
+  --accent-d: #c15f3c;
+  --accent-grad-a: #e08a6a;
+  --accent-grad-b: #cf6b4a;
+  --accent-rgb: 217, 119, 87;
+
+  /* ── Surfaces ── */
+  --bg-cream: #faf9f5;
+  --bg-tint: #f0eee6;
+  --card-dark: #2b2a28;
+  --card-dark-2: #1c1b18;
+
+  /* ── Ink & neutrals (warm) ── */
+  --ink: #1f1e1d;
+  --ink-2: #3d3b37;
+  --gray: #6b6963;
+  --gray-2: #9b988f;
+  --line: #e6e2d8;
+
+  /* ── Fonts ── */
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* ── Overlay / sponsor palette — the dark pill shown while thinking ── */
+  --ov-bar-bg: rgba(20, 23, 28, 0.92);
+  --ov-bar-border: rgba(255, 255, 255, 0.05);
+  --ov-text: #e9ecf2;
+  --ov-line: #f1f3f7;
+  --ov-tag-bg: rgba(217, 119, 87, 0.16);
+  --ov-tag-text: #e8a486;
+
+  /* ── Semantic status (NOT brand) ── */
+  --ok-bg: #f1f8f2;
+  --ok-fg: #2c6b3f;
+  --ok-line: #cfe6d5;
+
+  /* ── Inputs / surfaces used by the onboarding ── */
+  --surface-inset: #f6f4ef;
+  --border-default: #d9d4c8;
+  --border-strong: #c8c2b4;
+  --focus-ring: rgba(217, 119, 87, 0.12);
+
+  /* ── Radius ── */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-pill: 999px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 3px rgba(20, 30, 40, 0.12);
+  --shadow-card: 0 30px 70px -45px rgba(20, 30, 40, 0.4);
+  --shadow-dark: 0 18px 44px -24px rgba(0, 0, 0, 0.55);
+  --shadow-accent: 0 12px 28px -14px rgba(217, 119, 87, 0.7);
+  --shadow-logo: 0 2px 8px rgba(217, 119, 87, 0.35);
+
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-pop: cubic-bezier(0.5, 1.5, 0.4, 1);
+}
+
+/* The "F$" brand mark — coral wordmark on the accent gradient (from base.css). */
+.logo {
+  width: 30px; height: 30px; border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--accent-grad-a), var(--accent-grad-b));
+  color: #fff; font-family: var(--mono); font-weight: 700; font-size: 14px;
+  display: grid; place-items: center; box-shadow: var(--shadow-logo);
+}
+
+/* Mono eyebrow — the recurring uppercase section label (from base.css). */
+.eyebrow {
+  display: inline-block; font-family: var(--mono); font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-d); font-weight: 700;
+}
