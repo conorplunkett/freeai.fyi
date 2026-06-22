@@ -323,13 +323,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pause = NSMenuItem(title: "Pause sponsor messages", action: #selector(togglePause(_:)), keyEquivalent: "p")
         pause.target = self
         menu.addItem(pause)
-        // Live slider so users place the card where it suits their window
-        // (everyone runs the assistant full-width, so the right height varies).
+        // Live slider + lock checkbox so users place the card where it suits
+        // their window (everyone runs the assistant full-width, so the right
+        // height varies). Both live in one custom view, so interacting with
+        // them doesn't dismiss the menu.
         menu.addItem(makeOffsetMenuItem())
-        let lock = NSMenuItem(title: "Lock to above prompt", action: #selector(toggleLock), keyEquivalent: "")
-        lock.target = self
-        menu.addItem(lock)
-        lockItem = lock
         let redeem = NSMenuItem(title: "Redeem", action: #selector(openRedeem), keyEquivalent: "")
         redeem.target = self
         menu.addItem(redeem)
@@ -437,7 +435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastTargetID: String?
     private weak var offsetSlider: NSSlider?
     private weak var offsetLabel: NSTextField?
-    private weak var lockItem: NSMenuItem?
+    private weak var lockCheckbox: NSButton?
 
     private func liftKey(_ id: String) -> String { "cardLift.\(id)" }
     private func lockKey(_ id: String) -> String { "lockToPrompt.\(id)" }
@@ -464,12 +462,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A per-app label + slider embedded in the menu so the height is adjustable
     /// live. Edits the last-focused app's value; the label names which app.
     private func makeOffsetMenuItem() -> NSMenuItem {
-        let width: CGFloat = 230
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 46))
+        let width: CGFloat = 240
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 72))
         let label = NSTextField(labelWithString: "Card height")
         label.font = .systemFont(ofSize: 12)
         label.textColor = .secondaryLabelColor
-        label.frame = NSRect(x: 14, y: 26, width: width - 28, height: 16)
+        label.frame = NSRect(x: 14, y: 50, width: width - 28, height: 16)
         // Max lift = tallest screen, so dragging fully right always reaches the
         // top of even a full-height window (the top-clamp in OverlayPanel.show
         // stops it overshooting). A fixed cap only reached part-way up.
@@ -477,27 +475,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let slider = NSSlider(value: Double(Self.defaultLift), minValue: 0, maxValue: maxLift,
                               target: self, action: #selector(cardLiftChanged(_:)))
         slider.isContinuous = true
-        slider.frame = NSRect(x: 14, y: 4, width: width - 28, height: 20)
+        slider.frame = NSRect(x: 14, y: 28, width: width - 28, height: 20)
+        // Checkbox lives in the same custom view so toggling it does NOT dismiss
+        // the menu (a control inside a view-based item handles its own click).
+        let lock = NSButton(checkboxWithTitle: "Lock to above prompt",
+                            target: self, action: #selector(lockCheckboxToggled(_:)))
+        lock.font = .systemFont(ofSize: 12)
+        lock.frame = NSRect(x: 12, y: 4, width: width - 24, height: 20)
         container.addSubview(label)
         container.addSubview(slider)
+        container.addSubview(lock)
         offsetSlider = slider
         offsetLabel = label
+        lockCheckbox = lock
         let item = NSMenuItem()
         item.view = container
         return item
     }
 
     /// Sync the slider, label and lock checkbox to the app being edited (focus,
-    /// hence the app, may have changed since the menu last opened). While locked
-    /// the label says so; moving the slider is what unlocks it.
+    /// hence the app, may have changed since the menu last opened). The label
+    /// text is constant per app — only the checkbox state changes on lock — so
+    /// nothing reflows when toggling.
     private func refreshOffsetControl() {
         let name = displayName(forAppID: lastTargetID)
         let locked = isLocked(lastTargetID)
         offsetSlider?.doubleValue = Double(lift(forAppID: lastTargetID))
         offsetSlider?.toolTip = locked ? "Locked just above the prompt — move to unlock" : nil
-        offsetLabel?.stringValue = locked ? "\(name) card height — Locked 🔒" : "\(name) card height"
-        lockItem?.state = locked ? .on : .off
-        lockItem?.title = "\(name): Lock to above prompt"
+        offsetLabel?.stringValue = "\(name) card height"
+        lockCheckbox?.state = locked ? .on : .off
     }
 
     @objc private func cardLiftChanged(_ sender: NSSlider) {
@@ -510,11 +516,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshOffsetControl()
     }
 
-    /// Toggle "Lock to above prompt" for the last-focused app: pins the card at
-    /// the minimum height (or restores the saved height).
-    @objc private func toggleLock() {
+    /// Toggle "Lock to above prompt" for the last-focused app. The checkbox is a
+    /// view-based control, so the menu stays open.
+    @objc private func lockCheckboxToggled(_ sender: NSButton) {
         let id = lastTargetID ?? AssistantTarget.claude.id
-        UserDefaults.standard.set(!isLocked(id), forKey: lockKey(id))
+        UserDefaults.standard.set(sender.state == .on, forKey: lockKey(id))
         refreshOffsetControl()
         overlay.verticalLift = lift(forAppID: id)
         repositionOverlay()
