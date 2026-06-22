@@ -184,6 +184,55 @@ async function main() {
       assert.ok(d < 24, `bar starts ${d}px from the reply's left edge — not left-aligned`);
     });
 
+    await check("ChatGPT: bar never anchors inside .result-streaming (no mid-stream snap)", async () => {
+      // ChatGPT's streaming markdown (.result-streaming) is a DESCENDANT of the
+      // message container. If the bar anchors inside it, finalized content that
+      // ChatGPT appends AFTER the stream node strands the bar above it for a
+      // beat. The bar must stay the message container's last child throughout.
+      await page.evaluate(() => {
+        const turn = document.querySelector('[data-message-author-role="assistant"]');
+        const stream = document.createElement("div");
+        stream.className = "result-streaming";
+        stream.id = "cgpt-stream";
+        stream.textContent = "streaming answer…";
+        turn.appendChild(stream);
+      });
+      // bar sits below the streaming block, not inside it
+      await page.waitForFunction(() => {
+        const turn = document.querySelector('[data-message-author-role="assistant"]');
+        const b = turn && turn.querySelector(".bb-bar.bb-show");
+        const stream = document.getElementById("cgpt-stream");
+        return b && turn.lastElementChild === b && !stream.contains(b);
+      }, { timeout: 5000 });
+      // ChatGPT appends the finalized block AFTER .result-streaming → the bar
+      // must re-seat below it, never get stranded above
+      await page.evaluate(() => {
+        const turn = document.querySelector('[data-message-author-role="assistant"]');
+        const after = document.createElement("div");
+        after.id = "cgpt-after";
+        after.textContent = "finalized block";
+        const stream = document.getElementById("cgpt-stream");
+        turn.insertBefore(after, stream.nextSibling);
+      });
+      await page.waitForFunction(() => {
+        const turn = document.querySelector('[data-message-author-role="assistant"]');
+        const b = turn.querySelector(".bb-bar");
+        const after = document.getElementById("cgpt-after");
+        return (
+          b &&
+          turn.lastElementChild === b &&
+          !!(after.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+        );
+      }, { timeout: 3000 });
+      // cleanup the streaming fixtures so later checks see a clean turn
+      await page.evaluate(() => {
+        for (const id of ["cgpt-stream", "cgpt-after"]) {
+          const n = document.getElementById(id);
+          if (n) n.remove();
+        }
+      });
+    });
+
     await check("Claude star-only stage ⇒ bar shows below the star, in the turn container", async () => {
       // Claude anchors on the per-turn div[data-test-render-count] container.
       // The visible thinking star (.epitaxy-spark-working) drives detection;

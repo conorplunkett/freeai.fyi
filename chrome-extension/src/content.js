@@ -57,8 +57,15 @@
     // (The old .epitaxy-spark-working / .epitaxy-transcript-width selectors were
     // removed when claude.ai rebuilt its thinking UI — they no longer match.)
     "div[data-test-render-count]",            // Claude — assistant turn container
+    // ChatGPT — the stable per-message container. Anchor here and nowhere
+    // nested: do NOT add .result-streaming as an anchor. It's a DESCENDANT of
+    // this container, and findAnchor()'s "descendant beats ancestor" rule would
+    // mount the bar INSIDE the streaming markdown — then ChatGPT appends the
+    // finalized block after .result-streaming, stranding the bar above it for a
+    // beat ("snaps up, then back"). The bar as this container's last child
+    // stays below all streamed content the whole time. (.result-streaming
+    // remains a detection signal in BUSY_SELECTORS.)
     '[data-message-author-role="assistant"]', // ChatGPT
-    ".result-streaming",                      // ChatGPT (older)
     // Gemini — last-resort only. findAnchor() handles Gemini by climbing from
     // the newest <user-query> to its `.conversation-container` (the active
     // turn); this bare <model-response> is reached only if that fails. Gemini
