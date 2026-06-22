@@ -38,8 +38,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="theme.css?v=20260619a" />
-  <link rel="stylesheet" href="styles.css?v=20260619a" />
+  <link rel="stylesheet" href="theme.css?v=20260619b" />
+  <link rel="stylesheet" href="styles.css?v=20260619b" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -143,6 +143,25 @@
         </span>
         <span class="install-arrow">→</span>
       </a>
+
+      <!-- CLI PASTE CARD — dark surface + coral accent, matching the brand
+           system. One-liner clones + links the terminal client and wires up the
+           reversible `claude` alias (see /terminal for the step-by-step). -->
+      <div class="cli-card">
+        <span class="cli-head">
+          <span class="cli-emoji" aria-hidden="true">🤑</span>
+          Prefer the terminal? Paste this into your shell.
+        </span>
+        <div class="cli-code">
+          <code class="cli-cmd">git clone https://github.com/conorplunkett/freeai.fyi.git &amp;&amp; cd freeai.fyi/terminal &amp;&amp; npm link &amp;&amp; freeai claude setup</code>
+          <button type="button" class="cli-copy copy-btn" data-copy="git clone https://github.com/conorplunkett/freeai.fyi.git && cd freeai.fyi/terminal && npm link && freeai claude setup">Copy</button>
+        </div>
+        <span class="cli-sub">
+          Opt-in ads in <strong>Claude Code</strong> &amp; the terminal CLI. A subtle sponsored
+          line shows only while it’s thinking — <strong>50%</strong> comes back as Claude credits.
+          <a href="/terminal">Full guide →</a>
+        </span>
+      </div>
 
       <p class="hero-note">
         Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle
@@ -326,6 +345,6 @@
        user-facing copy production-only — no test/demo wording. The one developer
        affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
        handled in script.js, which never shows unless explicitly requested. -->
-  <script src="script.js?v=20260619a"></script>
+  <script src="script.js?v=20260619b"></script>
 </body>
 </html>
