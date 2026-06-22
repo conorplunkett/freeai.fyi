@@ -9,8 +9,7 @@
 ## TL;DR
 
 - **All runnable test suites are green:** Chrome ext 21/21, terminal 23/23,
-  server 30/30 (real Postgres), Rust overlay-core 10/10, VS Code ext 902 pass /
-  7 skipped.
+  server 30/30 (real Postgres), Rust overlay-core 10/10.
 - **The credit math is correct:** 50% user share is the default everywhere
   (server, Edge Function, extension). The "90%" in server test output is a
   deliberate test-only override to prove the multiplier is applied.
@@ -34,8 +33,6 @@
 - [x] **macOS overlay core (Rust)** — `cd desktop/core && cargo test` → **10/10**
       (impression state machine, fraud caps, eligibility, privacy-locked event
       schema). Runs on any OS.
-- [x] **VS Code / Cursor extension (incubating)** — `npm run build` OK;
-      `npm test` (vitest) → **902 passed / 7 skipped** across 76 files.
 - [x] **Static site / portal JS** — `node --check` on `script.js`, `redeem.js`,
       `admin.js` all clean. Site + portal + admin all read the canonical API base
       from `<meta name="freeai-api">`.
@@ -100,8 +97,6 @@ list in `supabase/functions/README.md`):
       are correct.** Needs a live-browser repro to fix — full brief in
       `chrome-extension/GEMINI_BUG_HANDOFF.md`. Decide: ship with this known, or
       hold Gemini.
-- [ ] **VS Code extension** is incubating — builds & tests green but **not wired
-      to earn** yet (see `vscode-extension/INTEGRATION.md`).
 - [ ] **macOS app** is a working skeleton: validate the real bundle ids + AX
       detection for Claude and ChatGPT Desktop on a Mac, move device creds to the
       Keychain, and (for public
@@ -120,12 +115,9 @@ complete index and fix drift, not to merge files. Fixes applied in this pass:
 
 - `server/README.md`: endpoint table was missing the gift-card, OAuth, and entire
   `/v1/web/*` website-redemption/referral surface, and listed the retired
-  `/v1/redemptions` as live — rebuilt and grouped; test count corrected 15 → 30;
-  stale "VS Code extension" earner label fixed.
+  `/v1/redemptions` as live — rebuilt and grouped; test count corrected 15 → 30.
 - `README.md` (root): added the missing `desktop/` (macOS) row plus the `redeem`
   portal and `admin` console.
-- `chrome-extension/`, `vscode-extension/`, `supabase/functions/` READMEs: aligned
+- `chrome-extension/`, `supabase/functions/` READMEs: aligned
   the API-base wording with the code (canonical Supabase URL; `api.freeai.fyi` is
   a Vercel rewrite, not a dead host).
-- `legacy/vscode-extension/README.md`: added an **ARCHIVED** banner (it still
-  advertised "90% + weekly Stripe payouts", which is not the current model).

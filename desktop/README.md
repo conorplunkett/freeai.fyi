@@ -82,8 +82,8 @@ serialized key set exactly — adding a field that smuggles content fails CI.
 
 ## Backend
 
-The app speaks the **existing FreeAI API** (`server/`), same protocol as
-the VS Code extension: `POST /v1/devices/register` (anonymous device auth),
+The app speaks the **existing FreeAI API** (`server/`), the same protocol
+as the other FreeAI clients: `POST /v1/devices/register` (anonymous device auth),
 `GET /v1/ads`, `POST /v1/events` (idempotent batches keyed by `batchKey`),
 `POST /v1/clicks/intent` (server-issued single-use click URLs, so clicks
 can't be forged), `GET /v1/me/earnings`. Point the app elsewhere with

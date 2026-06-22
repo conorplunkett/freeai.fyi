@@ -149,10 +149,9 @@ bar), and the macOS app. Always use it.
 
 5. **Logo.** The brand mark is the **"F$" coral wordmark** on the accent
    gradient — the app icon for **every** surface (Chrome `chrome-extension/icons/*`,
-   VS Code `vscode-extension/media/icon.png`, macOS `AppIcon-1024.png`) and the
-   site favicon. Regenerate all icons with `make icons` (`tools/gen-icons.py`,
-   which reads the gradient straight from `theme.css`); the canonical renderer is
-   `vscode-extension/scripts/_brand.mjs`. Never hand-edit icon PNGs or
+   macOS `AppIcon-1024.png`) and the site favicon. Regenerate all icons with
+   `make icons` (`tools/gen-icons.py`, the canonical renderer, which reads the
+   gradient straight from `theme.css`). Never hand-edit icon PNGs or
    reintroduce the old green/teal marks.
 
    The **social link-preview card** — `og.png` at the repo root, the image every

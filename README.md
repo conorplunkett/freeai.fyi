@@ -21,8 +21,6 @@ the ad auction, an append-only ledger, and gift-card redemption.
 | `admin.html` · `admin.js` | Static moderation + economics console; calls the admin-key API (campaign approve/reject, killswitch, referral/economics config). |
 | `terminal/` | Standalone Claude Code terminal client. Adds a reversible `claude` shell alias and uses Claude Code `statusLine` + temporary `--settings` files to serve ads only while the CLI is thinking. |
 | `desktop/` | **macOS app** (SponsorOverlay) — a menu-bar overlay that floats a sponsor card over Claude or ChatGPT Desktop while it generates. Pure-Rust `core/` decision logic (tested on any OS, 10 tests); Swift `macos/` shell. See [`desktop/README.md`](desktop/README.md). |
-| `vscode-extension/` | **Incubating.** Modern VS Code / Cursor extension (Claude Code & Codex spinner ads). Builds & tests green; points at the API Edge Function; not yet wired to earn. See [`vscode-extension/INTEGRATION.md`](vscode-extension/INTEGRATION.md). |
-| `legacy/vscode-extension/` | Archived. The original VS Code spinner extension — no longer the product. |
 
 ## Quick start
 
