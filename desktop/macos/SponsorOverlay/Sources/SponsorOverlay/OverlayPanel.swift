@@ -41,16 +41,28 @@ final class OverlayPanelController {
     private static let padX: CGFloat = 14
     private static let gap: CGFloat = 9
     private static let chipSize: CGFloat = 18
-    private static let dismissSize: CGFloat = 18
 
     private var panel: NSPanel?
     private(set) var card: SponsorCard?
     /// Content-fitted width, recomputed whenever the card changes.
     private(set) var panelWidth: CGFloat = 360
     var onClick: ((SponsorCard) -> Void)?
-    var onDismiss: ((SponsorCard) -> Void)?
+    /// Extra points the card is raised above its composer/bottom anchor,
+    /// adjustable from the menu so users place it to taste. Clamped in `show`
+    /// so it can never leave the top of the window.
+    var verticalLift: CGFloat = 0
 
-    var isShown: Bool { panel?.isVisible ?? false }
+    /// Fade timings mirror the Chrome extension's inline bar: quick fade-in,
+    /// slow drift-out (inject.css: `transition: opacity 0.25s` in, `2s` out).
+    static let fadeInDuration: TimeInterval = 0.25
+    static let fadeOutDuration: TimeInterval = 2.0
+    private var isFadingIn = false
+    private var isFadingOut = false
+
+    /// "Shown" for impression/gating purposes excludes the slow fade-out — once
+    /// generation ends and the card starts drifting out it no longer counts as
+    /// visible, even though it's still partially on screen.
+    var isShown: Bool { (panel?.isVisible ?? false) && !isFadingOut }
 
     /// Occlusion check feeding overlay-core's `overlay_covered` signal.
     var isCovered: Bool {
@@ -75,17 +87,20 @@ final class OverlayPanelController {
 
         let width = panelWidth
         var x: CGFloat
-        let axTop: CGFloat // card's top edge in AX (top-left-origin) coordinates
+        var axTop: CGFloat // card's top edge in AX (top-left-origin) coordinates
         if let star, appBounds.intersects(star) {
+            // Sit on the star; the lift doesn't apply — it tracks the star row.
             x = star.minX
             axTop = star.midY - Self.height / 2
         } else if let composer, composer.minY > appBounds.minY {
             x = composer.minX
-            axTop = composer.minY - Self.anchorGap - Self.height
+            axTop = composer.minY - Self.anchorGap - Self.height - verticalLift
         } else {
             x = appBounds.midX - width / 2
-            axTop = appBounds.maxY - Self.bottomInset - Self.height
+            axTop = appBounds.maxY - Self.bottomInset - Self.height - verticalLift
         }
+        // The lift must never push the card off the top of the window.
+        axTop = max(appBounds.minY + 8, axTop)
         // Keep the pill inside the assistant window horizontally.
         let lower = appBounds.minX + 16
         let upper = max(lower, appBounds.maxX - width - 16)
@@ -95,11 +110,39 @@ final class OverlayPanelController {
         let screenH = NSScreen.screens.first?.frame.height ?? 0
         let y = screenH - (axTop + Self.height)
         panel.setFrame(NSRect(x: x, y: y, width: width, height: Self.height), display: true)
-        panel.orderFrontRegardless()
+
+        // Fade in on first appearance (or reverse an in-flight fade-out).
+        // Steady-state repositions just move the frame above — no re-animation.
+        let stable = panel.isVisible && !isFadingOut && !isFadingIn && panel.alphaValue >= 1
+        if !stable && !isFadingIn {
+            if !panel.isVisible { panel.alphaValue = 0 }
+            isFadingOut = false
+            isFadingIn = true
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = Self.fadeInDuration
+                panel.animator().alphaValue = 1
+            }, completionHandler: { [weak self] in
+                self?.isFadingIn = false
+            })
+        }
     }
 
+    /// Slow fade-out, then actually order the panel out. A `show` during the
+    /// fade cancels it (isFadingOut flips false) so the card simply fades back.
     func hide() {
-        panel?.orderOut(nil)
+        guard let panel, panel.isVisible, !isFadingOut else { return }
+        isFadingIn = false
+        isFadingOut = true
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = Self.fadeOutDuration
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            guard let self, self.isFadingOut else { return }
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+            self.isFadingOut = false
+        })
     }
 
     private func makePanel() -> NSPanel {
@@ -127,9 +170,9 @@ final class OverlayPanelController {
         let lineText = "\(card.sponsorName) · \(card.message)"
         var lineW = ceil(lineText.size(withAttributes: [.font: lineFont]).width)
 
-        // Everything except the (ellipsizable) line is fixed width.
-        let fixed = Self.padX + Self.chipSize + Self.gap + Self.gap
-                  + Self.dismissSize + Self.padX
+        // Everything except the (ellipsizable) line is fixed width:
+        // padX [chip] gap [line] padX.
+        let fixed = Self.padX + Self.chipSize + Self.gap + Self.padX
         lineW = min(lineW, Self.maxWidth - fixed)
         let width = fixed + lineW
         panelWidth = width
@@ -158,15 +201,10 @@ final class OverlayPanelController {
         line.textColor = Palette.line
         line.lineBreakMode = .byTruncatingTail
         line.frame = NSRect(x: x, y: (h - 17) / 2, width: lineW, height: 17)
-        x += lineW + Self.gap
 
-        let dismiss = NSButton(title: "×", target: self, action: #selector(dismissTapped))
-        dismiss.isBordered = false
-        dismiss.contentTintColor = Palette.dots
-        dismiss.frame = NSRect(x: x, y: (h - Self.dismissSize) / 2,
-                               width: Self.dismissSize, height: Self.dismissSize)
-
-        // Whole bar is the click target (like the extension); × stays separate.
+        // The whole bar is the click target (like the extension). There is no
+        // dismiss control — the card is shown only while the assistant is
+        // generating and hides on its own when generation ends.
         for view in [chip, line] {
             view.addGestureRecognizer(
                 NSClickGestureRecognizer(target: self, action: #selector(cardTapped)))
@@ -174,7 +212,6 @@ final class OverlayPanelController {
 
         root.addSubview(chip)
         root.addSubview(line)
-        root.addSubview(dismiss)
         panel.contentView = root
     }
 
@@ -184,10 +221,5 @@ final class OverlayPanelController {
         // here too would double-open the destination.
         guard let card else { return }
         onClick?(card)
-    }
-
-    @objc private func dismissTapped() {
-        hide()
-        if let card { onDismiss?(card) }
     }
 }

@@ -114,7 +114,7 @@ final class AssistantDetector {
 
         var scan = TreeScan(wantStar: target.hasThinkingStar)
         scanTree(window, depth: 0, into: &scan, target: target)
-        state.composerBounds = scan.composer.flatMap(frame(of:))
+        state.composerBounds = (scan.composer ?? scan.firstTextArea).flatMap(frame(of:))
         state.starBounds = scan.star.flatMap(frame(of:))
         state.generating = scan.hasStopButton || scan.star != nil
         cachedWindow = window
@@ -174,14 +174,18 @@ final class AssistantDetector {
     /// never message text. Web content nests deep inside the AXWebArea, hence
     /// the generous depth.
     private struct TreeScan {
+        /// Composer matched by placeholder hint (preferred).
         var composer: AXUIElement?
+        /// First AXTextArea seen, used as the composer when no hint matches
+        /// (ChatGPT exposes no placeholder on its input).
+        var firstTextArea: AXUIElement?
         var hasStopButton = false
         var star: AXUIElement?
         /// False for apps without a thinking star (ChatGPT), so the scan can
-        /// short-circuit once the composer + Stop button are found.
+        /// short-circuit once a composer + Stop button are found.
         var wantStar = true
         var isComplete: Bool {
-            composer != nil && hasStopButton && (!wantStar || star != nil)
+            (composer != nil || firstTextArea != nil) && hasStopButton && (!wantStar || star != nil)
         }
     }
 
@@ -192,33 +196,41 @@ final class AssistantDetector {
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         let role = roleRef as? String
 
-        // Composer: a text-input element whose placeholder matches one of the
-        // target's hints (Claude: "prompt"; ChatGPT: "ask anything" / …). The
-        // placeholder surfaces under different AX attributes across apps —
-        // Claude puts it in the description, ChatGPT in AXPlaceholderValue — so
-        // check all of them. Restricted to text-input roles so an ordinary
-        // label can never be mistaken for the composer.
-        if scan.composer == nil, role == kAXTextAreaRole as String || role == kAXTextFieldRole as String {
-            for attr in [kAXDescriptionAttribute, kAXPlaceholderValueAttribute, kAXTitleAttribute] {
-                var v: CFTypeRef?
-                AXUIElementCopyAttributeValue(element, attr as CFString, &v)
-                if let s = (v as? String)?.lowercased(),
-                   target.composerHints.contains(where: { s.contains($0) }) {
-                    scan.composer = element
-                    break
+        // Composer: both apps expose it as an AXTextArea (Claude's tiptap
+        // editor reads placeholder "Prompt"; ChatGPT's exposes no placeholder
+        // at all). Prefer a text area whose placeholder matches a target hint —
+        // checking description, AXPlaceholderValue and title, since the
+        // placeholder lands in different attributes across apps — and otherwise
+        // fall back to the first AXTextArea in the window. Restricted to
+        // AXTextArea so the sidebar search (an AXTextField) can't be mistaken
+        // for the composer.
+        if role == kAXTextAreaRole as String {
+            if scan.firstTextArea == nil { scan.firstTextArea = element }
+            if scan.composer == nil {
+                for attr in [kAXDescriptionAttribute, kAXPlaceholderValueAttribute, kAXTitleAttribute] {
+                    var v: CFTypeRef?
+                    AXUIElementCopyAttributeValue(element, attr as CFString, &v)
+                    if let s = (v as? String)?.lowercased(),
+                       target.composerHints.contains(where: { s.contains($0) }) {
+                        scan.composer = element
+                        break
+                    }
                 }
             }
         }
 
-        // Stop button: match loosely ("Stop response", "Stop generating",
-        // "Stop streaming", localized variants keep the verb) but require it on
-        // a button so plain message text can never trip it. This is the primary
+        // Stop button: the generation Stop control — "Stop response" (Claude),
+        // "Stop generating" / "Stop streaming" (ChatGPT). Require the full verb
+        // phrase, NOT a bare "stop": a substring match flagged unrelated UI like
+        // the sidebar chat titled "6 Train Not Stopping", pinning the card on
+        // forever (the same trap the Chrome extension documents). Matched only
+        // on a button so message text can never trip it. This is the primary
         // generating signal for ChatGPT, which has no thinking star.
         if !scan.hasStopButton, role == kAXButtonRole as String {
             for attr in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute] {
                 var v: CFTypeRef?
                 AXUIElementCopyAttributeValue(element, attr as CFString, &v)
-                if let s = (v as? String)?.lowercased(), s.contains("stop") {
+                if let s = (v as? String)?.lowercased(), Self.isStopGenerationLabel(s) {
                     scan.hasStopButton = true
                     break
                 }
@@ -238,6 +250,16 @@ final class AssistantDetector {
             scanTree(child, depth: depth + 1, into: &scan, target: target)
             if scan.isComplete { return }
         }
+    }
+
+    /// True when a button label denotes the generation Stop control, not merely
+    /// any text containing "stop" (e.g. a chat titled "… Not Stopping"). Keeps
+    /// the verb phrases the assistants use, plus a bare exact "stop" for safety.
+    static func isStopGenerationLabel(_ label: String) -> Bool {
+        let t = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if t == "stop" { return true }
+        return t.contains("stop generating") || t.contains("stop streaming")
+            || t.contains("stop response") || t.contains("stop responding")
     }
 
     /// The thinking star is matched by its DOM class: Chromium (and therefore
@@ -283,7 +305,8 @@ final class AssistantDetector {
         scanTree(window, depth: 0, into: &scan, target: target)
         let starFrame = scan.star.flatMap(frame(of:)).map { "\($0)" }
             ?? (target.hasThinkingStar ? "not found" : "n/a")
-        print("probe: \(target.displayName) — generating=\(scan.hasStopButton || scan.star != nil) stopButton=\(scan.hasStopButton) composer=\(scan.composer != nil) star=\(starFrame)")
+        let composerFound = (scan.composer ?? scan.firstTextArea) != nil
+        print("probe: \(target.displayName) — generating=\(scan.hasStopButton || scan.star != nil) stopButton=\(scan.hasStopButton) composer=\(composerFound) star=\(starFrame)")
         let verbose = ProcessInfo.processInfo.environment["FREEAI_PROBE_VERBOSE"] == "1"
         dump(window, depth: 0, verbose: verbose)
     }
@@ -304,7 +327,13 @@ final class AssistantDetector {
         // DOM classes are how the star is matched — print them so a probe run
         // against a new build shows what to update in isThinkingStar.
         let classes = (classRef as? [String])?.joined(separator: ".") ?? ""
-        let starLike = classes.contains("spark") || classes.contains("thinking")
+        // Broad net for animated indicators so a renamed thinking star still
+        // surfaces in the concise dump (the matcher in isThinkingStar stays
+        // narrow — this is just for the diagnostic display).
+        let lc = classes.lowercased()
+        let starLike = ["spark", "thinking", "working", "spinner", "loading",
+                        "loader", "animate", "animation", "pulse", "shimmer",
+                        "progress"].contains { lc.contains($0) }
         let isTextInput = role == kAXTextAreaRole as String || role == kAXTextFieldRole as String
         let isStopButton = role == kAXButtonRole as String
             && (title + " " + desc).lowercased().contains("stop")
