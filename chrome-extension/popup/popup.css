@@ -71,7 +71,8 @@ body {
   transition: transform .14s, filter .14s;
 }
 .cta:hover { transform: translateY(-1px); filter: brightness(1.05); }
-.hero .cta { position: relative; z-index: 1; }
+/* the button sits IN FRONT of the hero critter, so he peeks out from behind it */
+.hero .cta { position: relative; z-index: 2; }
 
 /* ── the little Claude critter (ported from the lander) ────────────────────
  * Idles 8-bit style: a whole-pixel bob, eye blink, and a twinkling head spark.
@@ -79,7 +80,9 @@ body {
 .cta-guy, .foot-guy { position: relative; width: 100%; pointer-events: none; }
 /* negative bottom margins let his legs rest ON the surface below (button / footer
  * line), body sticking up — same "perched on the bar" look as the lander. */
-.cta-guy { height: 36px; margin: 10px 0 -24px; z-index: 3; }
+/* hero guy hides BEHIND the button (z-index below it), overlapping enough that
+ * only his head + eyes peek over the top edge — same as the lander mascot. */
+.cta-guy { height: 36px; margin: 12px 0 -32px; z-index: 0; }
 .foot-guy { height: 30px; margin: 10px 0 -16px; z-index: 3; }
 .claude-guy { position: absolute; bottom: 0; }
 .cta-guy .claude-guy { right: 28px; }
