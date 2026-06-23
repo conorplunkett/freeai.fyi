@@ -424,11 +424,15 @@ const fakeMailer = {
     assert.strictEqual(r.body.amountUsd, 60);
     assert.strictEqual(r.body.balanceUsd, 39);
 
-    const mail = mailbox.at(-1);
-    assert.strictEqual(mail.to, "conor.p43@gmail.com");
+    // The fulfillment inbox is notified; the redeeming user now also gets their
+    // own confirmation, so find the fulfillment mail rather than the last one.
+    const mail = [...mailbox].reverse().find((m) => m.to === "conor.p43@gmail.com");
+    assert.ok(mail, "fulfillment inbox is notified of the redemption");
     assert.strictEqual(mail.planName, "Claude Pro");
     assert.strictEqual(mail.months, 3);
     assert.strictEqual(mail.recipientEmail, "web@example.com", "recipient is forced to the account email");
+    assert.ok([...mailbox].reverse().find((m) => m.to === "web@example.com" && m.planName),
+      "the redeeming user also gets a confirmation email");
 
     const after = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${session}` });
     assert.strictEqual(after.body.balanceUsd, 39);
