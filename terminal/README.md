@@ -2,7 +2,15 @@
 
 Standalone Claude Code terminal integration.
 
+## Install
+
+```bash
+npx @freeai/terminal claude setup
+```
+
 ## Commands
+
+Local dev (from this repo):
 
 ```bash
 cd terminal

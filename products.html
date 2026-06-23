@@ -281,18 +281,18 @@
       <div class="steps">
         <div class="step">
           <span class="step-num">1</span>
-          <h3 class="step-title">Install the command</h3>
-          <p class="step-body">Clone the repo and <code>npm link</code> the <code>terminal/</code> package to expose the global <code>freeai</code> command.</p>
+          <h3 class="step-title">Run setup</h3>
+          <p class="step-body">Run <code>npx @freeai/terminal claude setup</code>, link your account by email, then reload your shell (it prints the exact <code>source</code> line).</p>
         </div>
         <div class="step">
           <span class="step-num">2</span>
-          <h3 class="step-title">Run setup</h3>
-          <p class="step-body">Run <code>freeai claude setup</code>, then reload your shell (it prints the exact <code>source</code> line).</p>
+          <h3 class="step-title">Use Claude as normal</h3>
+          <p class="step-body">Keep typing <code>claude</code> — the sponsored line shows only while it's thinking. Every flag and exit code is forwarded untouched.</p>
         </div>
         <div class="step">
           <span class="step-num">3</span>
           <h3 class="step-title">Verify</h3>
-          <p class="step-body"><code>freeai claude doctor</code> should print <code>ok: true</code>. Use <code>claude</code> exactly as before.</p>
+          <p class="step-body"><code>freeai claude doctor</code> should print <code>ok: true</code> and <code>linked: true</code>.</p>
         </div>
       </div>
 
