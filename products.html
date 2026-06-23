@@ -149,6 +149,23 @@
 
     .back { display: inline-block; margin-top: 40px; font-size: 14px; color: var(--green-d); font-weight: 600; }
 
+    /* ── FAQ (collapsible, native <details>; reuses theme tokens) ── */
+    .faq { margin-top: 72px; }
+    .faq h2 { font-size: clamp(22px, 4.5vw, 30px); font-weight: 900; letter-spacing: -.03em; text-align: center; margin: 0 0 6px; }
+    .faq .faq-sub { text-align: center; color: var(--ink-2); font-size: 15px; margin: 0 auto 24px; max-width: 520px; }
+    .faq-list { max-width: 720px; margin: 0 auto; }
+    .faq-item { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 12px; }
+    .faq-item summary { list-style: none; cursor: pointer; padding: 17px 20px; font-weight: 700; font-size: 16px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: "+"; font-family: var(--mono); font-size: 20px; line-height: 1; font-weight: 700; color: var(--accent-d); transition: transform .2s; }
+    .faq-item[open] summary::after { transform: rotate(45deg); }
+    .faq-item summary code { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+    .faq-a { padding: 0 20px 18px; color: var(--ink-2); font-size: 15px; line-height: 1.65; }
+    .faq-a p { margin: 0 0 10px; }
+    .faq-a p:last-child { margin-bottom: 0; }
+    .faq-a code { font-family: var(--mono); font-size: 13px; background: var(--bg-tint); padding: 2px 6px; border-radius: 6px; }
+    .faq-a a { color: var(--green-d); font-weight: 600; }
+
     @media (max-width: 640px) {
       .steps { grid-template-columns: 1fr; }
       .product { padding: 24px 18px 26px; border-radius: 16px; }
@@ -185,6 +202,7 @@
       <a href="#chrome"><span class="rank">01</span> Chrome extension</a>
       <a href="#claude-code"><span class="rank">02</span> Claude Code</a>
       <a href="#desktop"><span class="rank">03</span> Desktop</a>
+      <a href="#faq">FAQ</a>
     </nav>
 
     <!-- ═══════════ 01 · CHROME EXTENSION — top priority ═══════════ -->
@@ -375,6 +393,45 @@
       <div class="prod-cta">
         <a href="/redeem" class="btn-outline">Track installs in your portal →</a>
         <span class="note">In preview — <strong>join from the extension</strong> to be notified when it ships.</span>
+      </div>
+    </section>
+
+    <!-- ═══════════ FAQ ═══════════ -->
+    <section class="faq" id="faq" aria-labelledby="faq-h">
+      <h2 id="faq-h">FAQ</h2>
+      <p class="faq-sub">The short answers — including how to remove FreeAI cleanly.</p>
+
+      <div class="faq-list">
+        <details class="faq-item" id="uninstall">
+          <summary>How do I uninstall FreeAI?</summary>
+          <div class="faq-a">
+            <p><strong>Chrome extension</strong> — open <code>chrome://extensions</code>, find FreeAI, and click <strong>Remove</strong>.</p>
+            <p><strong>Claude Code terminal</strong> — run <code>freeai claude restore</code> to remove the shell alias, then restart your shell. This never touched your real <code>claude</code> binary or <code>~/.claude/settings.json</code>, so Claude Code keeps working. Uninstall the CLI with <code>npm rm -g @freeai/terminal</code>, and run <code>rm -rf ~/.freeai</code> if you want to delete local state too.</p>
+            <p><strong>macOS app</strong> — quit FreeAI, then drag it from <strong>Applications</strong> to the Trash.</p>
+            <p>Tip: if you earned credits but never linked your account, link by email <em>first</em> — otherwise deleting <code>~/.freeai</code> orphans that anonymous device's balance.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Does FreeAI change my real <code>claude</code> command?</summary>
+          <div class="faq-a">
+            <p>No. Setup adds one reversible shell alias that wraps <code>claude</code> to show the sponsored status line, then runs the real binary unchanged with your args, env, and exit code. It never edits your Claude install or <code>~/.claude/settings.json</code>. Undo it any time with <code>freeai claude restore</code>.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>How do my terminal credits reach my account?</summary>
+          <div class="faq-a">
+            <p>During <code>freeai claude setup</code> — or any time with <code>freeai claude link</code> — you link by email. We send a magic link; clicking it ties this device to your FreeAI account, and credits earned in the terminal then land in your portal balance. Check the status with <code>freeai claude doctor</code> (the <code>account</code> step shows <code>linked: true</code>).</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Where do I see my earnings?</summary>
+          <div class="faq-a">
+            <p>In your portal at <a href="/redeem">freeai.fyi/redeem</a> — sign in with the same email you linked. You keep <strong>50%</strong> of the ad revenue as credits for Claude Pro or Max.</p>
+          </div>
+        </details>
       </div>
     </section>
 

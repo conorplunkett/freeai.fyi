@@ -48,6 +48,22 @@ alias claude="freeai claude run"
 
 fish uses an equivalent `claude` function that forwards `$argv`.
 
+## Uninstall
+
+```bash
+freeai claude restore        # remove the shell alias/function
+# restart your shell, or source your rc
+npm rm -g @freeai/terminal   # remove the CLI (if installed globally)
+rm -rf ~/.freeai             # optional: delete local state (device + config)
+```
+
+`restore` removes only the marked shell block; it never touched your real
+`claude` binary, the npm shim, or `~/.claude/settings.json`, so Claude Code keeps
+working unchanged. If `freeai` is already gone, delete the marked block from your
+rc file by hand. Deleting `~/.freeai` removes the device credentials — link your
+account by email first (`freeai claude link`) if you want unlinked earnings to
+follow your account.
+
 ## Claude Code Integration
 
 Reference surfaces:
