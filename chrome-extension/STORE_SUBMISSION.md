@@ -100,9 +100,9 @@ the #1 cause of rejection. Answer it to match what the code actually does
 (`src/background.js` is the only thing that talks to the network).
 
 - **Single purpose** (paste):
-  > FreeAI displays a single sponsored line while an AI assistant is generating a
-  > response, and returns 50% of the ad revenue to the user as credits. Its one
-  > purpose is showing context-appropriate ads during AI "thinking" time.
+  > FreeAI displays a sponsored line of text while an AI assistant is generating a
+  > response, and returns 50% of that ad revenue to the user as credits to redeem
+  > for gift cards.
 
 - **Data usage disclosures** — check honestly:
   - **Does NOT collect** prompts, page content, model output, keystrokes,
