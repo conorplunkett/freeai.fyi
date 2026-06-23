@@ -174,6 +174,10 @@
             '<div class="ps">Required to position the line. Toggle FreeAI on under Privacy &amp; Security ▸ Accessibility.</div>' +
             '<div class="perm-row">' +
               permBadge() +
+              // Status indicator mirroring the launch card's switch — reflects the
+              // live permission. Read-only: access is granted in System Settings,
+              // not from here, so the button below is the actual action.
+              '<label class="switch readonly" aria-hidden="true"><input type="checkbox"' + (perm === "ok" ? " checked" : "") + ' disabled><span class="slider"></span></label>' +
               (perm !== "ok" ? '<button class="btn-sys" data-act="open-settings">Open System Settings</button>' : '') +
             '</div>' +
           '</div>' +
