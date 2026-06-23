@@ -6,7 +6,6 @@
 // It never takes key focus, so typing in the assistant is unaffected.
 
 import AppKit
-import QuartzCore
 
 struct SponsorCard {
     var campaignID: String
@@ -45,18 +44,6 @@ final class OverlayPanelController {
     private static let padX: CGFloat = 14
     private static let gap: CGFloat = 9
     private static let chipSize: CGFloat = 18
-
-    // Trailing "typing" dots — three dots that bounce in sequence while the card
-    // is up, a small nod to the assistant working.
-    private static let dotSize: CGFloat = 4
-    private static let dotGap: CGFloat = 4
-    private static let dotCount = 3
-    /// Small gap so the dots read as the message's own trailing "…" rather than
-    /// a separate group.
-    private static let dotLeadGap: CGFloat = 3
-    private static var dotsWidth: CGFloat {
-        CGFloat(dotCount) * dotSize + CGFloat(dotCount - 1) * dotGap
-    }
 
     private var panel: NSPanel?
     private(set) var card: SponsorCard?
@@ -192,8 +179,8 @@ final class OverlayPanelController {
         var lineW = ceil(lineText.size(withAttributes: [.font: lineFont]).width)
 
         // Everything except the (ellipsizable) line is fixed width:
-        // padX [chip] gap [line] dotLeadGap [dots] padX.
-        let fixed = Self.padX + Self.chipSize + Self.gap + Self.dotLeadGap + Self.dotsWidth + Self.padX
+        // padX [chip] gap [line] padX.
+        let fixed = Self.padX + Self.chipSize + Self.gap + Self.padX
         lineW = min(lineW, Self.maxWidth - fixed)
         let width = fixed + lineW
         panelWidth = width
@@ -220,53 +207,20 @@ final class OverlayPanelController {
         let line = NSTextField(labelWithString: lineText)
         line.font = lineFont
         line.textColor = Palette.line
-        // Clip rather than show its own "…" — the animated dots are the ellipsis.
-        line.lineBreakMode = .byClipping
+        line.lineBreakMode = .byTruncatingTail
         line.frame = NSRect(x: x, y: (h - 17) / 2, width: lineW, height: 17)
-        x += lineW + Self.dotLeadGap
-
-        let dots = makeTypingDots()
-        dots.frame = NSRect(x: x, y: 0, width: Self.dotsWidth, height: h)
 
         // The whole bar is the click target (like the extension). There is no
         // dismiss control — the card is shown only while the assistant is
         // generating and hides on its own when generation ends.
-        for view in [chip, line, dots] {
+        for view in [chip, line] {
             view.addGestureRecognizer(
                 NSClickGestureRecognizer(target: self, action: #selector(cardTapped)))
         }
 
         root.addSubview(chip)
         root.addSubview(line)
-        root.addSubview(dots)
         panel.contentView = root
-    }
-
-    /// Three dots that bounce up one after another, looping — a little "typing"
-    /// flourish on the trailing edge of the card.
-    private func makeTypingDots() -> NSView {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: Self.dotsWidth, height: Self.height))
-        view.wantsLayer = true
-        let cy = Self.height / 2 - Self.dotSize / 2
-        for i in 0..<Self.dotCount {
-            let dot = CALayer()
-            dot.frame = CGRect(x: CGFloat(i) * (Self.dotSize + Self.dotGap), y: cy,
-                               width: Self.dotSize, height: Self.dotSize)
-            dot.cornerRadius = Self.dotSize / 2
-            dot.backgroundColor = Palette.dots.cgColor
-            let bounce = CAKeyframeAnimation(keyPath: "transform.translation.y")
-            bounce.values = [0, Self.dotSize + 1, 0] // up then back
-            bounce.keyTimes = [0, 0.5, 1]
-            bounce.duration = 0.6
-            bounce.repeatCount = .infinity
-            bounce.calculationMode = .cubic
-            bounce.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            // Stagger each dot so they ripple left-to-right.
-            bounce.beginTime = CACurrentMediaTime() + Double(i) * 0.15
-            dot.add(bounce, forKey: "bounce")
-            view.layer?.addSublayer(dot)
-        }
-        return view
     }
 
     @objc private func cardTapped() {
