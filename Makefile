@@ -47,6 +47,10 @@ icons:
 og:
 	node tools/gen-og.mjs
 
+## store-assets: Regenerate the Chrome Web Store listing assets (store-assets/) from the live site + theme.css.
+store-assets:
+	node tools/gen-store-assets.mjs
+
 # ---------------------------------------------------------------------------
 # Server (Node + Postgres backend)
 # ---------------------------------------------------------------------------
@@ -159,6 +163,6 @@ mac-open:
 ## test: Run every test suite (server, extension, terminal, mac core).
 test: test-server test-ext test-terminal test-mac
 
-.PHONY: help site landers icons og db-up db-down migrate seed server server-up devnet devnet-earn server-install \
+.PHONY: help site landers icons og store-assets db-up db-down migrate seed server server-up devnet devnet-earn server-install \
 	test-server test-ext lint-ext package-ext test-terminal test-mac mac-build mac-run mac-demo \
 	mac-probe mac-bundle mac-open test
