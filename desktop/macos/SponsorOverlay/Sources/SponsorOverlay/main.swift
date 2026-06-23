@@ -233,7 +233,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             if overlay.isShown { rotateAd() } // hidden -> next show re-arms with a fresh ad
-            overlay.hide()
+            // Fade out only when the assistant is still the focused, visible
+            // window and generation simply ended (or was paused). If the user
+            // tabbed/minimized away, snap it off immediately — no ghost card
+            // lingering over another app.
+            let stillActive = state.focused && !state.minimized && usableBounds
+            overlay.hide(animated: stillActive)
             lastShownBounds = nil
             lastComposerBounds = nil
             lastStarBounds = nil

@@ -136,10 +136,20 @@ final class OverlayPanelController {
         }
     }
 
-    /// Slow fade-out, then actually order the panel out. A `show` during the
-    /// fade cancels it (isFadingOut flips false) so the card simply fades back.
-    func hide() {
-        guard let panel, panel.isVisible, !isFadingOut else { return }
+    /// Hide the card. `animated` (default) does the slow fade-out used when the
+    /// assistant is still focused and generation just ended; passing `false`
+    /// snaps it off instantly (and cancels any in-flight fade) — used when the
+    /// user switches/minimizes away, so the card never lingers over another app.
+    func hide(animated: Bool = true) {
+        guard let panel, panel.isVisible else { return }
+        guard animated else {
+            isFadingIn = false
+            isFadingOut = false
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+            return
+        }
+        guard !isFadingOut else { return }
         isFadingIn = false
         isFadingOut = true
         NSAnimationContext.runAnimationGroup({ ctx in
