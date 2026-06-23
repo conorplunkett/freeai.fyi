@@ -249,7 +249,7 @@ spctl -a -t open --context context:primary-signature -v build/SponsorOverlay.dmg
 # 4. publish — '#FreeAI.dmg' renames the asset so the site's download URL stays stable
 gh release create desktop-v0.1.0 "build/SponsorOverlay.dmg#FreeAI.dmg" \
   --title "FreeAI Desktop 0.1.0" \
-  --notes "macOS sponsor overlay for Claude & ChatGPT Desktop."
+  --notes "macOS FreeAI.fyi overlay tool for Claude & ChatGPT Desktop."
 ```
 
 **Hosting + the site link — no per-release site edit.** The dmg lives in
