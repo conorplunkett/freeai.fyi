@@ -18,8 +18,11 @@ struct SponsorCard {
 final class OverlayPanelController {
     static let height: CGFloat = 34
     static let maxWidth: CGFloat = 560
-    /// Gap between the card's bottom edge and the composer's top edge.
-    static let anchorGap: CGFloat = 14
+    /// Gap between the card's bottom edge and the composer's top edge. Only the
+    /// composer-anchored path (Claude) uses it; ChatGPT anchors off the window
+    /// bottom. Sized so a locked card clears Claude's prompt box rather than
+    /// sitting on its border.
+    static let anchorGap: CGFloat = 28
     /// Fallback when no composer geometry is available: distance from the
     /// bottom of the assistant window (the extension's fixed pill uses 96px too).
     static let bottomInset: CGFloat = 96
@@ -61,6 +64,9 @@ final class OverlayPanelController {
     /// adjustable from the menu so users place it to taste. Clamped in `show`
     /// so it can never leave the top of the window.
     var verticalLift: CGFloat = 0
+    /// Horizontal nudge from the anchor default (+right / -left), clamped to the
+    /// window in `show`. 0 keeps the original left/centered position.
+    var horizontalShift: CGFloat = 0
 
     /// Fade timings mirror the Chrome extension's inline bar: quick fade-in,
     /// slow drift-out (inject.css: `transition: opacity 0.25s` in, `2s` out).
@@ -111,7 +117,9 @@ final class OverlayPanelController {
         }
         // The lift must never push the card off the top of the window.
         axTop = max(appBounds.minY + 8, axTop)
-        // Keep the pill inside the assistant window horizontally.
+        // Apply the user's left/right shift (0 = the anchor default), then keep
+        // the pill inside the assistant window horizontally.
+        x += horizontalShift
         let lower = appBounds.minX + 16
         let upper = max(lower, appBounds.maxX - width - 16)
         x = min(max(x, lower), upper)

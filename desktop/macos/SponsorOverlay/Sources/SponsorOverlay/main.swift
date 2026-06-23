@@ -199,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // steals focus when open, so `lastTargetID` is what the slider edits.
         if let target = state.target { lastTargetID = target.id }
         overlay.verticalLift = lift(forAppID: state.target?.id ?? lastTargetID)
+        overlay.horizontalShift = shift(forAppID: state.target?.id ?? lastTargetID)
 
         let signedIn = demoMode || credentials != nil
         let signals = Signals(
@@ -436,9 +437,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var offsetSlider: NSSlider?
     private weak var offsetLabel: NSTextField?
     private weak var lockCheckbox: NSButton?
+    private weak var positionSlider: NSSlider?
 
     private func liftKey(_ id: String) -> String { "cardLift.\(id)" }
     private func lockKey(_ id: String) -> String { "lockToPrompt.\(id)" }
+    private func shiftKey(_ id: String) -> String { "cardShift.\(id)" }
+
+    /// Saved left/right shift for an app id in points (+right / -left), 0 default.
+    private func shift(forAppID id: String?) -> CGFloat {
+        guard let id else { return 0 }
+        return CGFloat(UserDefaults.standard.double(forKey: shiftKey(id)))
+    }
 
     /// "Lock to above prompt": pin the card at the minimum height (just above
     /// the chat box) and ignore the saved slider value.
@@ -459,35 +468,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AssistantTarget.all.first { $0.id == id }?.displayName ?? AssistantTarget.claude.displayName
     }
 
-    /// A per-app label + slider embedded in the menu so the height is adjustable
-    /// live. Edits the last-focused app's value; the label names which app.
+    /// A per-app height slider, lock checkbox and left/right position slider, all
+    /// embedded in one custom view so interacting with them doesn't dismiss the
+    /// menu. Edits the last-focused app's values; the label names which app.
     private func makeOffsetMenuItem() -> NSMenuItem {
         let width: CGFloat = 240
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 72))
-        let label = NSTextField(labelWithString: "Card height")
-        label.font = .systemFont(ofSize: 12)
-        label.textColor = .secondaryLabelColor
-        label.frame = NSRect(x: 14, y: 50, width: width - 28, height: 16)
+        let lx: CGFloat = 14
+        let lw = width - 28
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 120))
+
+        let heightLabel = NSTextField(labelWithString: "Card height")
+        heightLabel.font = .systemFont(ofSize: 12)
+        heightLabel.textColor = .secondaryLabelColor
+        heightLabel.frame = NSRect(x: lx, y: 98, width: lw, height: 16)
         // Max lift = tallest screen, so dragging fully right always reaches the
         // top of even a full-height window (the top-clamp in OverlayPanel.show
         // stops it overshooting). A fixed cap only reached part-way up.
         let maxLift = Double(NSScreen.screens.map(\.frame.height).max() ?? 1400)
-        let slider = NSSlider(value: Double(Self.defaultLift), minValue: 0, maxValue: maxLift,
-                              target: self, action: #selector(cardLiftChanged(_:)))
-        slider.isContinuous = true
-        slider.frame = NSRect(x: 14, y: 28, width: width - 28, height: 20)
+        let heightSlider = NSSlider(value: Double(Self.defaultLift), minValue: 0, maxValue: maxLift,
+                                    target: self, action: #selector(cardLiftChanged(_:)))
+        heightSlider.isContinuous = true
+        heightSlider.frame = NSRect(x: lx, y: 76, width: lw, height: 20)
         // Checkbox lives in the same custom view so toggling it does NOT dismiss
         // the menu (a control inside a view-based item handles its own click).
-        let lock = NSButton(checkboxWithTitle: "Lock to above prompt",
+        let lock = NSButton(checkboxWithTitle: "Lock height above prompt",
                             target: self, action: #selector(lockCheckboxToggled(_:)))
         lock.font = .systemFont(ofSize: 12)
-        lock.frame = NSRect(x: 12, y: 4, width: width - 24, height: 20)
-        container.addSubview(label)
-        container.addSubview(slider)
-        container.addSubview(lock)
-        offsetSlider = slider
-        offsetLabel = label
+        lock.frame = NSRect(x: 12, y: 50, width: width - 24, height: 20)
+
+        let posLabel = NSTextField(labelWithString: "Card position")
+        posLabel.font = .systemFont(ofSize: 12)
+        posLabel.textColor = .secondaryLabelColor
+        posLabel.frame = NSRect(x: lx, y: 28, width: lw, height: 16)
+        // Symmetric around 0 so the default (current anchor position) is the
+        // centre — the clamp in OverlayPanel.show keeps it inside the window.
+        let maxShift = Double((NSScreen.screens.map(\.frame.width).max() ?? 1600) / 2)
+        let posSlider = NSSlider(value: 0, minValue: -maxShift, maxValue: maxShift,
+                                 target: self, action: #selector(cardShiftChanged(_:)))
+        posSlider.isContinuous = true
+        posSlider.frame = NSRect(x: lx, y: 6, width: lw, height: 20)
+
+        for v in [heightLabel, heightSlider, lock, posLabel, posSlider] { container.addSubview(v) }
+        offsetSlider = heightSlider
+        offsetLabel = heightLabel
         lockCheckbox = lock
+        positionSlider = posSlider
         let item = NSMenuItem()
         item.view = container
         return item
@@ -504,6 +529,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         offsetSlider?.toolTip = locked ? "Locked just above the prompt — move to unlock" : nil
         offsetLabel?.stringValue = "\(name) card height"
         lockCheckbox?.state = locked ? .on : .off
+        positionSlider?.doubleValue = Double(shift(forAppID: lastTargetID))
     }
 
     @objc private func cardLiftChanged(_ sender: NSSlider) {
@@ -514,6 +540,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay.verticalLift = CGFloat(sender.doubleValue)
         repositionOverlay()
         refreshOffsetControl()
+    }
+
+    @objc private func cardShiftChanged(_ sender: NSSlider) {
+        let id = lastTargetID ?? AssistantTarget.claude.id
+        UserDefaults.standard.set(sender.doubleValue, forKey: shiftKey(id))
+        overlay.horizontalShift = CGFloat(sender.doubleValue)
+        repositionOverlay()
     }
 
     /// Toggle "Lock to above prompt" for the last-focused app. The checkbox is a
@@ -749,6 +782,9 @@ extension AppDelegate: WKScriptMessageHandler {
             openWebSignin(email: nil, google: true)
         case "finish":
             closeSetup()
+            // The last step's button drops the user straight into the menu-bar
+            // item so they see where FreeAI now lives.
+            DispatchQueue.main.async { [weak self] in self?.statusItem?.button?.performClick(nil) }
         default:
             break
         }

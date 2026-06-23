@@ -47,6 +47,8 @@ const fakeMailer = {
   sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendReferralInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendCrewInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  sendRedemptionConfirmationEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  sendReferralRewardEmail: async (to, details) => { mailbox.push({ to, ...details }); },
 };
 
 (async () => {
@@ -422,11 +424,15 @@ const fakeMailer = {
     assert.strictEqual(r.body.amountUsd, 60);
     assert.strictEqual(r.body.balanceUsd, 39);
 
-    const mail = mailbox.at(-1);
-    assert.strictEqual(mail.to, "conor.p43@gmail.com");
+    // The fulfillment inbox is notified; the redeeming user now also gets their
+    // own confirmation, so find the fulfillment mail rather than the last one.
+    const mail = [...mailbox].reverse().find((m) => m.to === "conor.p43@gmail.com");
+    assert.ok(mail, "fulfillment inbox is notified of the redemption");
     assert.strictEqual(mail.planName, "Claude Pro");
     assert.strictEqual(mail.months, 3);
     assert.strictEqual(mail.recipientEmail, "web@example.com", "recipient is forced to the account email");
+    assert.ok([...mailbox].reverse().find((m) => m.to === "web@example.com" && m.planName),
+      "the redeeming user also gets a confirmation email");
 
     const after = await api("GET", "/v1/web/me", undefined, { Authorization: `Bearer ${session}` });
     assert.strictEqual(after.body.balanceUsd, 39);
@@ -603,6 +609,12 @@ const fakeMailer = {
         "select count(*)::int n from ledger where entry_type = 'referral_credit' and user_id = $1",
         [await userId("inviter@example.com")])).rows[0].n, 0,
       "no referral_credit is posted");
+    // the redeemer still gets the branded redemption confirmation; the retired
+    // referrer is never emailed a bonus.
+    assert.ok(mailbox.some((m) => m.to === "invitee@example.com" && m.planName),
+      "redeemer receives a gift-card redemption confirmation");
+    assert.ok(!mailbox.some((m) => m.to === "inviter@example.com" && m.rewardUsd > 0),
+      "retired program: the inviter is not emailed any referral bonus");
   });
 
   // ---------- affiliates ----------

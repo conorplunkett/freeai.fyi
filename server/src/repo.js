@@ -126,6 +126,10 @@ function createRepo(pool) {
         [referrer_user_id, re.rows[0].email]
       );
     }
+    // Surface the granted reward so the caller can email the referrer AFTER the
+    // transaction commits — never send mail from inside the tx.
+    const referrer = await client.query("select email from users where id = $1", [referrer_user_id]);
+    return { referrerUserId: referrer_user_id, referrerEmail: referrer.rows[0]?.email || null, rewardMillicents };
   }
 
   // Attribute a user to an approved affiliate by code. Unlike referrals this can
@@ -1006,8 +1010,10 @@ function createRepo(pool) {
            JSON.stringify({ redemptionId: rows[0].id, plan, months })]
         );
         // The $20 referral program is retired — redeeming no longer rewards any
-        // referrer. (maybeRewardReferral is kept defined but uncalled.)
-        return rows[0].id;
+        // referrer. (maybeRewardReferral is kept defined but uncalled.) We still
+        // return an object with a null reward so the redemption flow keeps a
+        // stable shape for callers that branch on `reward`.
+        return { id: rows[0].id, reward: null };
       });
     },
 

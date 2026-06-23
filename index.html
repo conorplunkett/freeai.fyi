@@ -124,60 +124,152 @@
         </div>
       </div>
 
-      <!-- INSTALL CARD -->
-      <a href="#install" class="install-card">
-        <span class="install-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-            <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
-            <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="install-text">
-          <span class="install-title">Add the Chrome extension</span>
-          <span class="install-sub">Free · installs in seconds</span>
-        </span>
-        <span class="install-pill">
-          <span class="install-pill-label">Earn up to</span>
-          <span class="install-pill-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
-        </span>
-        <span class="install-arrow">→</span>
-      </a>
-
-      <!-- CLI PASTE CARD — dark surface + coral accent, matching the brand
-           system. One-liner clones + links the terminal client and wires up the
-           reversible `claude` alias (see /terminal for the step-by-step). -->
-      <div class="cli-card">
-        <span class="cli-head">
-          <span class="cli-glyph" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="15" height="15">
-              <path d="M5 7.5 9 12l-4 4.5M12.5 16.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </span>
-          Prefer the terminal? Paste this into your shell.
-        </span>
-        <div class="cli-code">
-          <code class="cli-cmd">git clone https://github.com/conorplunkett/freeai.fyi.git &amp;&amp; cd freeai.fyi/terminal &amp;&amp; npm link &amp;&amp; freeai claude setup</code>
-          <button type="button" class="cli-copy copy-btn" data-copy="git clone https://github.com/conorplunkett/freeai.fyi.git && cd freeai.fyi/terminal && npm link && freeai claude setup">Copy</button>
-        </div>
-        <span class="cli-sub">
-          Opt-in ads in <strong>Claude Code</strong> &amp; the terminal CLI. A subtle sponsored
-          line shows only while it’s thinking — <strong>50%</strong> comes back as Claude credits.
-          <a href="/terminal">Full guide →</a>
-        </span>
-      </div>
+      <!-- INSTALL + CLI CTAs now live folded under their matching surface rows
+           in the "Native everywhere it appears" section below. -->
 
       <p class="hero-note">
         Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle
         sponsored line appears while the model thinks — and <strong>50%</strong> of what it earns
         becomes credits you redeem for Claude Pro or Max.
       </p>
+    </section>
 
+    <!-- ── SURFACES — "Native everywhere it appears" (Claude Design handoff) ──
+         Pixel-for-pixel port of the design's surfaces section: the one auction
+         re-skinned to read as native chrome on each surface. A full-width
+         sibling of the hero so its .wrap reaches the design's 1180px measure.
+         All styles are scoped under .surfaces in styles.css. -->
+    <section class="surfaces">
+        <div class="wrap">
+          <div class="secthead">
+            <span class="eyebrow">Three mirrors, one line</span>
+            <h2>Native everywhere it appears.</h2>
+            <p>The same auction, re-skinned to belong to whatever surface you're working in.</p>
+          </div>
+
+          <!-- Surface 01 — browser, 3 provider tabs -->
+          <div class="surface">
+            <div class="stage">
+              <div class="win light">
+                <div class="chrome">
+                  <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+                  <div class="tabs" role="tablist">
+                    <button class="tab active" data-shot="claude">Claude</button>
+                    <button class="tab" data-shot="chatgpt">ChatGPT</button>
+                    <button class="tab" data-shot="gemini">Gemini</button>
+                  </div>
+                </div>
+                <div class="shotwrap">
+                  <img class="shot active" data-shot="claude" src="assets/surfaces/claude.png" alt="FreeAI sponsor line inside Claude" />
+                  <img class="shot" data-shot="chatgpt" src="assets/surfaces/chatgpt.png" alt="FreeAI sponsor line inside ChatGPT" />
+                  <img class="shot" data-shot="gemini" src="assets/surfaces/gemini.png" alt="FreeAI sponsor line inside Gemini" />
+                </div>
+              </div>
+            </div>
+            <div class="scopy">
+              <span class="idx">Surface 01</span>
+              <h3>Browser — every assistant</h3>
+              <p>The same pill slips under the thinking spinner of whatever assistant you're in — Claude, ChatGPT, or Gemini — matching each one's light or dark canvas so it always reads as native chrome.</p>
+            </div>
+            <!-- Chrome CTA, folded full-width under the browser surface -->
+            <a href="#install" class="install-card surface-cta">
+              <span class="install-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                  <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <span class="install-text">
+                <span class="install-title">Add the Chrome extension</span>
+                <span class="install-sub">Free · installs in seconds</span>
+              </span>
+              <span class="install-pill">
+                <span class="install-pill-label">Earn up to</span>
+                <span class="install-pill-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
+              </span>
+              <span class="install-arrow">→</span>
+            </a>
+          </div>
+
+          <!-- Surface 02 — terminal -->
+          <div class="surface flip">
+            <div class="stage">
+              <div class="win term">
+                <div class="chrome">
+                  <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+                  <span class="label">claude code — ~/freeai</span>
+                </div>
+                <div class="termpad">
+                  <div class="status">· Linear — Plan your next sprint faster… <span class="muted">(2s · thinking)</span></div>
+                  <div class="tip">└ Tip: Use /voice to enable push-to-talk dictation</div>
+                  <hr class="divider" />
+                  <div class="prompt"><span class="chev">›</span> <span class="cursor"></span></div>
+                  <div class="adline"><span class="ad">ad·</span> <a href="#">Linear — Plan your next sprint faster</a></div>
+                  <div class="forhint">← for agents</div>
+                </div>
+              </div>
+            </div>
+            <div class="scopy">
+              <span class="idx">Surface 02</span>
+              <h3>Terminal — Claude Code</h3>
+              <p>No room for a pill, so it becomes a status line: a coral <code>ad·</code> prefix and a dotted-underline link that fits the monospace grid exactly. It rides the same spinner your agent already shows.</p>
+            </div>
+            <!-- Terminal paste CTA, folded full-width under the terminal surface -->
+            <div class="cli-card surface-cta">
+              <span class="cli-head">
+                <span class="cli-glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15">
+                    <path d="M5 7.5 9 12l-4 4.5M12.5 16.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                Prefer the terminal? Paste this into your shell.
+              </span>
+              <div class="cli-code">
+                <code class="cli-cmd">git clone https://github.com/conorplunkett/freeai.fyi.git &amp;&amp; cd freeai.fyi/terminal &amp;&amp; npm link &amp;&amp; freeai claude setup</code>
+                <button type="button" class="cli-copy copy-btn" data-copy="git clone https://github.com/conorplunkett/freeai.fyi.git && cd freeai.fyi/terminal && npm link && freeai claude setup">Copy</button>
+              </div>
+              <span class="cli-sub">
+                Opt-in ads in <strong>Claude Code</strong> &amp; the terminal CLI. A subtle sponsored
+                line shows only while it’s thinking — <strong>50%</strong> comes back as Claude credits.
+                <a href="/terminal">Full guide →</a>
+              </span>
+            </div>
+          </div>
+
+          <!-- Surface 03 — desktop apps -->
+          <div class="surface">
+            <div class="stage">
+              <div class="win light">
+                <div class="chrome">
+                  <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+                  <div class="tabs" role="tablist">
+                    <button class="tab active" data-shot="desktop-claude">Claude</button>
+                    <button class="tab" data-shot="desktop-chatgpt">ChatGPT</button>
+                  </div>
+                </div>
+                <div class="shotwrap desk">
+                  <img class="shot active" data-shot="desktop-claude" src="assets/surfaces/desktop-claude.png" alt="FreeAI sponsor line in the Claude desktop app" />
+                  <img class="shot" data-shot="desktop-chatgpt" src="assets/surfaces/desktop-chatgpt.png" alt="FreeAI sponsor line in the ChatGPT desktop app" />
+                </div>
+              </div>
+            </div>
+            <div class="scopy">
+              <span class="idx">Surface 03</span>
+              <h3>Desktop apps</h3>
+              <p>In the native Claude and ChatGPT desktop apps the pill docks right above the composer — the last thing you see before you type, gone the moment you start.</p>
+            </div>
+          </div>
+        </div>
+    </section>
+
+    <!-- scroll cue → the advertiser auction -->
+    <div class="jump-wrap">
       <a href="#advertisers" class="jump">
         <span class="jump-dot"></span> FOR ADVERTISERS · BID ON THIS LINE
         <div class="jump-chev">⌄</div>
       </a>
-    </section>
+    </div>
 
     <!-- ADVERTISERS -->
     <section id="advertisers" class="advertisers">

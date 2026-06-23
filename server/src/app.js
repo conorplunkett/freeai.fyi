@@ -895,6 +895,17 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     });
     if (!recorded) return json(res, 409, { error: "insufficient credits" });
 
+    // User-facing emails are best-effort — a mail hiccup must never fail a
+    // redemption that's already committed to the ledger.
+    try {
+      await mailer.sendRedemptionConfirmationEmail(recipientEmail, { planName: plan.name, months, amountUsd: amountCents / 100 });
+    } catch (err) { console.error("[freeai] redemption confirmation email failed:", err.message); }
+    if (recorded.reward?.referrerEmail) {
+      try {
+        await mailer.sendReferralRewardEmail(recorded.reward.referrerEmail, { rewardUsd: recorded.reward.rewardMillicents / 100000, link: `${config.siteUrl}/redeem.html` });
+      } catch (err) { console.error("[freeai] referral reward email failed:", err.message); }
+    }
+
     const after = await repo.balanceForUser(user.id);
     json(res, 200, {
       ok: true, redemptionId, plan: plan.id, months,

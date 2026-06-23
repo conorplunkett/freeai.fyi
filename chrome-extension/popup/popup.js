@@ -277,6 +277,19 @@ if ($("reset")) {
   });
 }
 
+// The little Claude critter idles via CSS (bob + blink + twinkle); give the one
+// on the redeem button an occasional hop so he feels alive while the popup's open.
+const ctaGuy = $("cta-claude-guy");
+const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (ctaGuy && !reducedMotion) {
+  const hop = () => {
+    ctaGuy.classList.add("cg-hop");
+    setTimeout(() => ctaGuy.classList.remove("cg-hop"), 600);
+    setTimeout(hop, 3200 + Math.random() * 3600);
+  };
+  setTimeout(hop, 2600);
+}
+
 renderBoard();   // instant paint from the bundled list
 refreshBoard();  // then swap in live inventory if available
 refresh();

@@ -71,6 +71,37 @@ body {
   transition: transform .14s, filter .14s;
 }
 .cta:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.hero .cta { position: relative; z-index: 1; }
+
+/* ── the little Claude critter (ported from the lander) ────────────────────
+ * Idles 8-bit style: a whole-pixel bob, eye blink, and a twinkling head spark.
+ * One chills on top of the redeem button; one points down at "place your own ad". */
+.cta-guy, .foot-guy { position: relative; width: 100%; pointer-events: none; }
+.cta-guy { height: 30px; margin: 4px 0 -12px; z-index: 2; }
+.foot-guy { height: 34px; margin: 2px 0 -6px; }
+.claude-guy { position: absolute; bottom: 0; }
+.cta-guy .claude-guy { right: 26px; }
+.foot-guy .claude-guy { right: 46px; }
+.cg-sprite { display: block; image-rendering: pixelated; animation: cg-bob 1.4s steps(1, end) infinite; }
+.claude-guy.cg-hop .cg-sprite { animation: cg-hop .55s steps(1, end); }
+.cg-eye, .cg-spark, .cg-arm { transform-box: fill-box; transform-origin: center; }
+.cg-eye { animation: cg-blink 3.4s steps(1, end) infinite; }
+.cg-spark { animation: cg-twinkle 2.2s steps(1, end) infinite; }
+/* pointer guy: the front arm jabs straight down at the link below */
+.cg-point .cg-arm { transform-origin: top; animation: cg-point .8s steps(1, end) infinite; }
+@keyframes cg-bob { 0%, 100% { transform: translateY(3px); } 50% { transform: translateY(0); } }
+@keyframes cg-hop {
+  0%, 100% { transform: translateY(3px); }
+  25% { transform: translateY(-3px); }
+  50% { transform: translateY(-9px); }
+  75% { transform: translateY(-3px); }
+}
+@keyframes cg-blink { 0%, 90%, 100% { transform: scaleY(1); } 93%, 97% { transform: scaleY(.15); } }
+@keyframes cg-twinkle { 0%, 100% { transform: none; opacity: 1; } 50% { transform: rotate(90deg); opacity: .75; } }
+@keyframes cg-point { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .cg-sprite, .claude-guy.cg-hop .cg-sprite, .cg-eye, .cg-spark, .cg-point .cg-arm { animation: none; }
+}
 
 /* SECTION scaffold */
 .sec { padding: 16px 18px; border-top: 1px solid var(--line); }

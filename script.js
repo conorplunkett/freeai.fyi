@@ -372,3 +372,16 @@ if (adForm) {
     }
   });
 }
+
+// --- Surfaces showcase: provider-tab cross-fade ("Native everywhere it
+// appears"). Clicking a tab swaps the active screenshot within that surface
+// row only. Scoped to .surfaces so it can't touch anything else on the page. ---
+document.querySelectorAll(".surfaces .tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    const key = tab.dataset.shot;
+    const scope = tab.closest(".surface");
+    if (!scope) return;
+    scope.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.shot === key));
+    scope.querySelectorAll(".shot").forEach((s) => s.classList.toggle("active", s.dataset.shot === key));
+  });
+});

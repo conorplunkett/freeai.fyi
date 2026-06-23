@@ -230,49 +230,113 @@ function createMailer(cfg: any) {
     }
     console.log(`[freeai][mail] to=${to} subject="${subject}"`);
   }
+  // ── Branded shell for user-facing emails (sign-in, verify, invites,
+  // redemption, reward). Table layout + inline styles so it renders across mail
+  // clients; palette mirrors theme.css (Claude coral on cream). The advertiser
+  // and admin notices further down keep their original plain layout on purpose. ──
+  const FONT = "'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const site = cfg.siteUrl || "https://freeai.fyi";
+  function button(href: string, label: string) {
+    return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:26px auto 6px;"><tr>`
+      + `<td align="center" bgcolor="#d97757" style="border-radius:10px;background:#d97757;background:linear-gradient(180deg,#e08a6a,#cf6b4a);">`
+      + `<a href="${href}" style="display:inline-block;padding:13px 28px;font-family:${FONT};font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">${label}</a>`
+      + `</td></tr></table>`;
+  }
+  function shell({ preheader = "", hero = "", heading = "", body = "", cta = null as any, note = "" }: any) {
+    const btn = cta ? button(cta.href, cta.label) : "";
+    const foot = note ? `<p style="margin:18px 0 0;font-family:${FONT};font-size:13px;line-height:1.55;color:#9b988f;">${note}</p>` : "";
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8">`
+      + `<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>`
+      + `<body style="margin:0;padding:0;background:#faf9f5;">`
+      + `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#faf9f5;font-size:1px;line-height:1px;">${preheader}</div>`
+      + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f5;"><tr><td align="center" style="padding:30px 16px;">`
+      + `<table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:100%;">`
+      + `<tr><td align="center" style="padding:2px 0 22px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr>`
+      + `<td width="40" height="40" align="center" valign="middle" bgcolor="#d97757" style="width:40px;height:40px;border-radius:10px;background:#d97757;background:linear-gradient(180deg,#e08a6a,#cf6b4a);font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:18px;font-weight:800;color:#ffffff;">F$</td>`
+      + `<td style="padding-left:10px;font-family:${FONT};font-size:18px;font-weight:800;letter-spacing:-0.02em;color:#1f1e1d;">FreeAI.fyi</td>`
+      + `</tr></table></td></tr>`
+      + `<tr><td style="background:#ffffff;border:1px solid #e6e2d8;border-radius:16px;padding:34px 32px;">`
+      + (hero ? `<div style="text-align:center;font-size:40px;line-height:1;margin:0 0 12px;">${hero}</div>` : "")
+      + (heading ? `<h1 style="margin:0 0 16px;text-align:center;font-family:${FONT};font-size:21px;font-weight:800;letter-spacing:-0.02em;color:#1f1e1d;">${heading}</h1>` : "")
+      + `<div style="font-family:${FONT};font-size:15px;line-height:1.6;color:#3d3b37;">${body}</div>${btn}${foot}`
+      + `</td></tr>`
+      + `<tr><td align="center" style="padding:22px 10px 6px;font-family:${FONT};font-size:12px;line-height:1.7;color:#9b988f;">`
+      + `<a href="${site}" style="color:#c15f3c;text-decoration:none;font-weight:700;">freeai.fyi</a>`
+      + `&nbsp;·&nbsp;<a href="${site}/terms" style="color:#9b988f;text-decoration:underline;">Terms</a>`
+      + `&nbsp;·&nbsp;<a href="${site}/privacy" style="color:#9b988f;text-decoration:underline;">Privacy</a>`
+      + `<br>Earn credits while you use Claude, ChatGPT &amp; Gemini.`
+      + `</td></tr></table></td></tr></table></body></html>`;
+  }
+  // Key/value detail box for the campaign emails — same inset style as the
+  // user-email tables, with hairline row separators. Falsy rows are dropped.
+  function detail(rows: any[]) {
+    const cells = rows.filter(Boolean).map(([k, v]: any, i: number) =>
+      `<tr><td style="padding:8px 16px;font-family:${FONT};font-size:13px;color:#6b6963;${i ? "border-top:1px solid #efeae0;" : ""}">${k}</td>`
+      + `<td style="padding:8px 16px;font-family:${FONT};font-size:13px;font-weight:600;color:#1f1e1d;text-align:right;${i ? "border-top:1px solid #efeae0;" : ""}">${v}</td></tr>`).join("");
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;background:#faf9f5;border:1px solid #e6e2d8;border-radius:12px;">${cells}</table>`;
+  }
   return {
     sendVerifyEmail: (to: string, link: string) => send(to, "Verify your email to get paid",
-      `<p>Confirm this address to start receiving FreeAI payouts.</p>
-       <p><a href="${link}">Verify my email</a></p>
-       <p>This link expires in 30 minutes. If you didn't request it, ignore this email.</p>`),
+      shell({
+        preheader: "Confirm your email to start receiving FreeAI payouts.",
+        hero: "✅", heading: "Verify your email to get paid",
+        body: `<p style="margin:0 0 14px;">Confirm this address so your FreeAI credits land in the right place. Once it's verified, every subtle sponsored line you see while using Claude, ChatGPT or Gemini pays you back in credits.</p>`,
+        cta: { href: link, label: "Verify my email" },
+        note: "This link expires in 30 minutes. If you didn't request it, you can safely ignore this email.",
+      })),
     sendWebLoginEmail: (to: string, link: string) => send(to, "Your FreeAI sign-in link",
-      `<p>Click to sign in and redeem your FreeAI credits for Claude.</p>
-       <p><a href="${link}">Sign in to FreeAI</a></p>
-       <p>This link expires in 30 minutes. If you didn't request it, ignore this email.</p>`),
+      shell({
+        preheader: "Your secure FreeAI sign-in link — expires in 30 minutes.",
+        hero: "🔑", heading: "Sign in to FreeAI",
+        body: `<p style="margin:0 0 14px;">Tap the button below to sign in and manage your FreeAI credits — redeem them for Claude, ChatGPT or Gemini gift cards whenever you like.</p>`,
+        cta: { href: link, label: "Sign in to FreeAI" },
+        note: "This link expires in 30 minutes and can only be used once. If you didn't request it, ignore this email.",
+      })),
     sendAdvertiserReceiptEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks }: any) =>
       send(to, "Your FreeAI campaign receipt",
-      `<p>Thanks for advertising on FreeAI — your payment is confirmed.</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Blocks:</strong> ${blocks} (${(blocks * 1000).toLocaleString("en-US")} impressions)</li>
-         <li><strong>Price per block:</strong> US$${(pricePerBlockCents / 100).toFixed(2)}</li>
-         <li><strong>Total paid:</strong> US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
-       <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`),
+      shell({
+        preheader: "Your FreeAI campaign payment is confirmed — now in review.",
+        hero: "💳", heading: "Payment confirmed",
+        body: `<p style="margin:0 0 14px;">Thanks for advertising on FreeAI — your payment is confirmed and your campaign is in review.</p>`
+          + detail([
+            ["Ad line", `“${adLine}”`],
+            brand ? ["Brand", brand] : null,
+            ["Volume", `${blocks} block${blocks === 1 ? "" : "s"} · ${(blocks * 1000).toLocaleString("en-US")} impressions`],
+            ["Price / block", `US$${(pricePerBlockCents / 100).toFixed(2)}`],
+            ["Total paid", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+            ["Campaign", campaignId],
+          ]),
+        note: "It goes live once we approve it — usually within a day. Stripe has emailed a separate itemized receipt for your records.",
+      })),
     sendCampaignLiveEmail: (to: string, { campaignId, brand, adLine, blocks }: any) =>
       send(to, "Your FreeAI ad is live 🎉",
-      `<p>Good news — your campaign is approved and now <strong>live on FreeAI</strong>. 🎉</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Running:</strong> ${(blocks * 1000).toLocaleString("en-US")} impressions (${blocks} block${blocks === 1 ? "" : "s"})</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       <p>It's showing in the spinner while people use ChatGPT, Claude &amp; Gemini. Higher bids serve first — come back any time to boost your bid and climb the leaderboard.</p>`),
+      shell({
+        preheader: "Approved — your ad is now live on FreeAI.",
+        hero: "🚀", heading: "Your ad is live",
+        body: `<p style="margin:0 0 14px;">Good news — your campaign is approved and now <strong style="color:#1f1e1d;">live on FreeAI</strong>. 🎉</p>`
+          + detail([
+            ["Ad line", `“${adLine}”`],
+            brand ? ["Brand", brand] : null,
+            ["Running", `${(blocks * 1000).toLocaleString("en-US")} impressions (${blocks} block${blocks === 1 ? "" : "s"})`],
+            ["Campaign", campaignId],
+          ]),
+        note: "It's showing in the spinner while people use ChatGPT, Claude & Gemini. Higher bids serve first — come back any time to boost your bid and climb the leaderboard.",
+      })),
     sendCampaignRejectedEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }: any) =>
       send(to, "Your FreeAI campaign was refunded",
-      `<p>Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Refunded:</strong> US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       ${note ? `<p><strong>Reviewer note:</strong> ${note}</p>` : ""}
-       <p>The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.</p>`),
+      shell({
+        preheader: "Your FreeAI campaign wasn't approved — refunded in full.",
+        hero: "💸", heading: "Your campaign was refunded",
+        body: `<p style="margin:0 0 14px;">Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>`
+          + detail([
+            ["Ad line", `“${adLine}”`],
+            brand ? ["Brand", brand] : null,
+            ["Refunded", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+            ["Campaign", campaignId],
+          ])
+          + (note ? `<p style="margin:14px 0 0;font-family:${FONT};font-size:14px;line-height:1.5;color:#3d3b37;"><strong style="color:#1f1e1d;">Reviewer note:</strong> ${note}</p>` : ""),
+        note: "The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.",
+      })),
     sendGiftRedemptionEmail: (to: string, { redemptionId, planName, months, amountUsd, recipientEmail }: any) =>
       send(to, `Gift card redemption: ${months} month${months > 1 ? "s" : ""} of ${planName}`,
       `<p>A FreeAI user redeemed their credits for a Claude gift card.</p>
@@ -286,23 +350,52 @@ function createMailer(cfg: any) {
        <p>Please fulfill within 48 hours.</p>`),
     sendReferralInviteEmail: (to: string, { inviterEmail, link, rewardUsd }: any) =>
       send(to, `${inviterEmail} invited you to FreeAI — free Claude credits`,
-      `<p>${inviterEmail} is using FreeAI to earn free Claude credits and wants you in.</p>
-       <p>FreeAI shows one subtle sponsored line while you use ChatGPT, Claude, or
-          Gemini, and pays you back 50% of the revenue as Claude credits.</p>
-       <p><a href="${link}">Accept the invite and claim your credits</a></p>
-       <p>When you sign up with this link and redeem your first Claude gift card,
-          ${inviterEmail} earns a one-time $${Math.round(rewardUsd)} bonus — at no cost to you.</p>`),
+      shell({
+        preheader: `${inviterEmail} invited you to FreeAI — earn free Claude credits.`,
+        hero: "🎁", heading: "You're invited to FreeAI",
+        body: `<p style="margin:0 0 14px;"><strong style="color:#1f1e1d;">${inviterEmail}</strong> is earning free Claude credits with FreeAI and wants you in.</p>`
+          + `<p style="margin:0 0 14px;">FreeAI shows one subtle sponsored line while you use ChatGPT, Claude or Gemini, and pays you back <strong>50% of the revenue</strong> as Claude credits — cash out anytime for gift cards.</p>`,
+        cta: { href: link, label: "Accept the invite" },
+        note: `When you sign up with this link and redeem your first Claude gift card, ${inviterEmail} earns a one-time $${Math.round(rewardUsd)} bonus — at no cost to you.`,
+      })),
     // Crew invite from the extension popup: the friend is attributed to the
     // inviter's affiliate code, so the inviter earns their cut of everything the
     // friend makes — forever. The friend keeps 100% of their own earnings.
     sendCrewInviteEmail: (to: string, { inviterEmail, link, rewardPct }: any) =>
       send(to, `${inviterEmail} added you to their FreeAI crew`,
-      `<p>${inviterEmail} is earning free Claude credits with FreeAI and wants you on their crew.</p>
-       <p>FreeAI shows one subtle sponsored line while you use ChatGPT, Claude, or
-          Gemini, and pays you back 50% of the revenue as Claude credits.</p>
-       <p><a href="${link}">Join the crew and start earning</a></p>
-       <p>You keep 100% of what you earn. ${inviterEmail} earns an extra
-          ${Math.round(rewardPct)}% on top — at no cost to you.</p>`),
+      shell({
+        preheader: `${inviterEmail} added you to their FreeAI crew — earn free Claude credits.`,
+        hero: "🤝", heading: "Join your friend's FreeAI crew",
+        body: `<p style="margin:0 0 14px;"><strong style="color:#1f1e1d;">${inviterEmail}</strong> is earning free Claude credits with FreeAI and added you to their crew.</p>`
+          + `<p style="margin:0 0 14px;">FreeAI shows one subtle sponsored line while you use ChatGPT, Claude or Gemini, and pays you back <strong>50% of the revenue</strong> as Claude credits.</p>`,
+        cta: { href: link, label: "Join the crew" },
+        note: `You keep 100% of what you earn. ${inviterEmail} earns an extra ${Math.round(rewardPct)}% on top — at no cost to you.`,
+      })),
+    // Confirmation to the user who just redeemed credits for a Claude gift card
+    // (the fulfillment inbox gets its own separate notice above).
+    sendRedemptionConfirmationEmail: (to: string, { planName, months, amountUsd }: any) =>
+      send(to, `Your Claude gift card is on the way — ${months} month${months > 1 ? "s" : ""} of ${planName}`,
+      shell({
+        preheader: `We got your redemption — ${months} month${months > 1 ? "s" : ""} of ${planName}.`,
+        hero: "🧾", heading: "Your redemption is in",
+        body: `<p style="margin:0 0 16px;">Nice work — you've cashed in your FreeAI credits for a Claude gift card. Here's what's on the way:</p>`
+          + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f5;border:1px solid #e6e2d8;border-radius:12px;"><tr>`
+          + `<td style="padding:14px 16px;font-family:${FONT};font-size:14px;line-height:1.5;color:#3d3b37;"><strong style="color:#1f1e1d;">${planName}</strong> · ${months} month${months > 1 ? "s" : ""}<br><span style="color:#6b6963;">Value: US$${amountUsd.toFixed(2)} in Claude credits</span></td>`
+          + `</tr></table>`,
+        note: "We fulfill gift cards within 48 hours — keep an eye on your inbox for the Claude gift card.",
+      })),
+    // Sent to the referrer when a friend they referred redeems their first gift
+    // card, which is what unlocks the one-time referral bonus.
+    sendReferralRewardEmail: (to: string, { rewardUsd, link }: any) =>
+      send(to, `You earned $${Math.round(rewardUsd)} in Claude credits 🎉`,
+      shell({
+        preheader: `You earned $${Math.round(rewardUsd)} in Claude credits from a referral.`,
+        hero: "🎉", heading: `You earned $${Math.round(rewardUsd)} in credits!`,
+        body: `<p style="margin:0 0 14px;">A friend you referred just redeemed their first Claude gift card on FreeAI — so we've added a one-time <strong style="color:#1f1e1d;">$${Math.round(rewardUsd)}</strong> bonus to your balance. 🙌</p>`
+          + `<p style="margin:0 0 14px;">Keep inviting friends to stack up more credits.</p>`,
+        cta: { href: link, label: "View your dashboard" },
+        note: "Credits never expire — redeem them for Claude, ChatGPT or Gemini gift cards anytime.",
+      })),
   };
 }
 const mailer = createMailer(config);
@@ -388,6 +481,10 @@ function createRepo(pool: any) {
         [referrer_user_id, re.rows[0].email]
       );
     }
+    // Surface the granted reward so the caller can email the referrer AFTER the
+    // transaction commits — never send mail from inside the tx.
+    const referrer = await client.query("select email from users where id = $1", [referrer_user_id]);
+    return { referrerUserId: referrer_user_id, referrerEmail: referrer.rows[0]?.email || null, rewardMillicents };
   }
 
   // Attribute a user to an approved affiliate by code. Runs at signup OR
@@ -1082,8 +1179,10 @@ function createRepo(pool: any) {
           [(-costMillicents).toString(), userId, JSON.stringify({ redemptionId: rows[0].id, plan, months })]
         );
         // The $20 referral program is retired — redeeming no longer rewards any
-        // referrer. (maybeRewardReferral is kept defined but uncalled.)
-        return rows[0].id;
+        // referrer. (maybeRewardReferral is kept defined but uncalled.) We still
+        // return an object with a null reward so the redemption flow keeps a
+        // stable shape for callers that branch on `reward`.
+        return { id: rows[0].id, reward: null };
       });
     },
     async getOrCreateReferralCode(userId: string) {
@@ -2515,6 +2614,16 @@ route("POST", "/v1/web/redemptions", async (ctx: any) => {
     id: redemptionId, userId: user.id, plan: plan.id, months, amountCents, recipientEmail,
   });
   if (!recorded) return json(409, { error: "insufficient credits" });
+  // User-facing emails are best-effort — a mail hiccup must never fail a
+  // redemption that's already committed to the ledger.
+  try {
+    await mailer.sendRedemptionConfirmationEmail(recipientEmail, { planName: plan.name, months, amountUsd: amountCents / 100 });
+  } catch (err: any) { console.error("[freeai] redemption confirmation email failed:", err?.message); }
+  if (recorded.reward?.referrerEmail) {
+    try {
+      await mailer.sendReferralRewardEmail(recorded.reward.referrerEmail, { rewardUsd: recorded.reward.rewardMillicents / 100000, link: `${config.siteUrl}/redeem.html` });
+    } catch (err: any) { console.error("[freeai] referral reward email failed:", err?.message); }
+  }
   const after = await repo.balanceForUser(user.id);
   return json(200, { ok: true, redemptionId, plan: plan.id, months, amountUsd: amountCents / 100, balanceUsd: after.balanceMillicents / 100000, deliveryWindowHours: 48 });
 });

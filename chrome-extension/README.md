@@ -1,6 +1,6 @@
 # FreeAI.fyi — Chrome extension
 
-> Get **Claude** for free with ads while you use **ChatGPT, Claude, and Gemini**. **50%** of the revenue comes back as Claude credits.
+> Earn money while you use AI. Ads appear while **ChatGPT, Claude & Gemini** think — **50%** of revenue goes to you.
 
 While the assistant is thinking/streaming, FreeAI shows one subtle, clickable
 sponsored line near the composer — and 50% of the revenue becomes credits you
@@ -55,8 +55,7 @@ Then verify it two ways:
 
 ## Supported sites
 
-`chatgpt.com` / `chat.openai.com` · `claude.ai` · `gemini.google.com` ·
-`aistudio.google.com` · `perplexity.ai` · `v0.dev` · `bolt.new`
+`chatgpt.com` / `chat.openai.com` · `claude.ai` · `gemini.google.com`
 
 Add more by editing `manifest.json` (`host_permissions` + `content_scripts.matches`).
 Detection selectors live at the top of `src/content.js`.
