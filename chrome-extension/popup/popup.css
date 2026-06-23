@@ -77,11 +77,13 @@ body {
  * Idles 8-bit style: a whole-pixel bob, eye blink, and a twinkling head spark.
  * One chills on top of the redeem button; one points down at "place your own ad". */
 .cta-guy, .foot-guy { position: relative; width: 100%; pointer-events: none; }
-.cta-guy { height: 30px; margin: 4px 0 -12px; z-index: 2; }
-.foot-guy { height: 34px; margin: 2px 0 -6px; }
+/* negative bottom margins let his legs rest ON the surface below (button / footer
+ * line), body sticking up — same "perched on the bar" look as the lander. */
+.cta-guy { height: 36px; margin: 10px 0 -24px; z-index: 3; }
+.foot-guy { height: 30px; margin: 10px 0 -16px; z-index: 3; }
 .claude-guy { position: absolute; bottom: 0; }
-.cta-guy .claude-guy { right: 26px; }
-.foot-guy .claude-guy { right: 46px; }
+.cta-guy .claude-guy { right: 28px; }
+.foot-guy .claude-guy { right: 58px; }
 .cg-sprite { display: block; image-rendering: pixelated; animation: cg-bob 1.4s steps(1, end) infinite; }
 .claude-guy.cg-hop .cg-sprite { animation: cg-hop .55s steps(1, end); }
 .cg-eye, .cg-spark, .cg-arm { transform-box: fill-box; transform-origin: center; }
