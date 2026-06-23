@@ -69,6 +69,15 @@ function createMailer(config) {
       + `</td></tr></table></td></tr></table></body></html>`;
   }
 
+  // Key/value detail box for the campaign emails — same inset style as the
+  // user-email tables, with hairline row separators. Falsy rows are dropped.
+  function detail(rows) {
+    const cells = rows.filter(Boolean).map(([k, v], i) =>
+      `<tr><td style="padding:8px 16px;font-family:${FONT};font-size:13px;color:#6b6963;${i ? "border-top:1px solid #efeae0;" : ""}">${k}</td>`
+      + `<td style="padding:8px 16px;font-family:${FONT};font-size:13px;font-weight:600;color:#1f1e1d;text-align:right;${i ? "border-top:1px solid #efeae0;" : ""}">${v}</td></tr>`).join("");
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;background:#faf9f5;border:1px solid #e6e2d8;border-radius:12px;">${cells}</table>`;
+  }
+
   async function sendVerifyEmail(to, link) {
     await send(to, "Verify your email to get paid", shell({
       preheader: "Confirm your email to start receiving FreeAI payouts.",
@@ -96,44 +105,39 @@ function createMailer(config) {
   // until it clears review. Stripe sends its own itemized payment receipt
   // separately (via receipt_email on the checkout session).
   async function sendAdvertiserReceiptEmail(to, { campaignId, brand, adLine, pricePerBlockCents, blocks }) {
-    const perBlockUsd = pricePerBlockCents / 100;
-    const totalUsd = (pricePerBlockCents * blocks) / 100;
-    const impressions = blocks * 1000;
-    await send(
-      to,
-      "Your FreeAI campaign receipt",
-      `<p>Thanks for advertising on FreeAI — your payment is confirmed.</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Blocks:</strong> ${blocks} (${impressions.toLocaleString("en-US")} impressions)</li>
-         <li><strong>Price per block:</strong> US$${perBlockUsd.toFixed(2)}</li>
-         <li><strong>Total paid:</strong> US$${totalUsd.toFixed(2)}</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
-       <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`
-    );
+    await send(to, "Your FreeAI campaign receipt", shell({
+      preheader: "Your FreeAI campaign payment is confirmed — now in review.",
+      hero: "💳", heading: "Payment confirmed",
+      body: `<p style="margin:0 0 14px;">Thanks for advertising on FreeAI — your payment is confirmed and your campaign is in review.</p>`
+        + detail([
+          ["Ad line", `“${adLine}”`],
+          brand ? ["Brand", brand] : null,
+          ["Volume", `${blocks} block${blocks === 1 ? "" : "s"} · ${(blocks * 1000).toLocaleString("en-US")} impressions`],
+          ["Price / block", `US$${(pricePerBlockCents / 100).toFixed(2)}`],
+          ["Total paid", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+          ["Campaign", campaignId],
+        ]),
+      note: "It goes live once we approve it — usually within a day. Stripe has emailed a separate itemized receipt for your records.",
+    }));
   }
 
   // Sent when a paid campaign is rejected in moderation and refunded. Tells the
   // advertiser the charge was reversed (Stripe also emails its own refund
   // notification) and includes the reviewer's note when there is one.
   async function sendCampaignRejectedEmail(to, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }) {
-    const totalUsd = (pricePerBlockCents * blocks) / 100;
-    await send(
-      to,
-      "Your FreeAI campaign was refunded",
-      `<p>Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Refunded:</strong> US$${totalUsd.toFixed(2)}</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       ${note ? `<p><strong>Reviewer note:</strong> ${note}</p>` : ""}
-       <p>The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.</p>`
-    );
+    await send(to, "Your FreeAI campaign was refunded", shell({
+      preheader: "Your FreeAI campaign wasn't approved — refunded in full.",
+      hero: "💸", heading: "Your campaign was refunded",
+      body: `<p style="margin:0 0 14px;">Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>`
+        + detail([
+          ["Ad line", `“${adLine}”`],
+          brand ? ["Brand", brand] : null,
+          ["Refunded", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+          ["Campaign", campaignId],
+        ])
+        + (note ? `<p style="margin:14px 0 0;font-family:${FONT};font-size:14px;line-height:1.5;color:#3d3b37;"><strong style="color:#1f1e1d;">Reviewer note:</strong> ${note}</p>` : ""),
+      note: "The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.",
+    }));
   }
 
   // Fulfillment notification for a Claude gift card redemption. Goes to the

@@ -267,6 +267,14 @@ function createMailer(cfg: any) {
       + `<br>Earn credits while you use Claude, ChatGPT &amp; Gemini.`
       + `</td></tr></table></td></tr></table></body></html>`;
   }
+  // Key/value detail box for the campaign emails — same inset style as the
+  // user-email tables, with hairline row separators. Falsy rows are dropped.
+  function detail(rows: any[]) {
+    const cells = rows.filter(Boolean).map(([k, v]: any, i: number) =>
+      `<tr><td style="padding:8px 16px;font-family:${FONT};font-size:13px;color:#6b6963;${i ? "border-top:1px solid #efeae0;" : ""}">${k}</td>`
+      + `<td style="padding:8px 16px;font-family:${FONT};font-size:13px;font-weight:600;color:#1f1e1d;text-align:right;${i ? "border-top:1px solid #efeae0;" : ""}">${v}</td></tr>`).join("");
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;background:#faf9f5;border:1px solid #e6e2d8;border-radius:12px;">${cells}</table>`;
+  }
   return {
     sendVerifyEmail: (to: string, link: string) => send(to, "Verify your email to get paid",
       shell({
@@ -286,38 +294,49 @@ function createMailer(cfg: any) {
       })),
     sendAdvertiserReceiptEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks }: any) =>
       send(to, "Your FreeAI campaign receipt",
-      `<p>Thanks for advertising on FreeAI — your payment is confirmed.</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Blocks:</strong> ${blocks} (${(blocks * 1000).toLocaleString("en-US")} impressions)</li>
-         <li><strong>Price per block:</strong> US$${(pricePerBlockCents / 100).toFixed(2)}</li>
-         <li><strong>Total paid:</strong> US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       <p>Your campaign is now in review and goes live once we approve it — usually within a day.</p>
-       <p>Stripe has emailed a separate itemized payment receipt for your records.</p>`),
+      shell({
+        preheader: "Your FreeAI campaign payment is confirmed — now in review.",
+        hero: "💳", heading: "Payment confirmed",
+        body: `<p style="margin:0 0 14px;">Thanks for advertising on FreeAI — your payment is confirmed and your campaign is in review.</p>`
+          + detail([
+            ["Ad line", `“${adLine}”`],
+            brand ? ["Brand", brand] : null,
+            ["Volume", `${blocks} block${blocks === 1 ? "" : "s"} · ${(blocks * 1000).toLocaleString("en-US")} impressions`],
+            ["Price / block", `US$${(pricePerBlockCents / 100).toFixed(2)}`],
+            ["Total paid", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+            ["Campaign", campaignId],
+          ]),
+        note: "It goes live once we approve it — usually within a day. Stripe has emailed a separate itemized receipt for your records.",
+      })),
     sendCampaignLiveEmail: (to: string, { campaignId, brand, adLine, blocks }: any) =>
       send(to, "Your FreeAI ad is live 🎉",
-      `<p>Good news — your campaign is approved and now <strong>live on FreeAI</strong>. 🎉</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Running:</strong> ${(blocks * 1000).toLocaleString("en-US")} impressions (${blocks} block${blocks === 1 ? "" : "s"})</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       <p>It's showing in the spinner while people use ChatGPT, Claude &amp; Gemini. Higher bids serve first — come back any time to boost your bid and climb the leaderboard.</p>`),
+      shell({
+        preheader: "Approved — your ad is now live on FreeAI.",
+        hero: "🚀", heading: "Your ad is live",
+        body: `<p style="margin:0 0 14px;">Good news — your campaign is approved and now <strong style="color:#1f1e1d;">live on FreeAI</strong>. 🎉</p>`
+          + detail([
+            ["Ad line", `“${adLine}”`],
+            brand ? ["Brand", brand] : null,
+            ["Running", `${(blocks * 1000).toLocaleString("en-US")} impressions (${blocks} block${blocks === 1 ? "" : "s"})`],
+            ["Campaign", campaignId],
+          ]),
+        note: "It's showing in the spinner while people use ChatGPT, Claude & Gemini. Higher bids serve first — come back any time to boost your bid and climb the leaderboard.",
+      })),
     sendCampaignRejectedEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }: any) =>
       send(to, "Your FreeAI campaign was refunded",
-      `<p>Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>
-       <ul>
-         <li><strong>Ad line:</strong> "${adLine}"</li>
-         ${brand ? `<li><strong>Brand:</strong> ${brand}</li>` : ""}
-         <li><strong>Refunded:</strong> US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}</li>
-         <li><strong>Campaign id:</strong> ${campaignId}</li>
-       </ul>
-       ${note ? `<p><strong>Reviewer note:</strong> ${note}</p>` : ""}
-       <p>The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.</p>`),
+      shell({
+        preheader: "Your FreeAI campaign wasn't approved — refunded in full.",
+        hero: "💸", heading: "Your campaign was refunded",
+        body: `<p style="margin:0 0 14px;">Thanks for your interest in advertising on FreeAI. We weren't able to approve this campaign, so we've refunded it in full.</p>`
+          + detail([
+            ["Ad line", `“${adLine}”`],
+            brand ? ["Brand", brand] : null,
+            ["Refunded", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+            ["Campaign", campaignId],
+          ])
+          + (note ? `<p style="margin:14px 0 0;font-family:${FONT};font-size:14px;line-height:1.5;color:#3d3b37;"><strong style="color:#1f1e1d;">Reviewer note:</strong> ${note}</p>` : ""),
+        note: "The refund returns to your original payment method; Stripe will email a separate confirmation. You're welcome to submit a new campaign any time.",
+      })),
     sendGiftRedemptionEmail: (to: string, { redemptionId, planName, months, amountUsd, recipientEmail }: any) =>
       send(to, `Gift card redemption: ${months} month${months > 1 ? "s" : ""} of ${planName}`,
       `<p>A FreeAI user redeemed their credits for a Claude gift card.</p>
