@@ -727,6 +727,7 @@ let activityRows = null;
 const ACT_LABEL = {
   impression_credit: "Impression",
   click_credit: "Click",
+  affiliate_credit: "Crew bonus",
   referral_credit: "Referral bonus",
 };
 
@@ -820,7 +821,7 @@ async function boot() {
     if ($("referral-code")) $("referral-code").value = referralCode;
     const note = $("referral-note");
     if (note) {
-      note.textContent = `🎁 Referral code ${referralCode} applied.`;
+      note.textContent = `🎁 Affiliate code ${referralCode} applied.`;
       note.hidden = false;
     }
   }
