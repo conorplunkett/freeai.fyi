@@ -18,7 +18,7 @@ accurate.
 ## What FreeAI is
 
 FreeAI shows one subtle sponsored line while a web AI assistant (ChatGPT, Claude,
-Gemini) is thinking, and returns **50% of the revenue to the user as Claude
+Gemini) is thinking, and returns **a share of the revenue to the user as Claude
 credits**. The product surfaces are the **Chrome extension**, the **Claude Code
 terminal client**, and the macOS overlay; a Node + Postgres backend runs the ad
 auction, an append-only credit ledger, and gift-card redemption.
@@ -86,26 +86,21 @@ auction, an append-only credit ledger, and gift-card redemption.
 
 ## Money / credit rules
 
-- The split is **50%** to the user, paid as **Claude credits** (not cash).
+- The user's share of revenue is paid as **Claude credits** (not cash).
   Stripe Connect cash payouts exist in the code but are **parked** — gift cards
   are the redemption path. Don't surface Stripe payouts in user-facing copy.
 - Credits live in an **append-only ledger** (`server/db/schema.sql`). Balances
   are always `SUM(ledger)`, never stored or edited. Amounts are integer
-  **millicents** (1/1000¢) so the split is exact.
+  sub-cent units so the split is exact.
 - A redemption: verifies `balance >= gift price`, emails the fulfillment inbox
-  (`GIFT_FULFILLMENT_EMAIL`, default `conor.p43@gmail.com`) with the order
+  (`GIFT_FULFILLMENT_EMAIL`, default `hello@contact.freeai.fyi`) with the order
   details, then deducts the balance via a `gift_redemption_debit` ledger entry.
   Fulfillment is manual and lands within **48 hours**. Email goes out **before**
   the deduction; the in-transaction balance re-check keeps concurrent redeems
   honest.
-- Redemption schedule lives in `server/src/giftcards.js` — the single source of
-  truth for plans and prices. Update it there, not in the UI.
-
-  | Redemption | Monthly | 1 mo | 3 mo | 6 mo | 12 mo |
-  | --- | --- | --- | --- | --- | --- |
-  | Claude Pro Gift | $20/mo | $20 | $60 | $120 | $240 |
-  | Claude Max 5x Gift | $100/mo | $100 | $300 | $600 | $1,200 |
-  | Claude Max 20x Gift | $200/mo | $200 | $600 | $1,200 | $2,400 |
+- Redemption plans and prices live in `server/src/giftcards.js` — the single
+  source of truth. Update them there, not in the UI; don't duplicate the price
+  list in docs.
 
 ## Design system
 

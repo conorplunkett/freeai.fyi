@@ -13,7 +13,7 @@ reference + rollback (the Edge port mirrors its routes and SQL verbatim).
   (the slug prefix is stripped, then the original paths are matched). Uses
   `npm:pg` against `SUPABASE_DB_URL` (the Supavisor pooler) so the data layer is
   a near-verbatim copy of `server/src/repo.js` — same transactions, same
-  `pg_advisory_xact_lock` redemption guard, same millicent BigInt math.
+  `pg_advisory_xact_lock` redemption guard, same integer BigInt math.
 - **`web-referrals/`** — the original single-route proof-of-concept. Superseded
   by `api/`; kept for reference and safe to delete.
 

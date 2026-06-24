@@ -1,0 +1,36 @@
+FreeAI — Proprietary License
+Copyright (c) 2026 Conor Plunkett. All rights reserved.
+
+This repository and all of its contents (the "Software") are published for
+public viewing and reference only. The Software is NOT open source and is NOT
+free software.
+
+No license or permission is granted, expressly or by implication, estoppel, or
+otherwise, to any person or entity to use, copy, reproduce, modify, adapt,
+translate, merge, publish, distribute, sublicense, sell, host, mirror, or
+create derivative works of the Software or any portion of it, in whole or in
+part, without the prior written permission of the copyright holder.
+
+The only uses permitted without prior written permission are:
+
+  1. Viewing the source code through the hosting platform's own interface
+     (for example, on github.com).
+
+  2. Creating a fork through the hosting platform's native fork feature for the
+     sole purpose of preparing a contribution back to this repository. Such a
+     fork grants no other rights, may not be published or used elsewhere, and
+     should be deleted if a contribution is not accepted.
+
+All other rights are reserved by the copyright holder. Use of any official,
+distributed build of the applications in this repository (for example, the
+published browser extension, command-line client, or macOS app) is governed by
+that product's own terms of service, not by this license.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+For licensing inquiries: hello@contact.freeai.fyi

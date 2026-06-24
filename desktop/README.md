@@ -231,7 +231,7 @@ Gatekeeper says "damaged and can't be opened." A real release is four commands.
    create an app-specific password at appleid.apple.com, then:
    ```sh
    xcrun notarytool store-credentials freeai \
-     --apple-id "conor.p43@gmail.com" --team-id "C4GLRN98Q7"
+     --apple-id "$APPLE_ID" --team-id "C4GLRN98Q7"
    ```
 
 **Per release:**

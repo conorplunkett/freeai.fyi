@@ -169,7 +169,7 @@ labelled mock ad renders on demand, see `README.md`):
 - [ ] `manifest.json` `version` bumped (for updates) and matches the zip name.
 - [ ] `make package-ext` succeeded (mirror + lint gates green).
 - [ ] Zip contains only the 12 runtime files — no `test/`, `node_modules/`,
-      `README.md`, or `GEMINI_BUG_HANDOFF.md` (the script guarantees this).
+      or `README.md` (the script guarantees this).
 - [ ] Privacy policy is live at `https://freeai.fyi/privacy` and **matches the
       data-usage answers** (see the note in [§8](#8-anything-else--open-items)).
 - [ ] At least one 1280×800 screenshot uploaded.
@@ -196,12 +196,7 @@ you'll get an email on approval or rejection (with the reason).
 Things worth resolving before (or shortly after) the first submission — none
 block packaging, but they affect review and trust:
 
-1. **The open Gemini placement bug.** `GEMINI_BUG_HANDOFF.md` documents an
-   unfixed ad-bar placement bug in Gemini's dots-only stage. Not a blocker, but
-   ship-quality-wise it's the most visible defect on a supported site — consider
-   fixing it (or temporarily dropping `gemini.google.com` from the listed
-   "supported sites") before a big launch.
-2. **Screenshots/promo tiles** ([§4](#4-graphic-assets-to-upload)) are the only
+1. **Screenshots/promo tiles** ([§4](#4-graphic-assets-to-upload)) are the only
    hard *missing* artifacts — everything else is in the repo.
 
 Already handled: the privacy policy (`privacy.html`) now describes the

@@ -11,9 +11,9 @@ a **manual** email step that you simply don't run. Credits accrue through the
 exact same ledger code that runs in production — so what you see locally is the
 real earning math, just funded by play money.
 
-> Production readiness (secrets, OAuth/Stripe consoles, the open Gemini
-> placement bug) is tracked separately in [`LAUNCH.md`](LAUNCH.md). DEVNET is for
-> **testing the product**, not for shipping it.
+> Production readiness (secrets, OAuth/Stripe consoles) is tracked separately in
+> [`LAUNCH.md`](LAUNCH.md). DEVNET is for **testing the product**, not for
+> shipping it.
 
 ## TL;DR — watch your balance go up in 2 terminals
 
@@ -28,8 +28,8 @@ make devnet-earn
 `make devnet-earn` registers a device, links it to an account, serves
 impressions on a loop, and prints a **portal sign-in link**. Open that link (or
 sign in at `/redeem.html` with the printed email) and the dashboard balance ticks
-up in lockstep — `$0.25` per 100 impressions at the seed campaign's $5 CPM × the
-50% user share. A verified click is worth 50×.
+up in lockstep as impressions accrue at the configured revenue share. A verified
+click is worth more than an impression.
 
 Knobs (env): `EARN_EMAIL`, `BATCH_IMPRESSIONS` (default 100), `TICK_MS`
 (default 2000), `TICKS` (0 = run forever), `API_BASE`, `DATABASE_URL`.
@@ -45,7 +45,7 @@ see the whole chain without a browser:
    is linked, its credits aren't visible in any portal.
 3. `POST /v1/events` (impressions) and the single-use click-token path
    (`/v1/clicks/intent` → `/v1/go/:token`) → credits land in the append-only
-   ledger at the 50% user share.
+   ledger at the configured revenue share.
 
 The portal's `GET /v1/web/earnings` then sums the ledger across **every device
 linked to that account**, so the same balance shows up no matter which surface

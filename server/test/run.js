@@ -72,7 +72,7 @@ const fakeMailer = {
     stripeWebhookSecret: WEBHOOK_SECRET, siteUrl: "https://freeai.fyi",
     apiBaseUrl: "", corsOrigin: "https://freeai.fyi", adminKey: "test-admin",
     emailTokenTtlMs: 1800000, emailCooldownMs: 0, webSessionTtlMs: 2592000000, clickTokenTtlMs: 120000, maxBodyBytes: 65536,
-    logRequests: false, giftFulfillmentEmail: "conor.p43@gmail.com",
+    logRequests: false, giftFulfillmentEmail: "hello@contact.freeai.fyi",
   };
   const repo = createRepo(poolNs);
   const stripe = createStripe("sk_test_fake", { fetchImpl: fakeFetch });
@@ -426,7 +426,7 @@ const fakeMailer = {
 
     // The fulfillment inbox is notified; the redeeming user now also gets their
     // own confirmation, so find the fulfillment mail rather than the last one.
-    const mail = [...mailbox].reverse().find((m) => m.to === "conor.p43@gmail.com");
+    const mail = [...mailbox].reverse().find((m) => m.to === "hello@contact.freeai.fyi");
     assert.ok(mail, "fulfillment inbox is notified of the redemption");
     assert.strictEqual(mail.planName, "Claude Pro");
     assert.strictEqual(mail.months, 3);

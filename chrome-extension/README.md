@@ -1,9 +1,9 @@
 # FreeAI.fyi — Chrome extension
 
-> Earn money while you use AI. Ads appear while **ChatGPT, Claude & Gemini** think — **50%** of revenue goes to you.
+> Earn money while you use AI. Ads appear while **ChatGPT, Claude & Gemini** think — a share of revenue goes to you.
 
 While the assistant is thinking/streaming, FreeAI shows one subtle, clickable
-sponsored line near the composer — and 50% of the revenue becomes credits you
+sponsored line near the composer — and a share of the revenue becomes credits you
 redeem for Claude. It reads none of your prompts or the model's output, only the
 on/off "is it generating" state.
 
@@ -32,8 +32,8 @@ Then verify it two ways:
   **Stop** button (site-specific selectors for ChatGPT / Claude / Gemini, plus a
   generic `aria-label*="stop"` catch-all), an `aria-busy` region, or a streaming
   marker — and shows the sponsored bar only while the assistant is working.
-- Every 5 seconds served is one **impression**; a click is worth **50×** an
-  impression. Credits accrue at your **50%** revenue share, stored locally
+- Every 5 seconds served is one **impression**; a click is worth more than an
+  impression. Credits accrue at your revenue share, stored locally
   (`chrome.storage`), shown live in the popup.
 - The bar mounts **inline, at the streaming reply** (Claude's
   `data-is-streaming` bubble, ChatGPT's last assistant turn, Gemini's
@@ -77,7 +77,7 @@ Detection selectors live at the top of `src/content.js`.
 ## Tests
 
 ```bash
-npm test           # detection on ChatGPT/Claude/Gemini, test mode, 50% math (mock DOM)
+npm test           # detection on ChatGPT/Claude/Gemini, test mode, credit math (mock DOM)
 npm run test:live  # loads the unpacked extension into headless Chrome (needs `npm install` first)
 npm run lint
 ```
@@ -85,7 +85,7 @@ npm run lint
 The live test stages a copy of the extension with `http://127.0.0.1/*` added to
 its match patterns, serves a fake chat page locally, and verifies in a real
 browser: injection, the Stop-button show/hide cycle, rendered ad copy, real
-impressions hitting `chrome.storage` at the 50% rate, and Test-Mode
+impressions hitting `chrome.storage` at the configured rate, and Test-Mode
 impressions/clicks staying out of real earnings.
 
 > **End-to-end across surfaces ("watch your balance climb"):** Test mode uses

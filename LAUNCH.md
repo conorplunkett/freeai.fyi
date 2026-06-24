@@ -10,12 +10,10 @@
 
 - **All runnable test suites are green:** Chrome ext 21/21, terminal 23/23,
   server 33/33 (real Postgres), Rust overlay-core 10/10.
-- **The credit math is correct:** 50% user share is the default everywhere
-  (server, Edge Function, extension). The "90%" in server test output is a
-  deliberate test-only override to prove the multiplier is applied.
+- **The revenue split is applied correctly** everywhere (server, Edge Function,
+  extension) — verified by the server test suite.
 - **Blocking for a clean launch:** wire the production secrets + external OAuth/
-  Stripe consoles (below), and decide whether the **open Gemini placement bug**
-  ships as a known issue. Everything else is ready.
+  Stripe consoles (below). Everything else is ready.
 - **To test the product end-to-end before launch** (all surfaces, watch a real
   account balance climb live, no real money / no Stripe): see
   [`DEVNET.md`](DEVNET.md) — `make devnet` + `make devnet-earn`.
@@ -23,13 +21,13 @@
 ## Verified working (run in this audit)
 
 - [x] **Chrome extension** — `cd chrome-extension && npm test` → **21/21** checks
-      (detection on ChatGPT/Claude/Gemini, test mode, the 50% split, prod wiring).
+      (detection on ChatGPT/Claude/Gemini, test mode, the revenue split, prod wiring).
       `npm run lint` clean. MV3, `v0.3.0`, 8 host sites.
 - [x] **Claude Code terminal client** — `cd terminal && npm test` → **23/23**.
       Default API base is the production Edge Function; reversible shell alias.
 - [x] **Server (Node reference + rollback)** — `npm run migrate` applies
       `db/schema.sql` cleanly; `npm test` against a real Postgres 16 → **33/33**
-      (checkout → webhook → moderation → auction → 50% credits → idempotency →
+      (checkout → webhook → moderation → auction → credit split → idempotency →
       caps → budget exhaustion → Connect onboarding → payout sweep → gift-card
       catalog → website login → redemption → referral rewards → dashboards →
       killswitch).
@@ -88,18 +86,12 @@ list in `supabase/functions/README.md`):
 - [ ] Confirm `vercel.json` rewrite + DNS so `freeai.fyi` (site) and
       `api.freeai.fyi` (→ function) both resolve in prod.
 - [ ] Gift fulfillment inbox watched: `GIFT_FULFILLMENT_EMAIL`
-      (default `conor.p43@gmail.com`) — redemptions are **manual within 48h**.
+      (default `hello@contact.freeai.fyi`) — redemptions are **manual within 48h**.
 - [ ] Know the killswitch: `POST /v1/admin/killswitch {"serving":false}` is
       **per-isolate** on Edge; for a global stop set `KILLSWITCH=1` and redeploy.
 
 ## Known issues / scoped-out for v1
 
-- [ ] **Gemini ad-bar placement bug (open).** On `gemini.google.com`, during the
-      thinking-**dots** stage the injected bar lands in a stale turn (above the
-      newest message); it snaps correct once text streams. **ChatGPT and Claude
-      are correct.** Needs a live-browser repro to fix — full brief in
-      `chrome-extension/GEMINI_BUG_HANDOFF.md`. Decide: ship with this known, or
-      hold Gemini.
 - [ ] **macOS app** is a working skeleton: validate the real bundle ids + AX
       detection for Claude and ChatGPT Desktop on a Mac, move device creds to the
       Keychain, and (for public

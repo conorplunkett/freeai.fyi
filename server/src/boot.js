@@ -28,7 +28,7 @@ function loadConfig(env = process.env) {
     referralCap: parseInt(env.REFERRAL_CAP || "10", 10), // max rewarded referrals per user
     affiliateRewardBps: parseInt(env.AFFILIATE_REWARD_BPS || "1000", 10), // affiliate's cut of an affiliated user's earnings, basis points (1000 = 10%)
     affiliateCapPeople: parseInt(env.AFFILIATE_CAP_PEOPLE || "1000", 10), // max attributed friends per affiliate (dollar earnings uncapped)
-    giftFulfillmentEmail: env.GIFT_FULFILLMENT_EMAIL || "conor.p43@gmail.com", // manual gift card fulfillment inbox
+    giftFulfillmentEmail: env.GIFT_FULFILLMENT_EMAIL || "hello@contact.freeai.fyi", // manual gift card fulfillment inbox
     emailTokenTtlMs: parseInt(env.EMAIL_TOKEN_TTL_MS || "1800000", 10), // 30 min
     emailCooldownMs: parseInt(env.EMAIL_COOLDOWN_MS || "60000", 10), // min gap between magic-link sends per email; 0 disables
     webSessionTtlMs: parseInt(env.WEB_SESSION_TTL_MS || "2592000000", 10), // 30 days
