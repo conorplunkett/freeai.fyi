@@ -420,6 +420,11 @@ body {
 .steps li.clickable { cursor: pointer; }
 .steps li.clickable:not(.active):hover { background: rgba(255, 255, 255, .05); }
 
+/* Read-only status switch (the Accessibility card mirrors the launch toggle as a
+ * pure indicator — it shows on/off but isn't user-operable). */
+.switch.readonly { cursor: default; }
+.switch.readonly input { cursor: default; }
+
 /* Step 5 "All set" — ring + copy on top, then a full-width menu-bar hint so the
  * dashed callout reads on one line instead of cramming beside the ring. */
 .done-pane { display: flex; flex-direction: column; }

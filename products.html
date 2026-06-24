@@ -281,18 +281,18 @@
       <div class="steps">
         <div class="step">
           <span class="step-num">1</span>
-          <h3 class="step-title">Install the command</h3>
-          <p class="step-body">Clone the repo and <code>npm link</code> the <code>terminal/</code> package to expose the global <code>freeai</code> command.</p>
+          <h3 class="step-title">Run setup</h3>
+          <p class="step-body">Run <code>npx @freeai/terminal claude setup</code>, link your account by email, then reload your shell (it prints the exact <code>source</code> line).</p>
         </div>
         <div class="step">
           <span class="step-num">2</span>
-          <h3 class="step-title">Run setup</h3>
-          <p class="step-body">Run <code>freeai claude setup</code>, then reload your shell (it prints the exact <code>source</code> line).</p>
+          <h3 class="step-title">Use Claude as normal</h3>
+          <p class="step-body">Keep typing <code>claude</code> — the sponsored line shows only while it's thinking. Every flag and exit code is forwarded untouched.</p>
         </div>
         <div class="step">
           <span class="step-num">3</span>
           <h3 class="step-title">Verify</h3>
-          <p class="step-body"><code>freeai claude doctor</code> should print <code>ok: true</code>. Use <code>claude</code> exactly as before.</p>
+          <p class="step-body"><code>freeai claude doctor</code> should print <code>ok: true</code> and <code>linked: true</code>.</p>
         </div>
       </div>
 
@@ -349,7 +349,7 @@
               <rect x="74" y="72" width="52" height="7" rx="3.5" class="f-acc-soft"/>
             </svg>
           </span>
-          <p class="step-body">Grab <code>FreeAI.dmg</code> and open it.</p>
+          <p class="step-body">Grab <a href="/download/mac"><code>FreeAI.dmg</code></a> and open it.</p>
         </div>
         <div class="step has-art">
           <span class="step-num">2</span>
@@ -373,10 +373,10 @@
         <div class="step has-art">
           <span class="step-num">3</span>
           <h3 class="step-title">Allow &amp; launch</h3>
-          <span class="mac-art" role="img" aria-label="Granting screen permission in System Settings">
+          <span class="mac-art" role="img" aria-label="Granting Accessibility permission in System Settings">
             <svg viewBox="0 0 200 110" xmlns="http://www.w3.org/2000/svg">
               <rect x="14" y="12" width="172" height="86" rx="10" fill="#fff" class="e-line"/>
-              <text x="28" y="34" font-weight="700" font-size="10" class="f-gray">Screen Recording</text>
+              <text x="28" y="34" font-weight="700" font-size="10" class="f-gray">Accessibility</text>
               <line x1="28" y1="42" x2="172" y2="42" class="e-line"/>
               <rect x="28" y="54" width="22" height="22" rx="6" class="f-acc"/>
               <text x="39" y="69" class="mono" font-weight="700" font-size="11" fill="#fff" text-anchor="middle">F$</text>
@@ -386,13 +386,19 @@
               <circle cx="163" cy="67" r="7" fill="#fff"/>
             </svg>
           </span>
-          <p class="step-body">Enable FreeAI under <strong>Screen Recording</strong>, then open it.</p>
+          <p class="step-body">Enable FreeAI under <strong>Accessibility</strong>, then open it.</p>
         </div>
       </div>
 
       <div class="prod-cta">
+        <a href="/download/mac" class="btn-green">
+          <svg class="btn-apple" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
+            <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.66-2.323-7.34 0-4.31 2.797-6.6 5.552-6.6 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.46z"/>
+          </svg>
+          Download for macOS
+        </a>
         <a href="/redeem" class="btn-outline">Track installs in your portal →</a>
-        <span class="note">In preview — <strong>join from the extension</strong> to be notified when it ships.</span>
+        <span class="note">Free — <strong>50% back as Claude credits.</strong> Requires macOS 13 or later.</span>
       </div>
     </section>
 

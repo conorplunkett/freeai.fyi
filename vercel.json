@@ -1,6 +1,13 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/download/mac",
+      "destination": "https://github.com/conorplunkett/freeai.fyi/releases/latest/download/FreeAI.dmg",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/:path*",

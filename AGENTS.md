@@ -170,6 +170,32 @@ bar), and the macOS app. Always use it.
 mode, demo-mode messaging, mock seeds, or debugging affordances in user-facing
 copy.
 
+## Shipping the macOS app
+
+The desktop overlay (`desktop/macos/`) is distributed as a **notarized Developer
+ID `.dmg` hosted on GitHub Releases** — **not** the Mac App Store (the store
+mandates the App Sandbox, which blocks the Accessibility API the overlay relies on
+to read another app's window). The full release runbook — build → sign →
+notarize → staple → verify → `gh release create` — lives in
+[`desktop/README.md`](desktop/README.md) under "Shipping a notarized build people
+can download." Signing identity: `Developer ID Application: Conor Plunkett
+(C4GLRN98Q7)`; notarization uses the Keychain profile `freeai`.
+
+The download is wired so **a release needs no site edit**: `vercel.json` redirects
+`/download/mac` → the repo's `releases/latest/download/FreeAI.dmg`, and the
+**Download for macOS** button in `products.html` (the `#desktop` section) points
+at `/download/mac`. Each `gh release create` automatically becomes the live
+download (the link only 404s until the first release exists).
+
+Gotchas:
+- Only the **notarized** dmg runs on other people's Macs. The default `bundle.sh`
+  / CI build is ad-hoc signed and opens **only on the machine that built it**.
+- `bundle.sh` builds for the **host architecture only**; pass
+  `--arch arm64 --arch x86_64` for a universal build that also runs on Intel.
+- The overlay needs **Accessibility** permission (it walks another app's AX tree),
+  **not** Screen Recording. Keep every install/onboarding instruction on
+  Accessibility or the card never appears.
+
 ## Tests
 
 - Extension: `cd chrome-extension && npm test` (headless mock DOM).

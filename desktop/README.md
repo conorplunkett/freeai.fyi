@@ -215,25 +215,58 @@ icons). The Finder layout needs a GUI session, so it's skipped headless — pass
 `DMG_FANCY=0` to force the plain dmg (that's what CI does). Regenerate the icon
 and dmg artwork with `python3 packaging/assets/generate_assets.py`.
 
-To ship to other people without the Gatekeeper "unidentified developer"
-warning you need the **Apple Developer Program ($99/yr)** for a Developer ID
-certificate, then sign + notarize the dmg:
+### Shipping a notarized build people can download
+
+The signed, **notarized** Developer ID dmg is the *only* build that opens on
+someone else's Mac. The default `bundle.sh` (and the CI artifact) is ad-hoc
+signed and runs **only on the machine that built it** — everywhere else
+Gatekeeper says "damaged and can't be opened." A real release is four commands.
+
+**One-time setup** (needs the **Apple Developer Program**, $99/yr):
+
+1. A **Developer ID Application** certificate in your login keychain. Ours is
+   `Developer ID Application: Conor Plunkett (C4GLRN98Q7)` (team id `C4GLRN98Q7`).
+   Confirm it's installed with `security find-identity -v -p codesigning`.
+2. Stash notary credentials in the Keychain so you never paste a password again —
+   create an app-specific password at appleid.apple.com, then:
+   ```sh
+   xcrun notarytool store-credentials freeai \
+     --apple-id "$APPLE_ID" --team-id "C4GLRN98Q7"
+   ```
+
+**Per release:**
 
 ```sh
-SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./packaging/bundle.sh
-xcrun notarytool submit build/SponsorOverlay.dmg \
-  --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
+cd desktop/macos/SponsorOverlay
+# 1. build + sign with the Developer ID (hardened runtime, notarization-ready)
+VERSION=0.1.0 BUILD_NUMBER=1 \
+  SIGN_IDENTITY="Developer ID Application: Conor Plunkett (C4GLRN98Q7)" ./packaging/bundle.sh
+# 2. notarize + staple (so it opens offline, no Gatekeeper prompt)
+xcrun notarytool submit build/SponsorOverlay.dmg --keychain-profile freeai --wait
 xcrun stapler staple build/SponsorOverlay.dmg
+# 3. prove it'll open on a stranger's Mac — want "accepted" / "source=Notarized Developer ID"
+spctl -a -t open --context context:primary-signature -v build/SponsorOverlay.dmg
+# 4. publish — '#FreeAI.dmg' renames the asset so the site's download URL stays stable
+gh release create desktop-v0.1.0 "build/SponsorOverlay.dmg#FreeAI.dmg" \
+  --title "FreeAI Desktop 0.1.0" \
+  --notes "macOS FreeAI.fyi overlay tool for Claude & ChatGPT Desktop."
 ```
 
-One-time notary setup (after the Developer Program is active): create an
-app-specific password at appleid.apple.com, then `xcrun notarytool
-store-credentials` to keep it in the Keychain so you can pass `--keychain-profile`
-instead of `--apple-id/--password` each time.
+**Hosting + the site link — no per-release site edit.** The dmg lives in
+**GitHub Releases** (keeps the multi-MB binary out of git). `vercel.json`
+redirects `/download/mac` → the repo's `releases/latest/download/FreeAI.dmg`, and
+the **Download for macOS** button in `products.html` (the `#desktop` section)
+points at `/download/mac`. So every `gh release create` automatically becomes the
+live download — the button only 404s until the *first* release exists.
 
-Distribute the stapled `.dmg` from the site. **Mac App Store is not a viable
-channel**: sandboxed apps can't use the Accessibility API to read another app's
-window, which is how Claude detection works — Developer ID distribution is the path.
+**Architecture:** `bundle.sh` runs a plain `swift build -c release`, which builds
+for the **host arch only**. A dmg built on Apple Silicon will not run on Intel
+Macs — build universal with `swift build -c release --arch arm64 --arch x86_64`
+if you need to cover both.
+
+Distribute the stapled `.dmg` only. **Mac App Store is not a viable channel**:
+sandboxed apps can't use the Accessibility API to read another app's window,
+which is how generation detection works — Developer ID distribution is the path.
 
 ### Auto-update (Sparkle)
 
