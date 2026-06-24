@@ -46,6 +46,8 @@
   var email = "";
   var sent = false;
   var sentVia = "email";   // email | google
+  var linked = "off";      // off | ok — device→account link (app pushes via setLinked)
+  var linkedEmail = "";
 
   // ── Native bridge ──
   var hasNative = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.freeai);
@@ -202,12 +204,25 @@
       '<span class="eyebrow">Save your credits</span>' +
       '<h1 class="h-title">Where should we send the money?</h1>' +
       '<p class="h-sub">Connect an account so your Claude credits accrue to you. We only use it to track your balance and send gift cards.</p>';
+    // Once the app detects the device is linked, show the confirmation.
+    if (linked === "ok") {
+      return '<div class="fade signin">' + head +
+        '<div class="sent"><span class="chk">✓</span><div>Linked' +
+          (linkedEmail ? ' as <b>' + esc(linkedEmail) + '</b>' : '') +
+          '. Your credits now collect to your account.</div></div></div>';
+    }
+    // Soft warning: not linked yet → credits strand on this device. The user can
+    // still continue (email magic-links finish later in the browser).
+    var warn = '<div style="margin-top:14px;padding:10px 12px;border-radius:10px;' +
+      'background:rgba(217,119,87,.10);border:1px solid rgba(217,119,87,.30);' +
+      'color:var(--ink-2,#3d3b37);font-size:12.5px;line-height:1.45">⚠ Not linked yet — ' +
+      'until you connect an account, credits stay on this device and can\'t be redeemed.</div>';
     if (sent) {
       var msg = sentVia === "google"
         ? 'Continue with Google in your browser to finish — you can keep setting up here.'
         : 'Magic link on its way to <b>' + esc(email) + '</b>. Finish in the browser tab we opened — you can keep setting up here.';
       return '<div class="fade signin">' + head +
-        '<div class="sent"><span class="chk">✓</span><div>' + msg + '</div></div></div>';
+        '<div class="sent"><span class="chk">✓</span><div>' + msg + '</div></div>' + warn + '</div>';
     }
     var valid = /\S+@\S+\.\S+/.test(email);
     return '' +
@@ -221,6 +236,7 @@
         '</div>' +
         '<div class="or">or</div>' +
         '<button class="btn-google" data-act="google">' + GOOGLE_SVG + ' Continue with Google</button>' +
+        warn +
       '</div>';
   }
 
@@ -451,6 +467,13 @@
     setLaunchState: function (on) {
       launch = !!on;
       if (step === 2) render();
+    },
+    setLinked: function (state, email) {
+      var s = state === "ok" ? "ok" : "off";
+      if (s === linked && (email || "") === linkedEmail) return;
+      linked = s;
+      linkedEmail = email || "";
+      if (step === 3) render();
     },
   };
 

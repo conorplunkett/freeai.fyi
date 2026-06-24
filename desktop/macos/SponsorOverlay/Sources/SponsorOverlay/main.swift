@@ -52,6 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var balanceItem: NSMenuItem!
     private var accessibilityItem: NSMenuItem!
+    /// Account-link row: shows the linked email, or a warning + sign-in prompt.
+    private var linkItem: NSMenuItem!
+    /// nil = not checked yet; true/false = linked status from /v1/me/affiliate.
+    private var isLinked: Bool?
+    private var linkedEmail: String?
     private var pollTimer: Timer?
     private var adsPaused = false
     /// Last assistant-window bounds the overlay was positioned over, for
@@ -69,6 +74,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var credentials: DeviceCredentials?
     private var ads: [Ad] = []
     private var currentAd: Ad?
+
+    /// Returning to the app (e.g. after finishing sign-in in the browser) is a
+    /// good moment to re-check the link + balance so the UI updates promptly.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard !demoMode, credentials != nil else { return }
+        refreshLinkStatus()
+        refreshBalance()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpMenuBar()
@@ -106,6 +119,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: bootstrap (device registration + campaign sync)
 
+    /// Load the device credentials, preferring the Keychain. One-time migration:
+    /// older builds stored them in UserDefaults (plaintext) — move those into the
+    /// Keychain and delete the plist copy.
+    private func loadCredentials() -> DeviceCredentials? {
+        if let data = Keychain.load(),
+           let creds = try? JSONDecoder().decode(DeviceCredentials.self, from: data) {
+            return creds
+        }
+        let legacyKey = "deviceCredentials"
+        if let data = UserDefaults.standard.data(forKey: legacyKey),
+           let creds = try? JSONDecoder().decode(DeviceCredentials.self, from: data) {
+            Keychain.save(data)
+            UserDefaults.standard.removeObject(forKey: legacyKey)
+            return creds
+        }
+        return nil
+    }
+
+    private func storeCredentials(_ creds: DeviceCredentials) {
+        if let data = try? JSONEncoder().encode(creds) { Keychain.save(data) }
+    }
+
     private func bootstrap() {
         if demoMode {
             ads = [Ad(id: "demo-1", brand: "Linear", line: "Plan your next sprint faster",
@@ -114,10 +149,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("[freeai] DEMO MODE: overlay follows any focused window; events log locally")
             return
         }
-        // Device credentials persist across launches (Keychain is the TODO;
-        // UserDefaults for the rough-out).
-        if let data = UserDefaults.standard.data(forKey: "deviceCredentials"),
-           let creds = try? JSONDecoder().decode(DeviceCredentials.self, from: data) {
+        // Device credentials persist across launches in the Keychain.
+        if let creds = loadCredentials() {
             credentials = creds
             didSignIn()
         } else {
@@ -125,9 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     guard let self, let creds else { return }
                     self.credentials = creds
-                    if let data = try? JSONEncoder().encode(creds) {
-                        UserDefaults.standard.set(data, forKey: "deviceCredentials")
-                    }
+                    self.storeCredentials(creds)
                     self.didSignIn()
                 }
             }
@@ -137,10 +168,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func didSignIn() {
         refreshAds()
         refreshBalance()
+        refreshLinkStatus()
         Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             self?.refreshAds()
             self?.refreshBalance()
+            self?.refreshLinkStatus()
         }
+    }
+
+    /// Check whether this device is linked to an account; drives the menu row,
+    /// the icon badge, and (if the setup window is open) the onboarding step.
+    private func refreshLinkStatus() {
+        guard let credentials else { return }
+        client.linkStatus(credentials: credentials) { [weak self] linked, email in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isLinked = linked
+                self.linkedEmail = email
+                self.refreshLinkRow()
+                self.refreshAccessibilityState()   // icon badge reflects link state too
+                self.pushLinkedToOnboarding()
+            }
+        }
+    }
+
+    /// Update the account row to reflect the current link state.
+    private func refreshLinkRow() {
+        guard let linkItem else { return }
+        switch isLinked {
+        case .some(true):
+            linkItem.title = linkedEmail.map { "Account: \($0) ✓" } ?? "Account linked ✓"
+            linkItem.action = nil // info only (auto-disabled/greyed)
+            linkItem.target = nil
+        case .some(false):
+            linkItem.title = "⚠ Link your account to keep credits…"
+            linkItem.action = #selector(linkAccount)
+            linkItem.target = self
+        case .none:
+            linkItem.title = "Account: checking…"
+            linkItem.action = nil
+            linkItem.target = nil
+        }
+    }
+
+    @objc private func linkAccount() {
+        openWebSignin(email: nil, google: false)
     }
 
     private func refreshAds() {
@@ -350,6 +422,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self   // refresh the Accessibility row each time it opens
         balanceItem = NSMenuItem(title: demoMode ? "Demo mode" : "Balance: —", action: nil, keyEquivalent: "")
         menu.addItem(balanceItem)
+        // Account link row — flips between "Account: email ✓" and a warning that
+        // opens sign-in. Title/target set by refreshLinkRow().
+        linkItem = NSMenuItem(title: "Account: checking…", action: nil, keyEquivalent: "")
+        linkItem.isHidden = demoMode
+        menu.addItem(linkItem)
         // Shown only while Accessibility is not granted — the overlay can't see
         // the assistant's window without it, so this is the #1 "nothing
         // happens" fix.
@@ -392,20 +469,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // on light) rather than the filled coral.
     private lazy var statusIconNormal = Self.makeStatusIcon(warning: false)
     private lazy var statusIconWarning = Self.makeStatusIcon(warning: true)
-    /// Last permission state reflected in the menu-bar icon, so we only swap the
-    /// image when it actually changes (refresh runs every tick / on menu open).
-    private var iconTrusted: Bool?
+    /// Last badge state reflected in the menu-bar icon, so we only swap the image
+    /// when it actually changes (refresh runs every tick / on menu open).
+    private var iconShowsWarning: Bool?
 
     /// Reflects Accessibility-permission state in the menu (row visibility) and
-    /// the status icon (the brand "F$" mark, badged amber when access is
-    /// missing) so the user notices before wondering why nothing shows. Cheap to
-    /// call; runs on each tick and whenever the menu opens.
+    /// the status icon (the brand "F$" mark, badged amber when access is missing
+    /// OR the account isn't linked) so the user notices before wondering why
+    /// nothing shows / where their credits went. Cheap; runs each tick + on open.
     private func refreshAccessibilityState() {
         let trusted = demoMode || AXIsProcessTrusted()
         accessibilityItem?.isHidden = trusted
-        if iconTrusted != trusted, let button = statusItem?.button {
-            button.image = trusted ? statusIconNormal : statusIconWarning
-            iconTrusted = trusted
+        // Badge for either unmet setup step. isLinked == false only once checked.
+        let warn = !trusted || (isLinked == false)
+        if iconShowsWarning != warn, let button = statusItem?.button {
+            button.image = warn ? statusIconWarning : statusIconNormal
+            iconShowsWarning = warn
         }
     }
 
@@ -701,11 +780,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: onboarding ↔ app bridge
 
+    private var onboardingPollTick = 0
     private func startPermissionPoll() {
         permissionPollTimer?.invalidate()
+        onboardingPollTick = 0
         pushPermissionState()
+        pushLinkedToOnboarding()
+        refreshLinkStatus()
         permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.pushPermissionState()
+            guard let self else { return }
+            self.pushPermissionState()
+            // Link is a network check — poll it ~every 3s, not every second.
+            self.onboardingPollTick += 1
+            if self.onboardingPollTick % 3 == 0 { self.refreshLinkStatus() }
         }
     }
 
@@ -723,6 +810,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func pushLaunchState() {
         evalOnboardingJS("window.freeaiBridge && window.freeaiBridge.setLaunchState(\(launchAtLoginEnabled() ? "true" : "false"))")
+    }
+
+    /// Push the device's account-link state to the onboarding UI (no-op when the
+    /// setup window is closed). Email single-quotes are stripped to keep the
+    /// injected JS literal well-formed.
+    private func pushLinkedToOnboarding() {
+        let state = (isLinked == true) ? "ok" : "off"
+        let email = (linkedEmail ?? "").replacingOccurrences(of: "'", with: "")
+        evalOnboardingJS("window.freeaiBridge && window.freeaiBridge.setLinked && window.freeaiBridge.setLinked('\(state)', '\(email)')")
     }
 
     // MARK: launch at login (SMAppService, macOS 13+)
@@ -745,13 +841,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Open FreeAI's real web sign-in so the device can be linked to an account
-    /// (credits already accrue to the anonymous device until then).
+    /// (credits already accrue to the anonymous device until then). The device
+    /// creds ride along in the URL **fragment** (never sent to a server, scrubbed
+    /// by redeem.js on arrival) so the page can POST /v1/devices/link once the
+    /// user is signed in — the same link the extension performs.
     private func openWebSignin(email: String?, google: Bool) {
         var comps = URLComponents(string: "https://freeai.fyi/redeem")!
         var items: [URLQueryItem] = []
         if let email, !email.isEmpty { items.append(URLQueryItem(name: "email", value: email)) }
         if google { items.append(URLQueryItem(name: "provider", value: "google")) }
         if !items.isEmpty { comps.queryItems = items }
+        if let c = credentials {
+            let enc: (String) -> String = { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0 }
+            comps.fragment = "linkDevice=\(enc(c.deviceId))&deviceKey=\(enc(c.deviceKey))"
+        }
         if let url = comps.url { NSWorkspace.shared.open(url) }
     }
 
@@ -811,6 +914,8 @@ extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         refreshAccessibilityState()
         refreshOffsetControl()
+        refreshLinkRow()        // show last-known state immediately
+        refreshLinkStatus()     // and kick a fresh check (updates when it returns)
     }
 }
 

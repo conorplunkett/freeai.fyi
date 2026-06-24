@@ -139,4 +139,17 @@ final class BackendClient {
             completion(e)
         }
     }
+
+    /// Whether this device is linked to a user account (so its earnings pool
+    /// with the user's other surfaces). `/v1/me/affiliate` returns it from the
+    /// device creds alone. Completion: (linked, email-if-linked).
+    func linkStatus(credentials: DeviceCredentials, completion: @escaping (Bool, String?) -> Void) {
+        get("v1/me/affiliate", query: ["deviceId": credentials.deviceId, "deviceKey": credentials.deviceKey]) { result in
+            guard case .success(let data) = result,
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return completion(false, nil)
+            }
+            completion((obj["linked"] as? Bool) ?? false, obj["email"] as? String)
+        }
+    }
 }

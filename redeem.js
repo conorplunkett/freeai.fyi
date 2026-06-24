@@ -8,9 +8,29 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 const SESSION_KEY = "freeai_session";
+const PENDING_LINK_KEY = "freeai_pending_link";
 const $ = (id) => document.getElementById(id);
 const usd = (n) => "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usdWhole = (n) => "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+// The desktop app opens this page with its device creds in the fragment
+// (#linkDevice=…&deviceKey=…) so we can link that device to the account once
+// signed in. Stash them across the sign-in round-trip (the fragment is lost on
+// the OAuth navigation) and scrub immediately — fragments are never sent to a
+// server. Runs before captureSession so a combined fragment can't be scrubbed first.
+(function captureDeviceLink() {
+  const id = location.hash.match(/linkDevice=([^&]+)/);
+  const key = location.hash.match(/deviceKey=([^&]+)/);
+  if (id && key) {
+    try {
+      localStorage.setItem(PENDING_LINK_KEY, JSON.stringify({
+        deviceId: decodeURIComponent(id[1]),
+        deviceKey: decodeURIComponent(key[1]),
+      }));
+    } catch (e) {}
+    history.replaceState(null, "", location.pathname);
+  }
+})();
 
 // Session token from OAuth or magic-link arrives in URL fragment; stash and scrub.
 (function captureSession() {
@@ -814,6 +834,36 @@ $("act-search").addEventListener("input", renderActivity);
 $("act-filter").addEventListener("change", renderActivity);
 
 // ---- boot ----
+// Link a pending desktop device (creds stashed by captureDeviceLink) to the
+// now-signed-in account. Same call the extension makes. Leaves the pending key
+// on failure so it retries on the next signed-in load.
+async function maybeLinkDevice() {
+  let pend = null;
+  try { pend = JSON.parse(localStorage.getItem(PENDING_LINK_KEY) || "null"); } catch (e) {}
+  if (!pend || !pend.deviceId || !pend.deviceKey) return;
+  const { status } = await apiPost("/v1/devices/link", {
+    deviceId: pend.deviceId,
+    deviceKey: pend.deviceKey,
+  });
+  if (status === 200) {
+    localStorage.removeItem(PENDING_LINK_KEY);
+    showLinkedToast();
+  }
+}
+
+function showLinkedToast() {
+  try {
+    const t = document.createElement("div");
+    t.textContent = "✓ Desktop app linked to your account";
+    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);" +
+      "background:#1f1e1d;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;" +
+      "box-shadow:0 6px 24px rgba(0,0,0,.25);z-index:9999;opacity:0;transition:opacity .25s";
+    document.body.appendChild(t);
+    requestAnimationFrame(() => { t.style.opacity = "1"; });
+    setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 400); }, 3500);
+  } catch (e) {}
+}
+
 async function boot() {
   showStep("providers"); // default card state
   // Prefill a referral code shared via ?ref= and surface it to the new user.
@@ -832,6 +882,7 @@ async function boot() {
   showLoading();
   const me = await apiGet("/v1/web/me");
   if (me.status !== 200) return showLoginPage();
+  await maybeLinkDevice(); // link a desktop device if one is pending
   balanceUsd = me.body.balanceUsd || 0;
   $("balance").textContent = usd(balanceUsd);
   onboardNeedsReferral = !!me.body.needsReferral;
