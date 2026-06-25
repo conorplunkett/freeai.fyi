@@ -100,7 +100,7 @@ impressions/clicks staying out of real earnings.
 make package-ext   # → chrome-extension/dist/freeai-chrome-v<version>.zip
 ```
 
-Builds a clean, store-ready zip (only the 12 runtime files; refuses to build if
+Builds a clean, store-ready zip (only the runtime files the manifest references; refuses to build if
 the popup `theme.css` mirror drifted or the JS fails lint). Full step-by-step —
 listing copy, privacy/permission justifications, screenshot specs, and a
 pre-submit checklist — is in [`STORE_SUBMISSION.md`](STORE_SUBMISSION.md).
