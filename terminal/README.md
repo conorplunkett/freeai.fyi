@@ -20,7 +20,7 @@ node bin/freeai.js claude setup
 
 | Command | What |
 | --- | --- |
-| `freeai claude setup` | Locate the real `claude`, store it in `~/.freeai/claude/config.json`, add a marked shell alias/function, then prompt to link your FreeAI account by email. Pass `--email YOU@EXAMPLE.COM` to link non-interactively, or `--no-link` to skip. |
+| `freeai claude setup` | Locate the real `claude`, store it in `~/.freeai/claude/config.json`, add a marked shell alias/function, then link your FreeAI account by email. Linking is **required** — the prompt re-asks until a valid email is given (no skip). Pass `--email YOU@EXAMPLE.COM` to link non-interactively, or the explicit `--no-link` to opt out (credits then stay unclaimable until you run `freeai claude link`). |
 | `freeai claude link [--email …]` | Email yourself a magic link that attributes this machine's Claude Code credits to your FreeAI account. Run it any time after setup. |
 | `freeai claude run [...args]` | Internal wrapper used by the alias. It forwards args, cwd, env, stdio, signals, and Claude's exit code. |
 | `freeai claude restore` | Remove the marked shell block. Safe to run repeatedly. |

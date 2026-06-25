@@ -6,7 +6,7 @@ import { locateRealClaude, readTerminalConfig, writeTerminalConfig } from "./cla
 import { runClaude } from "./run.js";
 import { runStatusLine } from "./statusline.js";
 import { terminalConfigPath, resolveApiBase } from "./paths.js";
-import { defaultBackend, ensureDevice, linkAccountEmail, readDevice, waitForLink } from "./backend.js";
+import { defaultBackend, ensureDevice, linkAccountEmail, readDevice, waitForLink, EMAIL_RE } from "./backend.js";
 
 export async function main(argv) {
   const [product, command, ...rest] = argv;
@@ -51,13 +51,15 @@ async function setup(argv) {
   console.log(`restart your shell or source ${result.rcPath}`);
 
   // Link this machine's device to a FreeAI account so Claude Code credits land
-  // in the user's portal balance. Without this they accrue to an anonymous
-  // device. Skippable (--no-link, or just press enter) and non-interactive-safe.
+  // in the user's portal balance. Required — without it, credits accrue to an
+  // anonymous device and can't be claimed. The only opt-out is the explicit
+  // --no-link flag (for automation/CI); the interactive prompt has no "skip".
   if (flags["no-link"] === true) {
-    console.log("Skipped account link (--no-link). Run `freeai claude link` to attribute credits to your FreeAI account.");
+    console.log("Skipped account link (--no-link). Credits won't be claimable until you run `freeai claude link`.");
     return;
   }
-  await linkStep({ home, emailArg: flags.email, allowPrompt: true, wait: flags["no-wait"] !== true });
+  const res = await linkStep({ home, emailArg: flags.email, allowPrompt: true, wait: flags["no-wait"] !== true });
+  if (res.error) process.exitCode = 1;
 }
 
 async function link(argv) {
@@ -73,13 +75,18 @@ async function link(argv) {
 // failed link must not break setup.
 async function linkStep({ home, emailArg, allowPrompt, wait = true }) {
   let email = String(emailArg || "").trim();
-  if (!email && allowPrompt && process.stdin.isTTY) {
-    email = await promptLine("Email to link your FreeAI account (press enter to skip): ");
-  }
-  email = String(email || "").trim();
   if (!email) {
-    console.log("No email linked — run `freeai claude link` to attribute Claude Code credits to your FreeAI account.");
-    return { skipped: true };
+    if (allowPrompt && process.stdin.isTTY) {
+      email = await promptEmailRequired();   // loops until a valid email; no skip
+    } else {
+      // Non-interactive with no --email: don't silently skip. Force an explicit
+      // choice (pass --email to link, or --no-link to opt out).
+      console.error("An email is required to link your account. Re-run with --email you@example.com, or --no-link to opt out.");
+      return { error: "email required" };
+    }
+  } else if (!EMAIL_RE.test(email)) {
+    console.error(`"${email}" isn't a valid email address.`);
+    return { error: "invalid email" };
   }
   let backend;
   try {
@@ -119,6 +126,19 @@ async function promptLine(question) {
     return (await rl.question(question)).trim();
   } finally {
     rl.close();
+  }
+}
+
+// Linking is mandatory on the interactive path: re-prompt until a valid email is
+// given. There is no "skip" — the only opt-out is the explicit --no-link flag.
+// (Ctrl-C still aborts setup entirely rather than completing it unlinked.)
+async function promptEmailRequired() {
+  for (;;) {
+    const answer = await promptLine("Email to link your FreeAI account (required): ");
+    if (EMAIL_RE.test(answer)) return answer;
+    console.error(answer
+      ? "That doesn't look like a valid email — please try again."
+      : "An email is required so your Claude Code credits are saved to your account.");
   }
 }
 
