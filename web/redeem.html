@@ -354,7 +354,7 @@
       </button>
       <button class="dash-tab" data-section="install" type="button" role="tab" aria-selected="false">
         <span class="dash-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4.5 20.5h15"/></svg></span>
-        <span class="dash-tab-label">Install</span>
+        <span class="dash-tab-label">Installation</span>
       </button>
     </nav>
 
@@ -456,6 +456,7 @@
             <p>Loading your activity…</p>
           </div>
         </div>
+        <div class="act-pager" id="act-pager" hidden></div>
       </section>
 
       <section class="redeem-card" id="redeem-view">
@@ -589,62 +590,58 @@
           <div class="install-hero-text">
             <span class="eyebrow">Earning status</span>
             <h2 class="earn-title" id="install-hero-title">Not earning yet</h2>
-            <p class="redeem-lead" id="install-hero-sub">
-              Install a product below — your logo lights up the moment your first
-              credit lands from that service.
-            </p>
           </div>
         </div>
 
         <h3 class="install-h">Set up FreeAI</h3>
         <p class="redeem-lead">
-          Check off what you've installed. Each logo turns from grey to color once
-          we receive the first transaction from that service.
+          Each logo turns from grey to color once you make your first earnings
+          from that service.
         </p>
 
         <div class="install-list" id="install-list">
           <!-- 01 · Chrome extension (top priority) -->
           <div class="install-row" data-product="chrome">
-            <button class="survey-opt install-check" type="button" data-product="chrome" aria-pressed="false">
+            <div class="survey-opt install-check" data-product="chrome" aria-checked="false">
               <span class="ic-text">
                 <span class="ic-name">Chrome extension</span>
                 <span class="ic-sub">Most popular · works in ChatGPT, Claude &amp; Gemini</span>
               </span>
-            </button>
+              <a class="ic-link" href="/products#chrome">Install guide →</a>
+            </div>
             <div class="install-active">
               <span class="logo is-inactive" data-active="chrome" aria-hidden="true">F$</span>
               <span class="ia-label" data-active-label="chrome">Inactive</span>
-              <a class="ic-link" href="/products#chrome">Install guide →</a>
             </div>
           </div>
 
           <!-- 02 · Claude Code -->
           <div class="install-row" data-product="claude_code">
-            <button class="survey-opt install-check" type="button" data-product="claude_code" aria-pressed="false">
+            <div class="survey-opt install-check" data-product="claude_code" aria-checked="false">
               <span class="ic-text">
                 <span class="ic-name">Claude Code</span>
                 <span class="ic-sub">A reversible <code>claude</code> alias for your terminal</span>
               </span>
-            </button>
+              <a class="ic-link" href="/products#claude-code">Install guide →</a>
+            </div>
             <div class="install-active">
               <span class="logo is-inactive" data-active="claude_code" aria-hidden="true">F$</span>
               <span class="ia-label" data-active-label="claude_code">Inactive</span>
-              <a class="ic-link" href="/products#claude-code">Install guide →</a>
             </div>
           </div>
 
           <!-- 03 · Desktop -->
           <div class="install-row" data-product="desktop">
-            <button class="survey-opt install-check" type="button" data-product="desktop" aria-pressed="false">
+            <div class="survey-opt install-check" data-product="desktop" aria-checked="false">
               <span class="ic-text">
                 <span class="ic-name">Desktop app</span>
-                <span class="ic-sub">macOS overlay for Claude &amp; ChatGPT Desktop · preview</span>
+                <span class="ic-sub">macOS overlay for Claude &amp; ChatGPT Desktop</span>
               </span>
-            </button>
+              <a class="ic-link" href="/products#desktop">Install guide →</a>
+            </div>
             <div class="install-active">
               <span class="logo is-inactive" data-active="desktop" aria-hidden="true">F$</span>
               <span class="ia-label" data-active-label="desktop">Inactive</span>
-              <a class="ic-link" href="/products#desktop">Install guide →</a>
             </div>
           </div>
         </div>
@@ -653,7 +650,6 @@
 
     <footer class="footer">
       <p>© 2026 FreeAI.fyi · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
-      <p class="fdim">Gift cards are fulfilled manually and arrive within 48 hours.</p>
     </footer>
 
   </div><!-- /redeem-page -->

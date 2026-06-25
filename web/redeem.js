@@ -12,6 +12,16 @@ const PENDING_LINK_KEY = "freeai_pending_link";
 const $ = (id) => document.getElementById(id);
 const usd = (n) => "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usdWhole = (n) => "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+// Per-event credits are fractions of a cent — round to 2 dp and they all read
+// $0.00. The ledger shows the real value: sub-dollar amounts render in cents
+// (e.g. 0.24¢) so a tiny credit reads cleanly; a dollar or more stays in dollars.
+const usdPrecise = (n) => {
+  const v = Number(n) || 0;
+  if (v > 0 && v < 1) {
+    return (v * 100).toLocaleString(undefined, { maximumFractionDigits: 4 }) + "¢";
+  }
+  return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 // The desktop app opens this page with its device creds in the fragment
 // (#linkDevice=…&deviceKey=…) so we can link that device to the account once
@@ -175,29 +185,12 @@ $("dash-tabs").addEventListener("click", (e) => {
   if (tab) showSection(tab.dataset.section);
 });
 
-// ---- install tab: self-serve checklist + per-service "active" status ----
-// Two independent signals per product:
-//   • the checkbox is the user's own "I've installed this" note, kept locally;
-//   • the F$ logo is server truth — greyed until the account receives its first
-//     credit from that service (GET /v1/web/sources), then filled into color.
-const INSTALL_KEY = "freeai_install_checks";
+// ---- install tab: per-service "active" status ----
+// The checkbox and the F$ logo are both server truth — the user can't tick the
+// box themselves. A product's row ticks its checkbox and fills its greyed logo
+// into color the moment this account receives its first credit from that service
+// (GET /v1/web/sources); until then the box stays empty and the logo greyed.
 const INSTALL_PRODUCTS = ["chrome", "claude_code", "desktop"];
-
-function loadInstallChecks() {
-  try { return JSON.parse(localStorage.getItem(INSTALL_KEY)) || {}; }
-  catch (e) { return {}; }
-}
-function saveInstallChecks(state) {
-  try { localStorage.setItem(INSTALL_KEY, JSON.stringify(state)); } catch (e) {}
-}
-function renderInstallChecks() {
-  const state = loadInstallChecks();
-  document.querySelectorAll(".install-check").forEach((btn) => {
-    const on = !!state[btn.dataset.product];
-    btn.classList.toggle("sel", on);
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
-  });
-}
 
 // The single source of truth for the logo state — swap the data source here if
 // per-service attribution ever moves off GET /v1/web/sources.
@@ -216,17 +209,16 @@ function applyServiceActivation(sources) {
     document.querySelectorAll(`[data-active-label="${product}"]`).forEach((label) => {
       label.textContent = live ? "Active" : "Inactive";
     });
+    // The checkbox is server truth too — ticked only once this service earns.
+    document.querySelectorAll(`.install-check[data-product="${product}"]`).forEach((chk) => {
+      chk.classList.toggle("sel", live);
+      chk.setAttribute("aria-checked", live ? "true" : "false");
+    });
   }
   const heroLogo = $("install-hero-logo");
   if (heroLogo) heroLogo.classList.toggle("is-inactive", !anyLive);
   const heroTitle = $("install-hero-title");
-  const heroSub = $("install-hero-sub");
   if (heroTitle) heroTitle.textContent = anyLive ? "You're earning" : "Not earning yet";
-  if (heroSub) {
-    heroSub.textContent = anyLive
-      ? "At least one service is live. Each logo below fills in as that service sends its first credit."
-      : "Install a product below — your logo lights up the moment your first credit lands from that service.";
-  }
 }
 
 // Per-surface activation, shared by the Install tab and the Earnings tab's status
@@ -240,20 +232,9 @@ async function loadServiceActivation() {
 
 let installSourcesLoaded = false;
 async function loadInstall() {
-  renderInstallChecks();
   await loadServiceActivation();
   installSourcesLoaded = true;
 }
-
-// Toggle the local "installed" checklist; logos are unaffected (server-driven).
-$("install-list").addEventListener("click", (e) => {
-  const btn = e.target.closest(".install-check");
-  if (!btn) return;
-  const state = loadInstallChecks();
-  state[btn.dataset.product] = !state[btn.dataset.product];
-  saveInstallChecks(state);
-  renderInstallChecks();
-});
 
 // The $20 referral program is retired. Its UI was removed from #referrals-view
 // (now the affiliate "crew" tab) and loadReferrals / the invite form / list /
@@ -765,6 +746,7 @@ function setActStatus(text, ok) {
   const el = $("act-status");
   el.textContent = text;
   el.classList.toggle("ok", !!ok);
+  el.hidden = !text; // no empty status pill once the ledger has loaded
 }
 
 // Auto-loaded on sign-in (and retryable on failure): pulls the last 200 credited
@@ -784,7 +766,7 @@ async function retrieveActivity() {
     return;
   }
   activityRows = body.rows || [];
-  setActStatus("Retrieved", true);
+  setActStatus("", true);
   $("act-search").disabled = false;
   $("act-filter").disabled = false;
   renderActivity();
@@ -802,25 +784,39 @@ function filteredActivity() {
   });
 }
 
+// Ledger is paginated client-side — render at most one page of rows at a time.
+const ACT_PAGE_SIZE = 50;
+let actPage = 0;
+
 function renderActivity() {
   const body = $("act-body");
+  const pager = $("act-pager");
   const rows = filteredActivity();
   $("act-count").textContent = `${rows.length} of ${activityRows.length} rows`;
 
   if (!activityRows.length) {
     body.innerHTML = `<div class="act-empty"><p>No credited events yet. Use the extension while you chat to start earning.</p></div>`;
+    if (pager) pager.hidden = true;
     return;
   }
   if (!rows.length) {
     body.innerHTML = `<div class="act-empty"><p>No events match your search.</p></div>`;
+    if (pager) pager.hidden = true;
     return;
   }
+
+  // Clamp the page in case the filtered set shrank under the current offset.
+  const pageCount = Math.ceil(rows.length / ACT_PAGE_SIZE);
+  if (actPage > pageCount - 1) actPage = pageCount - 1;
+  if (actPage < 0) actPage = 0;
+  const start = actPage * ACT_PAGE_SIZE;
+  const pageRows = rows.slice(start, start + ACT_PAGE_SIZE);
 
   const head =
     `<div class="act-row act-row-head">` +
     `<span>Event</span><span>Advertiser</span><span>When</span><span class="act-amt">Credit</span>` +
     `</div>`;
-  const items = rows.map((r) => {
+  const items = pageRows.map((r) => {
     const when = r.createdAt ? new Date(r.createdAt).toLocaleString() : "";
     const label = ACT_LABEL[r.type] || r.type;
     return (
@@ -828,11 +824,26 @@ function renderActivity() {
       `<span class="act-type ${r.type}">${label}</span>` +
       `<span class="act-adv">${r.advertiser ? escapeHtml(r.advertiser) : "—"}</span>` +
       `<span class="act-when">${when}</span>` +
-      `<span class="act-amt">${usd(r.amountUsd)}</span>` +
+      `<span class="act-amt">${usdPrecise(r.amountUsd)}</span>` +
       `</div>`
     );
   }).join("");
   body.innerHTML = head + items;
+  renderActPager(rows.length, pageCount, start, pageRows.length);
+}
+
+// Prev / range / Next under the ledger; hidden when everything fits one page.
+function renderActPager(total, pageCount, start, shown) {
+  const pager = $("act-pager");
+  if (!pager) return;
+  if (pageCount <= 1) { pager.hidden = true; pager.innerHTML = ""; return; }
+  pager.hidden = false;
+  pager.innerHTML =
+    `<button class="act-page-btn" id="act-prev" type="button" ${actPage === 0 ? "disabled" : ""}>← Prev</button>` +
+    `<span class="act-page-info">${start + 1}–${start + shown} of ${total} · page ${actPage + 1} of ${pageCount}</span>` +
+    `<button class="act-page-btn" id="act-next" type="button" ${actPage >= pageCount - 1 ? "disabled" : ""}>Next →</button>`;
+  $("act-prev").addEventListener("click", () => { if (actPage > 0) { actPage--; renderActivity(); } });
+  $("act-next").addEventListener("click", () => { if (actPage < pageCount - 1) { actPage++; renderActivity(); } });
 }
 
 function escapeHtml(s) {
@@ -840,8 +851,9 @@ function escapeHtml(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-$("act-search").addEventListener("input", renderActivity);
-$("act-filter").addEventListener("change", renderActivity);
+// Any new search/filter resets to the first page of results.
+$("act-search").addEventListener("input", () => { actPage = 0; renderActivity(); });
+$("act-filter").addEventListener("change", () => { actPage = 0; renderActivity(); });
 
 // ---- boot ----
 // Link a pending desktop device (creds stashed by captureDeviceLink) to the

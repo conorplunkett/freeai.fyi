@@ -611,9 +611,14 @@ html.auth-pending #portal-loading { display: flex; }
 .install-list { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
 .install-row { display: grid; grid-template-columns: 1fr auto; align-items: stretch; gap: 14px; }
 
-/* The checkbox reuses the .survey-opt chip; widen it and stack name + sub. */
-.install-check { align-items: center; padding: 15px 18px; }
+/* The checkbox reuses the .survey-opt chip; widen it and stack name + sub. It's
+   read-only — server-driven, never clicked — so kill the pointer + hover afford. */
+.install-check { align-items: center; padding: 15px 18px; cursor: default; }
+.install-check:hover { border-color: #e0e0e0; background: #fff; }
+.install-check.sel:hover { border-color: var(--accent); background: #fbf0ea; }
 .install-check .ic-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* Install guide link now lives in the left box, pinned to its right edge. */
+.install-check .ic-link { margin-left: auto; padding-left: 14px; white-space: nowrap; }
 .ic-name { font-size: 15px; font-weight: 700; color: var(--ink); }
 .ic-sub { font-size: 13px; font-weight: 500; color: var(--gray); }
 .ic-sub code { font-family: var(--mono); font-size: 12px; background: var(--bg-tint); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
@@ -633,7 +638,6 @@ html.auth-pending #portal-loading { display: flex; }
 @media (max-width: 560px) {
   .install-row { grid-template-columns: 1fr; }
   .install-active { flex-direction: row; justify-content: space-between; min-width: 0; padding: 10px 14px; }
-  .install-active .ic-link { margin-left: auto; }
 }
 
 /* Earnings tab: per-surface connection status row — same logo/label visuals as the
