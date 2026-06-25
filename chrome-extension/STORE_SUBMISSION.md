@@ -131,6 +131,7 @@ specific justifications keep review fast:
 | `alarms` | Schedules periodic background tasks: refreshing the ad inventory/config and flushing batched impression events to the ledger (`chrome.alarms`, every 1–10 min). |
 | **Host permissions** (claude.ai, chatgpt.com, chat.openai.com, gemini.google.com) | The content script must run on these AI chat sites to detect the "generating" state and inject the single sponsored line at the reply. |
 | Host permission: `wpjfhezklpczxzocgxsb.supabase.co` | The backend API: registers the anonymous device, pulls live ad inventory/config, and reports impression/click counts to compute earnings. |
+| Host permission: `freeai.fyi` | A small content script (`src/link.js`) runs on the FreeAI website to link the user's anonymous device to their signed-in account so earnings appear in their portal. It reads only the site's own session token from the page; no AI chat-site data is involved. |
 
 ---
 
