@@ -38,7 +38,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/theme.css?v=20260619a" />
+  <link rel="stylesheet" href="/theme.css?v=20260622a" />
   <link rel="stylesheet" href="/styles.css?v=20260624c" />
   <link rel="stylesheet" href="/landers/landers.css?v=20260620a" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
@@ -106,7 +106,7 @@
           </svg>
         </div>
         <div class="demo-card">
-          <span class="demo-label">Stock Claude</span>
+          <span class="demo-label">Stock spinner</span>
           <div class="demo-line"><span class="ast">✳</span> <span id="word-stock">Thinking</span>…</div>
         </div>
         <div class="demo-chevs">»</div>
@@ -123,52 +123,185 @@
         </div>
       </div>
 
-      <!-- INSTALL CARD -->
-      <a href="#install" class="install-card">
-        <span class="install-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-            <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
-            <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="install-text">
-          <span class="install-title">Add the Chrome extension</span>
-          <span class="install-sub">Free · installs in seconds</span>
-        </span>
-        <span class="install-pill">
-          <span class="install-pill-label">Earn up to</span>
-          <span class="install-pill-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
-        </span>
-        <span class="install-arrow">→</span>
-      </a>
+      <!-- INSTALL + CLI CTAs now live folded under their matching surface rows
+           in the "Native everywhere it appears" section below. -->
 
       <p class="hero-note">
         Each block buys <strong>1,000</strong> five-second impressions while ChatGPT, Claude &amp; Gemini think. Clicks bill at <strong>50×</strong>. Highest bid serves first — outbid the top to take #1.
       </p>
+    </section>
 
-      <a href="#advertisers" class="jump">
-        <span class="jump-dot"></span> JUMP TO THE BID FORM ↓
-        <div class="jump-chev">⌄</div>
-      </a>
+    <!-- Section label for the quick-install row -->
+    <div class="tryit">Get it on your platform</div>
+
+    <!-- DOWNLOAD CTAs — three quick installs above the surfaces showcase.
+         Chrome + Desktop are greyed "coming soon"; Terminal is the live one-liner. -->
+    <section class="downloads">
+      <div class="dl-grid">
+        <div class="dl-col">
+          <span class="dl-label">1 · Chrome</span>
+          <button type="button" class="dl-btn dl-soon" disabled aria-disabled="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+              <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
+              <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Coming soon
+          </button>
+        </div>
+        <div class="dl-col">
+          <span class="dl-label">2 · Terminal</span>
+          <div class="dl-cli">
+            <code class="dl-cmd">git clone https://github.com/conorplunkett/freeai.fyi.git &amp;&amp; cd freeai.fyi/terminal &amp;&amp; npm link &amp;&amp; freeai claude setup</code>
+            <button type="button" class="dl-copy copy-btn" data-copy="git clone https://github.com/conorplunkett/freeai.fyi.git && cd freeai.fyi/terminal && npm link && freeai claude setup">Copy</button>
+          </div>
+        </div>
+        <div class="dl-col">
+          <span class="dl-label">3 · Desktop app</span>
+          <button type="button" class="dl-btn dl-soon" disabled aria-disabled="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <rect x="3" y="4.5" width="18" height="12" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>
+              <path d="M8.5 20h7M12 16.5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Coming soon
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SURFACES — "Native everywhere it appears" (Claude Design handoff) ──
+         Pixel-for-pixel port of the design's surfaces section: the one auction
+         re-skinned to read as native chrome on each surface. A full-width
+         sibling of the hero so its .wrap reaches the design's 1180px measure.
+         All styles are scoped under .surfaces in styles.css. -->
+    <section class="surfaces">
+        <div class="wrap">
+          <div class="secthead">
+            <h2>Native everywhere it appears.</h2>
+          </div>
+
+          <!-- Surface 01 — browser, 3 provider tabs -->
+          <div class="surface">
+            <div class="stage">
+              <div class="win light">
+                <div class="chrome">
+                  <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+                  <div class="tabs" role="tablist">
+                    <button class="tab active" data-shot="claude">Claude</button>
+                    <button class="tab" data-shot="chatgpt">ChatGPT</button>
+                    <button class="tab" data-shot="gemini">Gemini</button>
+                  </div>
+                </div>
+                <div class="shotwrap">
+                  <img class="shot active" data-shot="claude" src="assets/surfaces/claude.png" alt="FreeAI sponsor line inside Claude" />
+                  <img class="shot" data-shot="chatgpt" src="assets/surfaces/chatgpt.png" alt="FreeAI sponsor line inside ChatGPT" />
+                  <img class="shot" data-shot="gemini" src="assets/surfaces/gemini.png" alt="FreeAI sponsor line inside Gemini" />
+                </div>
+              </div>
+            </div>
+            <div class="scopy">
+              <span class="idx">Surface 01 — Browser</span>
+              <h3>Chrome extension</h3>
+              <p>Inserts an ad pill under the thinking spinner of Claude, ChatGPT, or Gemini.</p>
+            </div>
+            <!-- Chrome CTA, folded full-width under the browser surface -->
+            <a href="#install" class="install-card surface-cta">
+              <span class="install-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                  <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <span class="install-text">
+                <span class="install-title">Add the Chrome extension</span>
+              </span>
+              <span class="install-pill">
+                <span class="install-pill-label">Earn up to</span>
+                <span class="install-pill-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
+              </span>
+              <span class="install-arrow">→</span>
+            </a>
+          </div>
+
+          <!-- Surface 02 — terminal -->
+          <div class="surface flip">
+            <div class="stage">
+              <div class="win term">
+                <div class="chrome">
+                  <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+                  <span class="label">claude code — ~/freeai</span>
+                </div>
+                <div class="termpad">
+                  <div class="status">· Linear — Plan your next sprint faster… <span class="muted">(2s · thinking)</span></div>
+                  <div class="tip">└ Tip: Use /voice to enable push-to-talk dictation</div>
+                  <hr class="divider" />
+                  <div class="prompt"><span class="chev">›</span> <span class="cursor"></span></div>
+                  <div class="adline"><span class="ad">ad·</span> <a href="#">Linear — Plan your next sprint faster</a></div>
+                </div>
+              </div>
+            </div>
+            <div class="scopy">
+              <span class="idx">Surface 02 — CLI</span>
+              <h3>Terminal — Claude Code</h3>
+              <p>As Claude thinks, an ad and link are shown. Check it out while your agent cooks.</p>
+            </div>
+            <!-- Terminal paste CTA, folded full-width under the terminal surface -->
+            <div class="cli-card surface-cta">
+              <span class="cli-head">
+                <span class="cli-glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15">
+                    <path d="M5 7.5 9 12l-4 4.5M12.5 16.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                Paste this into your shell.
+              </span>
+              <div class="cli-code">
+                <code class="cli-cmd">git clone https://github.com/conorplunkett/freeai.fyi.git &amp;&amp; cd freeai.fyi/terminal &amp;&amp; npm link &amp;&amp; freeai claude setup</code>
+                <button type="button" class="cli-copy copy-btn" data-copy="git clone https://github.com/conorplunkett/freeai.fyi.git && cd freeai.fyi/terminal && npm link && freeai claude setup">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Surface 03 — desktop apps -->
+          <div class="surface">
+            <div class="stage">
+              <div class="win light">
+                <div class="chrome">
+                  <i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+                  <div class="tabs" role="tablist">
+                    <button class="tab active" data-shot="desktop-claude">Claude</button>
+                    <button class="tab" data-shot="desktop-chatgpt">ChatGPT</button>
+                  </div>
+                </div>
+                <div class="shotwrap desk">
+                  <img class="shot active" data-shot="desktop-claude" src="assets/surfaces/desktop-claude.png" alt="FreeAI sponsor line in the Claude desktop app" />
+                  <img class="shot" data-shot="desktop-chatgpt" src="assets/surfaces/desktop-chatgpt.png" alt="FreeAI sponsor line in the ChatGPT desktop app" />
+                </div>
+              </div>
+            </div>
+            <div class="scopy">
+              <span class="idx">Surface 03 — Desktop apps</span>
+              <h3>Mac Native</h3>
+              <p>In the native Claude and ChatGPT desktop apps the pill docks right above the composer.<br />Only appears when AI is thinking.</p>
+            </div>
+          </div>
+        </div>
     </section>
 
     <!-- ADVERTISERS -->
     <section id="advertisers" class="advertisers">
       <div class="adv-card">
-        <span class="eyebrow">Advertisers</span>
+        <span class="eyebrow">For advertisers</span>
         <h2>Bid live for the most-watched spinner on Earth.</h2>
         <p class="adv-intro">
-          Each block buys 1,000 five-second impressions while ChatGPT, Claude &amp; Gemini think.
-          Clicks are billed at 50× the impression rate. Highest bid serves first; bid
-          any amount from $0.50 — outbid the top to take #1, or queue up behind it.
           <strong>50% of every dollar becomes Claude credits for the user whose machine showed the ad.</strong>
         </p>
 
         <form class="adform" onsubmit="return false;">
           <label class="field">
             <span class="flabel">Email <em>(required)</em></span>
-            <input type="email" placeholder="you@example.com" required />
+            <input type="email" name="email" autocomplete="email" placeholder="you@example.com" required />
           </label>
 
           <label class="field">
@@ -177,20 +310,20 @@
           </label>
 
           <label class="field">
-            <span class="flabel">Destination URL (https://)</span>
-            <input type="url" placeholder="https://linear.app/" />
+            <span class="flabel">Destination URL <em>(https:// optional)</em></span>
+            <input type="url" name="url" autocomplete="url" placeholder="https://linear.app/" />
           </label>
 
           <label class="field">
             <span class="flabel">Brand name <em>(optional, shown on leaderboard)</em></span>
-            <input type="text" placeholder="Linear" />
+            <input type="text" name="organization" autocomplete="organization" placeholder="Linear" />
           </label>
 
           <label class="field">
             <span class="flabel">Ad color <em>(optional, #hex — your accent in the terminal &amp; spinner)</em></span>
             <div class="colorfield">
-              <input type="color" id="adcolor-swatch" value="#5b5bd6" aria-label="Pick ad color" />
-              <input type="text" id="adcolor" maxlength="7" placeholder="#5b5bd6" pattern="#?[0-9a-fA-F]{6}" />
+              <input type="color" id="adcolor-swatch" value="#d97757" aria-label="Pick ad color" />
+              <input type="text" id="adcolor" maxlength="7" placeholder="#d97757" pattern="#?[0-9a-fA-F]{6}" />
             </div>
           </label>
 
@@ -204,31 +337,44 @@
             <span>Show me on the public leaderboard</span>
           </label>
 
-          <div class="grid2">
-            <label class="field">
-              <span class="flabel">Price per block <em>(min $0.50)</em></span>
-              <input type="number" id="price" min="0.50" step="0.01" value="5.00" />
-            </label>
-            <label class="field">
-              <span class="flabel">Number of blocks</span>
-              <input type="number" id="blocks" min="1" step="1" value="1" />
-            </label>
+          <div class="field cpmfield">
+            <span class="flabel">CPM <em>· cost per 1,000 impressions</em></span>
+            <div class="cpm-slider-wrap">
+              <output class="cpm-bubble" id="cpm-bubble">$15</output>
+              <input type="range" id="cpm" min="5" max="100" step="1" value="15" />
+              <div class="cpm-ticks">
+                <span>min <strong id="cpm-min-lbl">$5</strong></span>
+                <span>top <strong id="cpm-top-lbl">$110</strong></span>
+              </div>
+            </div>
           </div>
 
-          <!-- ESTIMATED TOTAL -->
+          <!-- YOUR CAMPAIGN — the big number is the editable budget -->
           <div class="estimate">
-            <span class="est-head">Estimated total</span>
-            <span class="est-sub" id="est-sub">1 block at $5.00</span>
-            <span class="est-total" id="est-total">$5.00</span>
+            <span class="est-head">Your budget</span>
+            <label class="est-budget">
+              <span class="est-budget-prefix">$</span>
+              <input type="number" id="budget" min="100" max="100000" step="1" placeholder="2500" inputmode="numeric" aria-label="Budget" />
+            </label>
+            <span class="est-sub" id="budget-hint">min $100 · max $100,000</span>
             <div class="est-rows">
-              <div class="est-row"><strong id="est-per">$5.00</strong><span>per block</span></div>
-              <div class="est-row"><strong id="est-blocks">1</strong><span>block</span></div>
-              <div class="est-row"><strong id="est-imp">1,000</strong><span>impressions</span></div>
+              <div class="est-line"><strong id="est-cpm">$15.00</strong> <span>CPM</span></div>
+              <div class="est-line"><strong id="est-imp">166,666</strong> <span>impressions</span></div>
             </div>
             <p class="est-note">
-              Top bid is <strong>$110.00 per 1,000 impressions</strong> — bid above it to
-              take #1, or any amount from $0.50 to join the queue.
+              Top CPM is <strong id="note-top">$110.00</strong> — outbid it to take #1,
+              or bid from <strong id="note-min">$5.00</strong> to join the queue.
             </p>
+          </div>
+
+          <!-- LIVE PREVIEW — mirrors the dark spinner overlay viewers see -->
+          <div class="field adpreview">
+            <span class="flabel">Live preview <em>· what every viewer sees</em></span>
+            <div class="adpreview-bar" id="adpreview-bar">
+              <span class="adpreview-chip" id="prev-chip">Y</span>
+              <span class="adpreview-line" id="prev-line">Your ad here</span>
+              <span class="adpreview-dots" id="prev-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            </div>
           </div>
 
           <button class="stripe-btn" type="submit">

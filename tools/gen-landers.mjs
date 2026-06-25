@@ -4,8 +4,8 @@
 // index.html is the single source of truth and the clear base of the site: it
 // stays at the repo root (served at `/`) and doubles as the template for every
 // audience lander. This script clones it and swaps only the *header* copy — the
-// <title>, social/meta tags, the hero <h1>, the .sub line, the .hero-note, and
-// the .jump CTA label — plus, when given, the before/after demo's "Stock <tool>"
+// <title>, social/meta tags, the hero <h1>, the .sub line, and the .hero-note
+// — plus, when given, the before/after demo's "Stock <tool>"
 // card so the page mimics the real thinking indicator of the tool that audience
 // uses (e.g. ChatGPT's pulsing dot instead of Claude's asterisk). Everything
 // else (advertiser form, install card, script.js) is untouched, so structural
@@ -66,7 +66,6 @@ const LANDERS = [
       "Works inside <strong>Claude Code, ChatGPT &amp; Gemini</strong> while you build. A subtle " +
       "sponsored line appears while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     // Claude look is the index.html default — no demo override needed.
   },
   {
@@ -86,7 +85,6 @@ const LANDERS = [
       "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.chatgpt,
   },
   {
@@ -106,7 +104,6 @@ const LANDERS = [
       "Works inside <strong>Gemini, ChatGPT &amp; Claude</strong> in your browser. A subtle " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.gemini,
   },
   {
@@ -126,7 +123,6 @@ const LANDERS = [
       "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser — free to install. " +
       "A subtle sponsored line appears while the model thinks, and <strong>50%</strong> of what it " +
       "earns becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.chatgpt,
   },
   {
@@ -146,7 +142,6 @@ const LANDERS = [
       "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.chatgpt,
   },
   {
@@ -166,7 +161,6 @@ const LANDERS = [
       "Works inside <strong>Gemini, ChatGPT &amp; Claude</strong> in your browser. A subtle " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.gemini,
   },
   {
@@ -186,7 +180,6 @@ const LANDERS = [
       "Works inside <strong>Claude, ChatGPT &amp; Gemini</strong> in your browser. A subtle " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits your team redeems for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.claude,
   },
   {
@@ -206,7 +199,6 @@ const LANDERS = [
       "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
-    jump: "FOR ADVERTISERS · BID ON THIS LINE",
     demo: DEMO.chatgpt,
   },
   {
@@ -227,7 +219,6 @@ const LANDERS = [
       "Each block buys <strong>1,000</strong> five-second impressions while ChatGPT, Claude &amp; " +
       "Gemini think. Clicks bill at <strong>50×</strong>. Highest bid serves first — outbid the top " +
       "to take #1.",
-    jump: "JUMP TO THE BID FORM ↓",
   },
 ];
 
@@ -326,20 +317,12 @@ for (const l of LANDERS) {
     /<p class="hero-note">[\s\S]*?<\/p>/,
     `<p class="hero-note">\n        ${l.heroNote}\n      </p>`,
   );
-  // The .jump link keeps its dot + chevron; only the middle label text changes.
-  out = sub(
-    out,
-    ".jump label",
-    /(<a href="#advertisers" class="jump">\s*<span class="jump-dot"><\/span>)[\s\S]*?(<div class="jump-chev">)/,
-    `$1 ${l.jump}\n        $2`,
-  );
-
   // Optional: make the "Stock <tool>" demo card mimic this audience's tool.
   if (l.demo) {
     out = sub(
       out,
       "demo-label",
-      /<span class="demo-label">Stock Claude<\/span>/,
+      /<span class="demo-label">Stock spinner<\/span>/,
       `<span class="demo-label">${l.demo.label}</span>`,
     );
     out = sub(out, "demo think-icon", /<span class="ast">✳<\/span>/, l.demo.icon);
