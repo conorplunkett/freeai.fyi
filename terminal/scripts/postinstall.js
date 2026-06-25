@@ -22,9 +22,11 @@ try {
   const o = "[38;2;217;119;87m"; // FreeAI accent orange
   const r = "[0m";
   process.stdout.write(
-    `\n${o}FreeAI installed.${r} One more step to start earning credits:\n\n` +
-      `  ${b}freeai claude setup${r}\n\n` +
-      `It wires Claude Code to FreeAI, then use ${b}claude${r} exactly as you always have.\n\n`,
+    `\n${o}FreeAI successfully installed.${r}\n` +
+      `You must link your FreeAI package to your account.\n\n` +
+      `Run\n` +
+      `  ${b}freeai ${o}claude${r}${b} setup${r}\n\n` +
+      `Then use the ${b}claude${r} command as normal.\n\n`,
   );
 } catch {
   // Never block the install over a banner.
