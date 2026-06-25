@@ -34,7 +34,7 @@ make package-ext          # or: tools/package-extension.sh
 ```
 
 This writes `chrome-extension/dist/freeai-chrome-v<version>.zip` containing
-**only** the 12 runtime files (manifest, icons, `src/*`, `popup/*`). It will
+**only** the runtime files the manifest references (manifest, icons, `src/*`, `popup/*`). It will
 **refuse to build** if `popup/theme.css` has drifted from the root `theme.css`
 (the AGENTS.md mirror rule) or if any JS fails the syntax lint — fix those first.
 
@@ -168,7 +168,7 @@ labelled mock ad renders on demand, see `README.md`):
 - [ ] `make test-ext` and `make lint-ext` pass.
 - [ ] `manifest.json` `version` bumped (for updates) and matches the zip name.
 - [ ] `make package-ext` succeeded (mirror + lint gates green).
-- [ ] Zip contains only the 12 runtime files — no `test/`, `node_modules/`,
+- [ ] Zip contains only the runtime files — no `test/`, `node_modules/`,
       or `README.md` (the script guarantees this).
 - [ ] Privacy policy is live at `https://freeai.fyi/privacy` and **matches the
       data-usage answers** (see the note in [§8](#8-anything-else--open-items)).
