@@ -304,7 +304,7 @@ function createMailer(cfg: any) {
         cta: { href: link, label: "Sign in to FreeAI" },
         note: "This link expires in 30 minutes and can only be used once. If you didn't request it, ignore this email.",
       })),
-    sendAdvertiserReceiptEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks }: any) =>
+    sendAdvertiserReceiptEmail: (to: string, { campaignId, brand, adLine, cpmCents, impressionsTotal, budgetCents }: any) =>
       sendAds(to, "Your FreeAI campaign receipt",
       shell({
         preheader: "Your FreeAI campaign payment is confirmed — now in review.",
@@ -313,14 +313,14 @@ function createMailer(cfg: any) {
           + detail([
             ["Ad line", `“${adLine}”`],
             brand ? ["Brand", brand] : null,
-            ["Volume", `${blocks} block${blocks === 1 ? "" : "s"} · ${(blocks * 1000).toLocaleString("en-US")} impressions`],
-            ["Price / block", `US$${(pricePerBlockCents / 100).toFixed(2)}`],
-            ["Total paid", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+            ["Impressions", `${(impressionsTotal || 0).toLocaleString("en-US")}`],
+            ["CPM", `US$${(cpmCents / 100).toFixed(2)} per 1,000`],
+            ["Total paid", `US$${(budgetCents / 100).toFixed(2)}`],
             ["Campaign", campaignId],
           ]),
         note: "It goes live once we approve it — usually within a day. Stripe has emailed a separate itemized receipt for your records.",
       })),
-    sendCampaignLiveEmail: (to: string, { campaignId, brand, adLine, blocks }: any) =>
+    sendCampaignLiveEmail: (to: string, { campaignId, brand, adLine, impressionsTotal }: any) =>
       sendAds(to, "Your FreeAI ad is live 🎉",
       shell({
         preheader: "Approved — your ad is now live on FreeAI.",
@@ -329,12 +329,12 @@ function createMailer(cfg: any) {
           + detail([
             ["Ad line", `“${adLine}”`],
             brand ? ["Brand", brand] : null,
-            ["Running", `${(blocks * 1000).toLocaleString("en-US")} impressions (${blocks} block${blocks === 1 ? "" : "s"})`],
+            ["Running", `${(impressionsTotal || 0).toLocaleString("en-US")} impressions`],
             ["Campaign", campaignId],
           ]),
         note: "It's showing in the spinner while people use ChatGPT, Claude & Gemini. Higher bids serve first — come back any time to boost your bid and climb the leaderboard.",
       })),
-    sendCampaignRejectedEmail: (to: string, { campaignId, brand, adLine, pricePerBlockCents, blocks, note }: any) =>
+    sendCampaignRejectedEmail: (to: string, { campaignId, brand, adLine, budgetCents, note }: any) =>
       sendAds(to, "Your FreeAI campaign was refunded",
       shell({
         preheader: "Your FreeAI campaign wasn't approved — refunded in full.",
@@ -343,7 +343,7 @@ function createMailer(cfg: any) {
           + detail([
             ["Ad line", `“${adLine}”`],
             brand ? ["Brand", brand] : null,
-            ["Refunded", `US$${((pricePerBlockCents * blocks) / 100).toFixed(2)}`],
+            ["Refunded", `US$${((budgetCents || 0) / 100).toFixed(2)}`],
             ["Campaign", campaignId],
           ])
           + (note ? `<p style="margin:14px 0 0;font-family:${FONT};font-size:14px;line-height:1.5;color:#3d3b37;"><strong style="color:#1f1e1d;">Reviewer note:</strong> ${note}</p>` : ""),
@@ -663,16 +663,19 @@ function createRepo(pool: any) {
       );
       return rows;
     },
-    async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, showOnLeaderboard }: any) {
+    async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, impressionsTotal, budgetCents, showOnLeaderboard }: any) {
+      // impressionsTotal is the exact purchased count (floor(budget*1000/cpm)),
+      // not necessarily a multiple of 1000. budgetCents is the exact charge.
+      const impressions = Number.isFinite(impressionsTotal) ? impressionsTotal : blocks * 1000;
       return tx(async (c: any) => {
         const adv = await c.query("insert into advertisers (email) values ($1) returning id", [email]);
         const { rows } = await c.query(
           `insert into campaigns
              (advertiser_id, brand, ad_line, url, category, color, price_per_block_cents,
-              blocks, impressions_total, impressions_remaining, show_on_leaderboard)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10) returning id`,
+              blocks, impressions_total, impressions_remaining, budget_cents, show_on_leaderboard)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10,$11) returning id`,
           [adv.rows[0].id, brand || null, adLine, url, category || "other", color || null,
-           pricePerBlockCents, blocks, blocks * 1000, showOnLeaderboard !== false]
+           pricePerBlockCents, blocks, impressions, budgetCents ?? null, showOnLeaderboard !== false]
         );
         return rows[0].id;
       });
@@ -688,15 +691,21 @@ function createRepo(pool: any) {
              from advertisers adv
             where cmp.id = $1 and cmp.status = 'pending_payment'
               and adv.id = cmp.advertiser_id
-            returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks`,
+            returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks,
+                      cmp.impressions_total, cmp.budget_cents`,
           [campaignId, paymentIntentId || null]
         );
         if (!rows[0]) return false;
-        const funded = BigInt(rows[0].price_per_block_cents) * BigInt(rows[0].blocks) * 1000n;
+        // Fund the campaign with the EXACT amount charged (budget). Fall back to
+        // the old price×blocks for campaigns created before budget_cents existed.
+        const chargeCents = rows[0].budget_cents != null
+          ? BigInt(rows[0].budget_cents)
+          : BigInt(rows[0].price_per_block_cents) * BigInt(rows[0].blocks);
+        const funded = chargeCents * 1000n;
         await c.query(
           `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
            values ('campaign_credit', $1, $2, $3)`,
-          [funded.toString(), campaignId, JSON.stringify({ blocks: rows[0].blocks })]
+          [funded.toString(), campaignId, JSON.stringify({ impressions: rows[0].impressions_total })]
         );
         return {
           email: rows[0].email,
@@ -704,6 +713,8 @@ function createRepo(pool: any) {
           adLine: rows[0].ad_line,
           pricePerBlockCents: rows[0].price_per_block_cents,
           blocks: rows[0].blocks,
+          impressionsTotal: rows[0].impressions_total,
+          budgetCents: rows[0].budget_cents != null ? Number(rows[0].budget_cents) : Number(chargeCents),
         };
       });
     },
@@ -721,11 +732,11 @@ function createRepo(pool: any) {
            from advertisers adv
           where cmp.id = $1 and cmp.status = 'pending_review'
             and adv.id = cmp.advertiser_id
-          returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks`,
+          returning adv.email, cmp.brand, cmp.ad_line, cmp.price_per_block_cents, cmp.blocks, cmp.impressions_total`,
         [campaignId]
       );
       const r = rows[0];
-      return r ? { email: r.email, brand: r.brand, adLine: r.ad_line, pricePerBlockCents: r.price_per_block_cents, blocks: r.blocks } : null;
+      return r ? { email: r.email, brand: r.brand, adLine: r.ad_line, pricePerBlockCents: r.price_per_block_cents, blocks: r.blocks, impressionsTotal: r.impressions_total } : null;
     },
     async rejectCampaign(campaignId: string, note: string) {
       return tx(async (c: any) => {
@@ -735,11 +746,16 @@ function createRepo(pool: any) {
             where cmp.id = $1 and cmp.status = 'pending_review'
               and adv.id = cmp.advertiser_id
             returning adv.email, cmp.brand, cmp.ad_line,
-                      cmp.price_per_block_cents, cmp.blocks, cmp.stripe_payment_intent_id`,
+                      cmp.price_per_block_cents, cmp.blocks, cmp.budget_cents, cmp.stripe_payment_intent_id`,
           [campaignId, note || null]
         );
         if (!rows[0]) return null;
-        const refund = BigInt(rows[0].price_per_block_cents) * BigInt(rows[0].blocks) * 1000n;
+        // Refund the exact amount funded (budget); fall back to price×blocks for
+        // pre-budget_cents campaigns.
+        const chargeCents = rows[0].budget_cents != null
+          ? BigInt(rows[0].budget_cents)
+          : BigInt(rows[0].price_per_block_cents) * BigInt(rows[0].blocks);
+        const refund = chargeCents * 1000n;
         await c.query(
           `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
            values ('campaign_refund', $1, $2, $3)`,
@@ -752,6 +768,7 @@ function createRepo(pool: any) {
           adLine: rows[0].ad_line,
           pricePerBlockCents: rows[0].price_per_block_cents,
           blocks: rows[0].blocks,
+          budgetCents: rows[0].budget_cents != null ? Number(rows[0].budget_cents) : Number(chargeCents),
           note: note || null,
         };
       });
@@ -1535,15 +1552,27 @@ function createRepo(pool: any) {
     // missing `settings` table/row falls back to defaults so checkout never
     // breaks. minBid is floored at 50 (Stripe's USD minimum).
     async getPricing() {
-      const defaults = { minBidCents: 50, suggestedBidCents: 500, topBidAnchorCents: 11000 };
+      // Budget + CPM knobs (all cents). CPM == price_per_block_cents (1 block =
+      // 1,000 impressions). Old *BidCents keys are read as fallbacks. minCpm is
+      // floored at 50 (the Stripe/price_per_block_cents floor).
+      const defaults = {
+        minCpmCents: 500, suggestedCpmCents: 1500, maxCpmCents: 10000, topCpmAnchorCents: 5000,
+        minBudgetCents: 10000, suggestedBudgetCents: 250000, maxBudgetCents: 10000000,
+      };
       try {
         const { rows } = await pool.query("select value from settings where key = 'pricing'");
         const v = (rows[0] && rows[0].value) || {};
         const pick = (n: any, d: number) => (Number.isFinite(Number(n)) ? Math.round(Number(n)) : d);
+        const minCpmCents = Math.max(50, pick(v.minCpmCents ?? v.minBidCents, defaults.minCpmCents));
+        const maxCpmCents = Math.max(minCpmCents, pick(v.maxCpmCents, defaults.maxCpmCents));
         return {
-          minBidCents: Math.max(50, pick(v.minBidCents, defaults.minBidCents)),
-          suggestedBidCents: pick(v.suggestedBidCents, defaults.suggestedBidCents),
-          topBidAnchorCents: Math.max(0, pick(v.topBidAnchorCents, defaults.topBidAnchorCents)),
+          minCpmCents,
+          suggestedCpmCents: Math.max(minCpmCents, pick(v.suggestedCpmCents ?? v.suggestedBidCents, defaults.suggestedCpmCents)),
+          maxCpmCents,
+          topCpmAnchorCents: Math.min(maxCpmCents, Math.max(0, pick(v.topCpmAnchorCents ?? v.topBidAnchorCents, defaults.topCpmAnchorCents))),
+          minBudgetCents: Math.max(50, pick(v.minBudgetCents, defaults.minBudgetCents)),
+          suggestedBudgetCents: pick(v.suggestedBudgetCents, defaults.suggestedBudgetCents),
+          maxBudgetCents: Math.max(pick(v.minBudgetCents, defaults.minBudgetCents), pick(v.maxBudgetCents, defaults.maxBudgetCents)),
         };
       } catch { return defaults; }
     },
@@ -2028,9 +2057,14 @@ route("GET", "/v1/config", async () => { await syncServing(); return json(200, {
 // so the extension's frequent config polls stay query-free. top = max(anchor,
 // highest active bid).
 route("GET", "/v1/pricing", async () => {
-  const pricing = await repo.getPricing();
-  const topBidCents = Math.max(pricing.topBidAnchorCents, await repo.topActiveBidCents());
-  return json(200, { minBidCents: pricing.minBidCents, suggestedBidCents: pricing.suggestedBidCents, topBidCents });
+  const p = await repo.getPricing();
+  const topCpmCents = Math.min(p.maxCpmCents, Math.max(p.topCpmAnchorCents, await repo.topActiveBidCents()));
+  return json(200, {
+    minCpmCents: p.minCpmCents, suggestedCpmCents: p.suggestedCpmCents, maxCpmCents: p.maxCpmCents, topCpmCents,
+    minBudgetCents: p.minBudgetCents, suggestedBudgetCents: p.suggestedBudgetCents, maxBudgetCents: p.maxBudgetCents,
+    // Transitional aliases so a cached/older frontend keeps working for one release.
+    minBidCents: p.minCpmCents, suggestedBidCents: p.suggestedCpmCents, topBidCents: topCpmCents,
+  });
 });
 route("GET", "/v1/ads", async () => {
   await syncServing();
@@ -2093,21 +2127,26 @@ route("GET", "/v1/go/:token", async (ctx: any) => {
 
 // ── advertiser checkout ──
 route("POST", "/v1/checkout", async (ctx: any) => {
-  const { email, adLine, url, brand, category, color, pricePerBlock, blocks, showOnLeaderboard } = ctx.body || {};
-  const priceCents = Math.round(Number(pricePerBlock) * 100);
-  const nBlocks = parseInt(blocks, 10);
+  // Budget + CPM model: advertiser pays the full budget; impressions = floor(
+  // budget*1000/cpm). CPM == price_per_block_cents (block = 1,000 impressions).
+  const { email, adLine, url, brand, category, color, budget, cpm, showOnLeaderboard } = ctx.body || {};
+  const budgetCents = Math.round(Number(budget) * 100);
+  const cpmCents = Math.round(Number(cpm) * 100);
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
   if (!isCleanAdLine(adLine)) return json(400, { error: "ad line must be 3-60 printable chars, no < >" });
   if (!/^https:\/\/[^\s]+$/.test(url || "")) return json(400, { error: "https url required" });
-  const { minBidCents } = await repo.getPricing();
-  if (!(priceCents >= minBidCents)) return json(400, { error: `min bid is $${(minBidCents / 100).toFixed(2)} per block` });
-  if (!(nBlocks >= 1)) return json(400, { error: "at least 1 block" });
-  const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, color: normalizeHexColor(color), pricePerBlockCents: priceCents, blocks: nBlocks, showOnLeaderboard });
+  const { minCpmCents, maxCpmCents, minBudgetCents, maxBudgetCents } = await repo.getPricing();
+  if (!(cpmCents >= minCpmCents && cpmCents <= maxCpmCents)) return json(400, { error: `CPM must be $${(minCpmCents / 100).toFixed(2)}–$${(maxCpmCents / 100).toFixed(2)}` });
+  if (!(budgetCents >= minBudgetCents && budgetCents <= maxBudgetCents)) return json(400, { error: `budget must be $${(minBudgetCents / 100).toFixed(0)}–$${(maxBudgetCents / 100).toLocaleString("en-US")}` });
+  const impressions = Math.floor((budgetCents * 1000) / cpmCents);
+  if (!(impressions >= 1)) return json(400, { error: "budget too small for this CPM" });
+  const blocks = Math.max(1, Math.round(impressions / 1000)); // legacy display column; impressions_total is authoritative
+  const campaignId = await repo.createPendingCampaign({ email, brand, adLine, url, category, color: normalizeHexColor(color), pricePerBlockCents: cpmCents, blocks, impressionsTotal: impressions, budgetCents, showOnLeaderboard });
   const session = await stripe.createCheckoutSession({
     mode: "payment", customer_email: email,
     // receipt_email isn't a Checkout Session param; it lives on the PaymentIntent.
     payment_intent_data: { receipt_email: email },
-    line_items: [{ quantity: nBlocks, price_data: { currency: "usd", unit_amount: priceCents, product_data: { name: "FreeAI spinner block — 1,000 impressions", description: `${brand ? brand + " — " : ""}"${adLine}" → ${url}`, images: ["https://freeai.fyi/og.png"] } } }],
+    line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: budgetCents, product_data: { name: "FreeAI ad campaign", description: `${brand ? brand + " — " : ""}"${adLine}" → ${url} · ${impressions.toLocaleString("en-US")} impressions @ $${(cpmCents / 100).toFixed(2)} CPM`, images: ["https://freeai.fyi/og.png"] } } }],
     metadata: { campaign_id: campaignId },
     success_url: `${config.siteUrl}/?checkout=success`,
     cancel_url: `${config.siteUrl}/?checkout=cancelled`,
@@ -2140,8 +2179,9 @@ route("POST", "/v1/webhooks/stripe", async (ctx: any) => {
               campaignId: obj.metadata.campaign_id,
               brand: (paid as any).brand,
               adLine: (paid as any).adLine,
-              pricePerBlockCents: (paid as any).pricePerBlockCents,
-              blocks: (paid as any).blocks,
+              cpmCents: (paid as any).pricePerBlockCents,
+              impressionsTotal: (paid as any).impressionsTotal,
+              budgetCents: (paid as any).budgetCents,
             });
           } catch (err) {
             console.error("[freeai] advertiser receipt email failed", err);
@@ -2656,7 +2696,7 @@ route("POST", "/v1/admin/campaigns/approve", async (ctx: any) => {
       campaignId: ctx.body?.campaignId,
       brand: (result as any).brand,
       adLine: (result as any).adLine,
-      blocks: (result as any).blocks,
+      impressionsTotal: (result as any).impressionsTotal,
     });
   } catch (err: any) {
     console.error("[freeai] live email failed:", err.message);
@@ -2678,8 +2718,7 @@ route("POST", "/v1/admin/campaigns/reject", async (ctx: any) => {
       campaignId: ctx.body?.campaignId,
       brand: (result as any).brand,
       adLine: (result as any).adLine,
-      pricePerBlockCents: (result as any).pricePerBlockCents,
-      blocks: (result as any).blocks,
+      budgetCents: (result as any).budgetCents,
       note: (result as any).note,
     });
   } catch (err: any) {
@@ -2771,12 +2810,18 @@ route("POST", "/v1/admin/pricing", async (ctx: any) => {
   const cur = await repo.getPricing();
   const b = ctx.body || {};
   const pick = (n: any, d: number) => (Number.isFinite(Number(n)) ? Math.round(Number(n)) : d);
+  const minCpmCents = Math.max(50, pick(b.minCpmCents, cur.minCpmCents));
+  const maxCpmCents = Math.max(minCpmCents, pick(b.maxCpmCents, cur.maxCpmCents));
+  const minBudgetCents = Math.max(50, pick(b.minBudgetCents, cur.minBudgetCents));
   const next = {
-    minBidCents: Math.max(50, pick(b.minBidCents, cur.minBidCents)),
-    suggestedBidCents: pick(b.suggestedBidCents, cur.suggestedBidCents),
-    topBidAnchorCents: Math.max(0, pick(b.topBidAnchorCents, cur.topBidAnchorCents)),
+    minCpmCents,
+    suggestedCpmCents: Math.max(minCpmCents, pick(b.suggestedCpmCents, cur.suggestedCpmCents)),
+    maxCpmCents,
+    topCpmAnchorCents: Math.min(maxCpmCents, Math.max(0, pick(b.topCpmAnchorCents, cur.topCpmAnchorCents))),
+    minBudgetCents,
+    suggestedBudgetCents: pick(b.suggestedBudgetCents, cur.suggestedBudgetCents),
+    maxBudgetCents: Math.max(minBudgetCents, pick(b.maxBudgetCents, cur.maxBudgetCents)),
   };
-  next.suggestedBidCents = Math.max(next.minBidCents, next.suggestedBidCents); // suggested ≥ min
   await repo.setPricing(next);
   return json(200, next);
 });

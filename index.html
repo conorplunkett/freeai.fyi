@@ -39,7 +39,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="theme.css?v=20260622a" />
-  <link rel="stylesheet" href="styles.css?v=20260622a" />
+  <link rel="stylesheet" href="styles.css?v=20260624b" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -326,8 +326,8 @@
           <label class="field">
             <span class="flabel">Ad color <em>(optional, #hex — your accent in the terminal &amp; spinner)</em></span>
             <div class="colorfield">
-              <input type="color" id="adcolor-swatch" value="#5b5bd6" aria-label="Pick ad color" />
-              <input type="text" id="adcolor" maxlength="7" placeholder="#5b5bd6" pattern="#?[0-9a-fA-F]{6}" />
+              <input type="color" id="adcolor-swatch" value="#d97757" aria-label="Pick ad color" />
+              <input type="text" id="adcolor" maxlength="7" placeholder="#d97757" pattern="#?[0-9a-fA-F]{6}" />
             </div>
           </label>
 
@@ -341,31 +341,33 @@
             <span>Show me on the public leaderboard</span>
           </label>
 
-          <div class="grid2">
-            <label class="field">
-              <span class="flabel">Price per block <em id="price-min-hint">(min $0.50)</em></span>
-              <input type="number" id="price" min="0.50" step="0.01" value="5.00" />
-            </label>
-            <label class="field">
-              <span class="flabel">Number of blocks</span>
-              <input type="number" id="blocks" min="1" step="1" value="1" />
-            </label>
+          <div class="field cpmfield">
+            <span class="flabel">CPM <em>· cost per 1,000 impressions</em></span>
+            <div class="cpm-slider-wrap">
+              <output class="cpm-bubble" id="cpm-bubble">$15</output>
+              <input type="range" id="cpm" min="5" max="100" step="1" value="15" />
+              <div class="cpm-ticks">
+                <span>min <strong id="cpm-min-lbl">$5</strong></span>
+                <span>top <strong id="cpm-top-lbl">$110</strong></span>
+              </div>
+            </div>
           </div>
 
-          <!-- ESTIMATED TOTAL -->
+          <!-- YOUR CAMPAIGN — the big number is the editable budget -->
           <div class="estimate">
-            <span class="est-head">Estimated total</span>
-            <span class="est-sub" id="est-sub">1 block at $5.00</span>
-            <span class="est-total" id="est-total">$5.00</span>
+            <span class="est-head">Your budget</span>
+            <label class="est-budget">
+              <span class="est-budget-prefix">$</span>
+              <input type="number" id="budget" min="100" max="100000" step="1" placeholder="2500" inputmode="numeric" aria-label="Budget" />
+            </label>
+            <span class="est-sub" id="budget-hint">min $100 · max $100,000</span>
             <div class="est-rows">
-              <div class="est-row"><strong id="est-per">$5.00</strong><span>per block</span></div>
-              <div class="est-row"><strong id="est-blocks">1</strong><span>block</span></div>
-              <div class="est-row"><strong id="est-imp">1,000</strong><span>impressions</span></div>
+              <div class="est-line"><strong id="est-cpm">$15.00</strong> <span>CPM</span></div>
+              <div class="est-line"><strong id="est-imp">166,666</strong> <span>impressions</span></div>
             </div>
             <p class="est-note">
-              Top bid is <strong id="note-top">$110.00</strong> per block — outbid it to take #1,
-              or bid from <strong id="note-min">$0.50</strong> to join the queue.
-              Suggested: <strong id="note-suggested">$5.00</strong>.
+              Top CPM is <strong id="note-top">$110.00</strong> — outbid it to take #1,
+              or bid from <strong id="note-min">$5.00</strong> to join the queue.
             </p>
           </div>
 
@@ -471,6 +473,6 @@
        user-facing copy production-only — no test/demo wording. The one developer
        affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
        handled in script.js, which never shows unless explicitly requested. -->
-  <script src="script.js?v=20260622a"></script>
+  <script src="script.js?v=20260624b"></script>
 </body>
 </html>

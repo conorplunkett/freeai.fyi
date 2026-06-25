@@ -191,29 +191,46 @@ if (urlInput) {
   urlInput.addEventListener("blur", () => { urlInput.value = normalizeUrl(urlInput.value); });
 }
 
-// --- Live bid / estimate calculator ---
-const priceEl = document.getElementById("price");
-const blocksEl = document.getElementById("blocks");
+// --- Budget + CPM estimate calculator ---
+// Advertiser sets a budget and a CPM (cost per 1,000 impressions); they pay the
+// full budget and get floor(budget*1000/cpm) impressions. CPM drives the auction.
+const budgetEl = document.getElementById("budget");
+const cpmEl = document.getElementById("cpm");
+const cpmBubble = document.getElementById("cpm-bubble");
 const fmt = (n) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtInt = (n) => n.toLocaleString();
 
-let MIN_BID = 0.5; // overridden by loadPricing() from /v1/config
-function recalc() {
-  const price = Math.max(MIN_BID, parseFloat(priceEl.value) || 0);
-  const blocks = Math.max(1, parseInt(blocksEl.value) || 0);
-  const total = price * blocks;
-  const imp = blocks * 1000;
-  document.getElementById("est-sub").textContent =
-    `${blocks} block${blocks > 1 ? "s" : ""} at ${fmt(price)}`;
-  document.getElementById("est-total").textContent = fmt(total);
-  document.getElementById("est-per").textContent = fmt(price);
-  document.getElementById("est-blocks").textContent = fmtInt(blocks);
-  document.getElementById("est-imp").textContent = fmtInt(imp);
+let MIN_BUDGET = 100, MAX_BUDGET = 100000, SUGGESTED_BUDGET = 2500, MIN_CPM = 5, MAX_CPM = 100; // overridden by loadPricing()
+const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+function positionCpmBubble() {
+  if (!cpmEl || !cpmBubble) return;
+  const min = Number(cpmEl.min) || MIN_CPM, max = Number(cpmEl.max) || MAX_CPM;
+  const val = Number(cpmEl.value) || min;
+  const pct = max > min ? (val - min) / (max - min) : 0;
+  // 22px thumb: nudge the bubble so it stays over the thumb at both ends.
+  cpmBubble.style.left = `calc(${pct * 100}% + ${(0.5 - pct) * 22}px)`;
+  cpmBubble.textContent = fmt(val);
 }
-if (priceEl && blocksEl) {
-  priceEl.addEventListener("input", recalc);
-  blocksEl.addEventListener("input", recalc);
-  recalc();
+
+function recompute() {
+  if (!budgetEl || !cpmEl) return;
+  // Blank budget falls back to the suggested (the placeholder), so the estimate
+  // reflects the soft default until the advertiser types their own number.
+  const raw = parseFloat(budgetEl.value);
+  const budget = Math.min(MAX_BUDGET, Math.max(MIN_BUDGET, Number.isFinite(raw) && raw > 0 ? raw : SUGGESTED_BUDGET));
+  const cpm = Math.max(MIN_CPM, parseInt(cpmEl.value, 10) || MIN_CPM);
+  const impressions = Math.floor((budget * 1000) / cpm); // round down — advertiser pays full budget
+  setTxt("est-cpm", fmt(cpm));
+  setTxt("est-imp", fmtInt(impressions));
+  positionCpmBubble();
+}
+if (budgetEl && cpmEl) {
+  budgetEl.addEventListener("input", recompute);
+  cpmEl.addEventListener("input", recompute);
+  // Don't let the mouse wheel scrub the budget number — scroll the page instead.
+  budgetEl.addEventListener("wheel", (e) => { if (document.activeElement === budgetEl) e.preventDefault(); }, { passive: false });
+  recompute();
 }
 
 // --- Copy install command ---
@@ -291,9 +308,9 @@ async function loadLeaderboard() {
 }
 loadLeaderboard();
 
-// Pull admin-tunable pricing (min / suggested / top bid) from /v1/pricing and
-// reflect it in the form + estimate. Falls back to the hardcoded defaults if
-// the API is unreachable.
+// Pull admin-tunable pricing (CPM min/suggested/max/top + budget min/suggested/max)
+// from /v1/pricing and reflect it in the form + estimate. Falls back to the
+// hardcoded defaults if the API is unreachable.
 async function loadPricing() {
   if (!API_BASE) return;
   try {
@@ -301,23 +318,27 @@ async function loadPricing() {
     if (!res.ok) return;
     const c = await res.json();
     const dollars = (cents, fallback) => (Number.isFinite(cents) ? cents / 100 : fallback);
-    const min = dollars(c.minBidCents, 0.5);
-    const suggested = dollars(c.suggestedBidCents, 5);
-    const top = dollars(c.topBidCents, 110);
+    const minCpm = dollars(c.minCpmCents ?? c.minBidCents, 5);
+    const sugCpm = dollars(c.suggestedCpmCents ?? c.suggestedBidCents, 15);
+    const topCpm = dollars(c.topCpmCents ?? c.topBidCents, 110);
+    const maxCpm = dollars(c.maxCpmCents, 100);
+    const minBudget = dollars(c.minBudgetCents, 100);
+    const sugBudget = dollars(c.suggestedBudgetCents, 2500);
+    const maxBudget = dollars(c.maxBudgetCents, 100000);
     const money = (n) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const money0 = (n) => "$" + Math.round(n).toLocaleString();
 
-    MIN_BID = min;
-    const priceEl2 = document.getElementById("price");
-    if (priceEl2) {
-      priceEl2.min = min.toFixed(2);
-      priceEl2.value = suggested.toFixed(2); // pre-fill with the suggested bid
-    }
-    const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-    setText("price-min-hint", `(min ${money(min)})`);
-    setText("note-top", money(top));
-    setText("note-min", money(min));
-    setText("note-suggested", money(suggested));
-    if (typeof recalc === "function") recalc();
+    MIN_CPM = minCpm; MAX_CPM = maxCpm; MIN_BUDGET = minBudget; MAX_BUDGET = maxBudget; SUGGESTED_BUDGET = sugBudget;
+    // Start the slider at the suggested CPM (no "suggested" label shown).
+    if (cpmEl) { cpmEl.min = minCpm; cpmEl.max = maxCpm; cpmEl.value = sugCpm; }
+    // Budget stays blank; the suggested becomes the placeholder + the soft default.
+    if (budgetEl) { budgetEl.min = String(minBudget); budgetEl.max = String(maxBudget); budgetEl.placeholder = String(Math.round(sugBudget)); }
+    setTxt("budget-hint", `min ${money0(minBudget)} · max ${money0(maxBudget)}`);
+    setTxt("cpm-min-lbl", money0(minCpm));
+    setTxt("cpm-top-lbl", money0(topCpm));
+    setTxt("note-top", money(topCpm));
+    setTxt("note-min", money(minCpm));
+    recompute();
   } catch (_) {
     /* offline — keep the hardcoded defaults */
   }
@@ -337,8 +358,8 @@ if (adForm) {
       url: normalizeUrl(get('input[name="url"]')),
       brand: get('input[name="organization"]'),
       color: document.getElementById("adcolor")?.value?.trim() || "",
-      pricePerBlock: parseFloat(document.getElementById("price")?.value || "0"),
-      blocks: parseInt(document.getElementById("blocks")?.value || "0", 10),
+      budget: parseFloat(document.getElementById("budget")?.value || "0"),
+      cpm: parseInt(document.getElementById("cpm")?.value || "0", 10),
       showOnLeaderboard: adForm.querySelector('input[type="checkbox"]')?.checked !== false,
     };
 

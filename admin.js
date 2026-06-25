@@ -767,21 +767,32 @@ async function pricingCard(view) {
   const p = await tryApi("/v1/admin/pricing");
   if (!p) return; // endpoint not deployed yet — degrade gracefully
   const dollar = (c) => (Number(c || 0) / 100).toFixed(2);
-  const minI = h("input", { type: "number", step: "0.01", min: "0.50", value: dollar(p.minBidCents) });
-  const sugI = h("input", { type: "number", step: "0.01", min: "0.50", value: dollar(p.suggestedBidCents) });
-  const topI = h("input", { type: "number", step: "0.01", min: "0", value: dollar(p.topBidAnchorCents) });
+  // CPM == price per 1,000 impressions. Fall back to old *Bid* keys for one deploy.
+  const minCpmI = h("input", { type: "number", step: "1", min: "0.50", value: dollar(p.minCpmCents ?? p.minBidCents) });
+  const sugCpmI = h("input", { type: "number", step: "1", min: "0.50", value: dollar(p.suggestedCpmCents ?? p.suggestedBidCents) });
+  const maxCpmI = h("input", { type: "number", step: "1", min: "0.50", value: dollar(p.maxCpmCents ?? 10000) });
+  const topI = h("input", { type: "number", step: "1", min: "0", value: dollar(p.topCpmAnchorCents ?? p.topBidAnchorCents) });
+  const minBudI = h("input", { type: "number", step: "1", min: "1", value: dollar(p.minBudgetCents ?? 10000) });
+  const sugBudI = h("input", { type: "number", step: "1", min: "1", value: dollar(p.suggestedBudgetCents ?? 250000) });
+  const maxBudI = h("input", { type: "number", step: "1", min: "1", value: dollar(p.maxBudgetCents ?? 10000000) });
   view.append(h("div", { class: "card" },
     h("div", { class: "card-head" }, h("h2", {}, "Advertiser pricing"),
-      h("p", { class: "hint" }, `Shown on the advertiser page, per 1,000-impression block. Displayed “top bid” = the higher of your anchor and the current highest active bid (${usd((p.topActiveBidCents || 0) / 100)}). Minimum is floored at $0.50 (Stripe’s minimum).`)),
+      h("p", { class: "hint" }, `Shown on the advertiser page. Advertisers set a budget and a CPM (cost per 1,000 impressions). Displayed “top CPM” = the higher of your anchor and the current highest active bid (${usd((p.topActiveBidCents || 0) / 100)}), capped at Max CPM.`)),
     h("div", { class: "inline-form", style: "margin-top:6px" },
-      h("label", { class: "fld" }, "Minimum bid $", minI),
-      h("label", { class: "fld" }, "Suggested bid $", sugI),
-      h("label", { class: "fld" }, "Top-bid anchor $", topI),
+      h("label", { class: "fld" }, "Min CPM $", minCpmI),
+      h("label", { class: "fld" }, "Suggested CPM $", sugCpmI),
+      h("label", { class: "fld" }, "Max CPM $", maxCpmI),
+      h("label", { class: "fld" }, "Top-CPM anchor $", topI),
+      h("label", { class: "fld" }, "Min budget $", minBudI),
+      h("label", { class: "fld" }, "Suggested budget $", sugBudI),
+      h("label", { class: "fld" }, "Max budget $", maxBudI),
       h("button", { class: "btn btn-accent", onclick: async () => {
         const cents = (el) => Math.round((parseFloat(el.value) || 0) * 100);
         try {
           await api("/v1/admin/pricing", { method: "POST", body: {
-            minBidCents: cents(minI), suggestedBidCents: cents(sugI), topBidAnchorCents: cents(topI),
+            minCpmCents: cents(minCpmI), suggestedCpmCents: cents(sugCpmI), maxCpmCents: cents(maxCpmI),
+            topCpmAnchorCents: cents(topI), minBudgetCents: cents(minBudI),
+            suggestedBudgetCents: cents(sugBudI), maxBudgetCents: cents(maxBudI),
           } });
           toast("Pricing saved"); route(true);
         } catch (e) { toast(e.message, true); }

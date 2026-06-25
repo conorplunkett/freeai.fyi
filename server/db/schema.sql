@@ -47,10 +47,11 @@ create table if not exists campaigns (
   -- Advertiser-chosen accent color for the ad line, "#rrggbb"; null falls back
   -- to a per-brand color in the client.
   color text check (color is null or color ~* '^#[0-9a-f]{6}$'),
-  price_per_block_cents integer not null check (price_per_block_cents >= 50),  -- min $0.50 (Stripe USD minimum)
-  blocks integer not null check (blocks > 0),
-  impressions_total integer not null,      -- blocks * 1000
+  price_per_block_cents integer not null check (price_per_block_cents >= 50),  -- the CPM (price per 1,000 impressions); min $0.50
+  blocks integer not null check (blocks > 0),                                  -- legacy display count; impressions_total is authoritative
+  impressions_total integer not null,      -- exact impressions purchased (floor(budget*1000/cpm)); not necessarily a multiple of 1000
   impressions_remaining integer not null,
+  budget_cents integer,                    -- exact amount charged (the advertiser's budget); null on pre-budget campaigns
   show_on_leaderboard boolean not null default true,
   -- lifecycle: pending_payment -> (paid) pending_review -> (approved) active
   --            -> exhausted; or rejected/cancelled.
@@ -66,6 +67,9 @@ create table if not exists campaigns (
 
 -- Backfill the color column on databases created before it existed.
 alter table campaigns add column if not exists color text;
+-- Exact charge (budget) for the budget+CPM checkout; older campaigns are null
+-- and the funding code falls back to price_per_block_cents * blocks.
+alter table campaigns add column if not exists budget_cents integer;
 
 create index if not exists campaigns_auction_idx
   on campaigns (status, price_per_block_cents desc)
