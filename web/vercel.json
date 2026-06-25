@@ -21,39 +21,39 @@
     },
     {
       "source": "/developers",
-      "destination": "/landers/developers.html"
+      "destination": "/landers/developers"
     },
     {
       "source": "/chatgpt",
-      "destination": "/landers/chatgpt.html"
+      "destination": "/landers/chatgpt"
     },
     {
       "source": "/gemini",
-      "destination": "/landers/gemini.html"
+      "destination": "/landers/gemini"
     },
     {
       "source": "/students",
-      "destination": "/landers/students.html"
+      "destination": "/landers/students"
     },
     {
       "source": "/writers",
-      "destination": "/landers/writers.html"
+      "destination": "/landers/writers"
     },
     {
       "source": "/researchers",
-      "destination": "/landers/researchers.html"
+      "destination": "/landers/researchers"
     },
     {
       "source": "/founders",
-      "destination": "/landers/founders.html"
+      "destination": "/landers/founders"
     },
     {
       "source": "/marketers",
-      "destination": "/landers/marketers.html"
+      "destination": "/landers/marketers"
     },
     {
       "source": "/advertisers",
-      "destination": "/landers/advertisers.html"
+      "destination": "/landers/advertisers"
     }
   ]
 }

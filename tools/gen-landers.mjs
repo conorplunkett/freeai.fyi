@@ -357,7 +357,7 @@ const isLanderRewrite = (r) =>
 const preserved = (vercel.rewrites || []).filter((r) => !isLanderRewrite(r));
 const landerRewrites = LANDERS.map((l) => ({
   source: `/${l.slug}`,
-  destination: `/landers/${l.slug}.html`,
+  destination: `/landers/${l.slug}`,
 }));
 vercel.rewrites = [...preserved, ...landerRewrites];
 writeFileSync(vercelPath, JSON.stringify(vercel, null, 2) + "\n");
