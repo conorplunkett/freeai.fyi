@@ -112,7 +112,7 @@ create table if not exists ledger (
     'campaign_credit',     -- advertiser paid; campaign funded         (+ campaign)
     'campaign_refund',     -- rejected campaign refunded               (- campaign)
     'impression_credit',   -- developer's 90% share of an impression   (+ device)
-    'click_credit',        -- developer's 90% share of a click (50x)   (+ device)
+    'click_credit',        -- legacy: developer's share of a 50x click (retired; see click_event below)
     'platform_fee',        -- our 10%                                  (+ platform)
     'payout_debit',        -- transferred to developer's bank          (- user)
     'gift_redemption_debit' -- redeemed for a Claude gift card         (- device)
@@ -252,19 +252,25 @@ create table if not exists referral_invites (
 create index if not exists referral_invites_referrer_idx on referral_invites (referrer_user_id);
 create index if not exists referral_invites_email_idx on referral_invites (lower(email));
 
--- Allow the referral bonus entry type in the ledger. Drop + re-add so re-running
--- the migration is idempotent and existing databases pick up the new value.
+-- Full ledger entry-type set (extends the base CHECK above). Drop + re-add so
+-- re-running is idempotent and existing databases pick up new values. This is the
+-- authoritative list — mirrors production and server/db/20260625_remove_click_50x.sql.
+-- 'click_credit' is the retired 50x click credit (kept for history); verified
+-- clicks now record a zero-value 'click_event' (analytics only, never billed).
 alter table ledger drop constraint if exists ledger_entry_type_check;
 alter table ledger add constraint ledger_entry_type_check check (entry_type in (
-  'campaign_credit',     -- advertiser paid; campaign funded         (+ campaign)
-  'campaign_refund',     -- rejected campaign refunded               (- campaign)
-  'impression_credit',   -- developer's 90% share of an impression   (+ device)
-  'click_credit',        -- developer's 90% share of a click (50x)   (+ device)
-  'platform_fee',        -- our 10%                                  (+ platform)
-  'payout_debit',        -- transferred to developer's bank          (- user)
-  'gift_redemption_debit', -- redeemed for a Claude gift card        (- device)
-  'referral_credit',     -- $20 bonus for a qualified referral        (+ user)
-  'affiliate_credit'     -- 10% of an affiliated user's earnings      (+ user)
+  'campaign_credit',       -- advertiser paid; campaign funded          (+ campaign)
+  'campaign_refund',       -- rejected campaign refunded                (- campaign)
+  'impression_credit',     -- developer's 90% share of an impression    (+ device)
+  'click_credit',          -- legacy: developer's share of a 50x click (retired; kept for history)
+  'click_event',           -- a verified click, recorded for analytics only (amount 0; never billed)
+  'platform_fee',          -- our 10%                                   (+ platform)
+  'payout_debit',          -- transferred to developer's bank           (- user)
+  'gift_redemption_debit', -- redeemed for a Claude gift card           (- device)
+  'referral_credit',       -- $20 bonus for a qualified referral         (+ user)
+  'affiliate_credit',      -- 10% of an affiliated user's earnings       (+ user)
+  'admin_credit',          -- manual balance adjustment up   (admin)    (+ user/device)
+  'admin_debit'            -- manual balance adjustment down (admin)    (- user/device)
 ));
 
 -- ── Affiliates ───────────────────────────────────────────────────────────────

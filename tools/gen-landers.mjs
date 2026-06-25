@@ -205,7 +205,7 @@ const LANDERS = [
     slug: "advertisers",
     title: "FreeAI.fyi — Advertise on the most-watched spinner on Earth",
     description:
-      "Bid live for the sponsored line that shows while ChatGPT, Claude and Gemini think. Each block buys 1,000 five-second impressions; clicks bill at 50×. Start from $0.50.",
+      "Bid live for the sponsored line that shows while ChatGPT, Claude and Gemini think. Each block buys 1,000 five-second impressions; you're billed for impressions only. Start from $0.50.",
     ogTitle: "FreeAI.fyi — Advertise on the most-watched spinner on Earth",
     ogDescription:
       "Bid live for the most-watched spinner on Earth. Each block buys 1,000 impressions; start from $0.50.",
@@ -217,7 +217,7 @@ const LANDERS = [
       "credits for the user who showed your ad.",
     heroNote:
       "Each block buys <strong>1,000</strong> five-second impressions while ChatGPT, Claude &amp; " +
-      "Gemini think. Clicks bill at <strong>50×</strong>. Highest bid serves first — outbid the top " +
+      "Gemini think — you're billed for impressions only. Highest bid serves first — outbid the top " +
       "to take #1.",
   },
 ];

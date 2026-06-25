@@ -267,11 +267,11 @@ function makeChrome(stateRef, sentRef) {
     assert.ok(Math.abs(s.earnings - (12 / 1000) * 0.5) < 1e-9, "earnings != 50% share");
   });
 
-  await check("real click pays 50× an impression", async () => {
+  await check("real click is recorded but pays nothing (50x billing removed)", async () => {
     const before = (await msg({ type: "BB_GET_STATE" })).earnings;
     const s = await msg({ type: "BB_CLICK", mock: false });
     assert.strictEqual(s.clicks, 1);
-    assert.ok(Math.abs(s.earnings - before - (12 / 1000) * 0.5 * 50) < 1e-9, "click != 50×");
+    assert.ok(Math.abs(s.earnings - before) < 1e-9, "a click must not change earnings");
   });
 
   await check("mock impression/click never touch real earnings", async () => {

@@ -220,28 +220,32 @@ const fakeMailer = {
 
   // ---------- server-side clicks ----------
   let clickDevice;
-  await check("click intent + /go redirect credits the device server-side", async () => {
+  await check("click intent + /go redirect records a free click (no earnings, no budget draw)", async () => {
     clickDevice = (await api("POST", "/v1/devices/register")).body;
     const intent = await api("POST", "/v1/clicks/intent", { ...clickDevice, campaignId: campFluid });
     assert.strictEqual(intent.status, 200);
     assert.ok(intent.body.trackingUrl.includes("/v1/go/"));
     const token = intent.body.trackingUrl.split("/v1/go/")[1];
+    const remaining = async () => (await poolNs.query("select impressions_remaining from campaigns where id = $1", [campFluid])).rows[0].impressions_remaining;
+    const clickEvents = async () => (await poolNs.query("select count(*)::int n from ledger where device_id = $1 and entry_type = 'click_event'", [clickDevice.deviceId])).rows[0].n;
+    const before = await remaining();
     const go = await api("GET", `/v1/go/${token}`);
     assert.strictEqual(go.status, 302);
     assert.strictEqual(go.headers.get("location"), "https://fluidstack.io/");
-    // billed 50 on $110 block: 11000*50/1000 = 550c -> 495c = 495000 mc
-    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${clickDevice.deviceId}&deviceKey=${clickDevice.deviceKey}`)).body.earnedUsd, 4.95);
-    // single-use: replay redirects but pays nothing more
+    // clicks are free now: the device earns nothing and the campaign budget is untouched
+    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${clickDevice.deviceId}&deviceKey=${clickDevice.deviceKey}`)).body.earnedUsd, 0);
+    assert.strictEqual(await remaining(), before, "a click must not draw campaign budget");
+    assert.strictEqual(await clickEvents(), 1, "the click is recorded as one zero-value click_event");
+    // single-use: replay still redirects but records nothing more
     await api("GET", `/v1/go/${token}`);
-    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${clickDevice.deviceId}&deviceKey=${clickDevice.deviceKey}`)).body.earnedUsd, 4.95);
+    assert.strictEqual(await clickEvents(), 1, "replay records no new click_event");
   });
 
   await check("click intent for an inactive campaign is 404", async () => {
     assert.strictEqual((await api("POST", "/v1/clicks/intent", { ...clickDevice, campaignId: campA && "00000000-0000-0000-0000-000000000000" })).status, 404);
   });
 
-  await check("verified clicks are capped per device per day (50x path can't be looped to drain a budget)", async () => {
-    // dedicated, well-funded campaign so the cap (not the budget) is what bites
+  await check("verified clicks are free but still recorded, and capped per device per day", async () => {
     const camp = await api("POST", "/v1/checkout", {
       email: "adv@clickcap.co", adLine: "click cap regression campaign", url: "https://clickcap.example/",
       brand: "ClickCap", pricePerBlock: 2, blocks: 5,
@@ -249,17 +253,24 @@ const fakeMailer = {
     await payWebhook(camp.body.campaignId);
     await approve(camp.body.campaignId);
     const capDev = (await api("POST", "/v1/devices/register")).body;
+    const before = (await poolNs.query("select impressions_remaining from campaigns where id = $1", [camp.body.campaignId])).rows[0].impressions_remaining;
 
-    // fire 7 clicks; dailyClickCap is 5, so only 5 may credit
+    // fire 7 clicks; dailyClickCap is 5, so only 5 are recorded (the rest still redirect)
     for (let i = 0; i < 7; i++) {
       const intent = await api("POST", "/v1/clicks/intent", { ...capDev, campaignId: camp.body.campaignId });
       const go = await api("GET", `/v1/go/${intent.body.trackingUrl.split("/v1/go/")[1]}`);
       assert.strictEqual(go.status, 302); // over-cap clicks still redirect cleanly
       assert.strictEqual(go.headers.get("location"), "https://clickcap.example/");
     }
-    // 5 clicks × ($2 block → 200mc × 50 = 10000mc gross × 90% = 9000mc) = 45000mc = $0.45
-    const e = await api("GET", `/v1/me/earnings?deviceId=${capDev.deviceId}&deviceKey=${capDev.deviceKey}`);
-    assert.strictEqual(e.body.earnedUsd, 0.45);
+    // clicks are free: the device earns nothing and the budget is untouched
+    assert.strictEqual((await api("GET", `/v1/me/earnings?deviceId=${capDev.deviceId}&deviceKey=${capDev.deviceKey}`)).body.earnedUsd, 0);
+    assert.strictEqual(
+      (await poolNs.query("select impressions_remaining from campaigns where id = $1", [camp.body.campaignId])).rows[0].impressions_remaining,
+      before, "clicks must not draw budget");
+    // exactly 5 click_events recorded — the daily cap bounds what we record
+    assert.strictEqual(
+      (await poolNs.query("select count(*)::int n from ledger where device_id = $1 and entry_type = 'click_event'", [capDev.deviceId])).rows[0].n,
+      5, "daily cap bounds recorded clicks");
   });
 
   await check("concurrent gift redemptions can't double-spend the same balance", async () => {
@@ -1101,24 +1112,25 @@ const fakeMailer = {
   await check("per-campaign metrics: clicks, impressions-shown, CPC, eCPM from the ledger", async () => {
     await payWebhook(metricCamp); await approve(metricCamp);
     const d = (await api("POST", "/v1/devices/register")).body;
-    // 950 shown impressions + 1 verified click (50 budget units) = 1000 = exhausted.
-    await api("POST", "/v1/events", { ...d, batchKey: "bmetric", events: [{ campaignId: metricCamp, impressions: 950, clicks: 0 }] });
+    // a free verified click is recorded (clicks metric) but draws no budget…
     const intent = await api("POST", "/v1/clicks/intent", { ...d, campaignId: metricCamp });
     await api("GET", `/v1/go/${intent.body.trackingUrl.split("/v1/go/")[1]}`);
+    // …then 1000 impressions exhaust the $2 budget on their own (clicks no longer draw it).
+    await api("POST", "/v1/events", { ...d, batchKey: "bmetric", events: [{ campaignId: metricCamp, impressions: 1000, clicks: 0 }] });
 
     const { body } = await api("GET", "/v1/admin/campaigns/all?status=exhausted", undefined, { "X-Admin-Key": "test-admin" });
     const c = body.campaigns.find((x) => x.id === metricCamp);
     assert.ok(c, "exhausted campaign present in the metrics list");
-    assert.strictEqual(c.clicks, 1);
-    assert.strictEqual(c.impressionsShown, 950, "shown = impression_credit.billed, not budget units");
-    assert.strictEqual(c.spendUsd, 2);                    // full $2 budget billed out
+    assert.strictEqual(c.clicks, 1);                      // the free click is still counted
+    assert.strictEqual(c.impressionsShown, 1000, "shown = impression_credit.billed, not budget units");
+    assert.strictEqual(c.spendUsd, 2);                    // full $2 budget billed out (impressions only)
     assert.strictEqual(c.cpcUsd, 2);                      // spend / clicks
-    assert.ok(Math.abs(c.ecpmUsd - 2000 / 950) < 1e-9);   // spend / shown * 1000
+    assert.ok(Math.abs(c.ecpmUsd - 2) < 1e-9);            // spend / shown * 1000 = 2/1000*1000
     // the rollup aggregates the same realized numbers for the advertiser
     const adv = (await api("GET", "/v1/admin/advertisers", undefined, { "X-Admin-Key": "test-admin" })).body
       .advertisers.find((a) => a.email === "metrics@adv.test");
     assert.strictEqual(adv.clicks, 1);
-    assert.strictEqual(adv.impressionsShown, 950);
+    assert.strictEqual(adv.impressionsShown, 1000);
     assert.strictEqual(adv.spendUsd, 2);
   });
 
@@ -1138,7 +1150,7 @@ const fakeMailer = {
     assert.strictEqual(prev.status, 200);
     assert.strictEqual(prev.body.alreadySent, false);
     assert.strictEqual(prev.body.stats.clicks, 1);
-    assert.strictEqual(prev.body.stats.impressionsShown, 950);
+    assert.strictEqual(prev.body.stats.impressionsShown, 1000);
     assert.ok(prev.body.subject.includes("wrapped up"));
 
     // a still-active campaign can't be sent a completion receipt

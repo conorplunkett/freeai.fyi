@@ -32,8 +32,8 @@ Then verify it two ways:
   **Stop** button (site-specific selectors for ChatGPT / Claude / Gemini, plus a
   generic `aria-label*="stop"` catch-all), an `aria-busy` region, or a streaming
   marker — and shows the sponsored bar only while the assistant is working.
-- Every 5 seconds served is one **impression**; a click is worth more than an
-  impression. Credits accrue at your revenue share, stored locally
+- Every 5 seconds served is one **impression**; clicks are tracked but no longer
+  paid. Credits accrue at your revenue share, stored locally
   (`chrome.storage`), shown live in the popup.
 - The bar mounts **inline, at the streaming reply** (Claude's
   `data-is-streaming` bubble, ChatGPT's last assistant turn, Gemini's

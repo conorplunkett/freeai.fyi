@@ -49,7 +49,8 @@ function parseAffiliateSocials(body) {
 const mcUsd = (v) => Number(v || 0) / 100000;
 // Realized per-campaign/advertiser metrics from raw ledger sums. eCPM and CTR use
 // impressions *shown* (impression_credit.meta.billed), never budget units — a
-// verified click burns 50 budget units but is one impression for rate math.
+// clicks no longer bill (recorded as a zero-value click_event); spend is impression
+// money, and clicks are counted separately for CTR/CPC.
 function adMetrics(spendMc, impressionsShown, clicks) {
   const spendUsd = mcUsd(spendMc), imp = Number(impressionsShown || 0), clk = Number(clicks || 0);
   return {
@@ -209,7 +210,7 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   });
 
   route("GET", "/v1/go/:token", async (req, res, body, rawBody, query, p) => {
-    const result = await repo.redeemClickToken(p.token, config.revenueShare, config.dailyClickCap);
+    const result = await repo.redeemClickToken(p.token, config.dailyClickCap);
     redirect(res, result?.url || config.siteUrl);
   });
 
