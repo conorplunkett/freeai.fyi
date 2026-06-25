@@ -186,7 +186,7 @@ swift run SponsorOverlay                  # uses FREEAI_API_URL or the default A
 Grant Accessibility when prompted, open Claude or ChatGPT Desktop, start a
 generation. The card should appear while the assistant streams; 5 visible
 seconds → one impression batch lands in the server ledger; clicking routes
-through `/v1/go/:token` and credits the click.
+through `/v1/go/:token`, which records the click (clicks are tracked, not paid).
 
 **CI** builds the Swift app on a `macos-14` runner on every push/PR, packages
 it with `packaging/bundle.sh`, and uploads `SponsorOverlay.zip` + `.dmg` as the

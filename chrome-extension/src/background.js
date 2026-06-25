@@ -65,8 +65,9 @@ async function recordClick(mock) {
   const next = mock
     ? { testClicks: s.testClicks + 1 }
     : {
+        // clicks are free now — recorded for the count, but they don't earn
+        // (the 50x click billing was removed server-side).
         clicks: s.clicks + 1,
-        earnings: +(s.earnings + perImpressionNet(s) * 50).toFixed(6), // click = 50x impression
       };
   await chrome.storage.local.set(next);
   return { ...s, ...next };

@@ -417,7 +417,7 @@ function createRepo(pool) {
                 coalesce((select sum(amount_millicents) from ledger
                           where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents,
                 coalesce((select count(*) from ledger
-                          where campaign_id = c.id and entry_type = 'click_credit'),0)::int as clicks,
+                          where campaign_id = c.id and entry_type in ('click_credit','click_event')),0)::int as clicks,
                 coalesce((select sum((meta->>'billed')::int) from ledger
                           where campaign_id = c.id and entry_type = 'impression_credit'),0)::bigint as impressions_shown
            from campaigns c left join advertisers a on a.id = c.advertiser_id
@@ -439,7 +439,7 @@ function createRepo(pool) {
                 count(distinct c.id) filter (where c.status = 'active')::int as active_campaigns,
                 coalesce(sum(l.amount_millicents) filter (where l.entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as spend_millicents,
                 coalesce(sum((l.meta->>'billed')::int) filter (where l.entry_type = 'impression_credit'),0)::bigint as impressions_shown,
-                count(*) filter (where l.entry_type = 'click_credit')::int as clicks
+                count(*) filter (where l.entry_type in ('click_credit','click_event'))::int as clicks
            from advertisers a
            left join campaigns c on c.advertiser_id = a.id
            left join ledger l on l.campaign_id = c.id
@@ -465,7 +465,7 @@ function createRepo(pool) {
                 coalesce((select sum(amount_millicents) from ledger
                           where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents,
                 coalesce((select count(*) from ledger
-                          where campaign_id = c.id and entry_type = 'click_credit'),0)::int as clicks,
+                          where campaign_id = c.id and entry_type in ('click_credit','click_event')),0)::int as clicks,
                 coalesce((select sum((meta->>'billed')::int) from ledger
                           where campaign_id = c.id and entry_type = 'impression_credit'),0)::bigint as impressions_shown
            from campaigns c left join advertisers a on a.id = c.advertiser_id
@@ -579,8 +579,9 @@ function createRepo(pool) {
 
     // ---------- event ingestion (the core money loop) ----------
     // One batch = { batchKey, events: [{ campaignId, impressions, clicks }] }.
-    // A click bills the campaign at 50x an impression. The user's share
-    // (revenueShare, 0.5 by default) credits the device; the rest is the platform fee.
+    // Only impressions bill: the user's share (revenueShare, 0.5 by default)
+    // credits the device, the rest is the platform fee. Self-reported clicks in
+    // the batch are ignored — verified clicks go through the token path and are free.
     async ingestBatch({ deviceId, batchKey, events, source, revenueShare, dailyCap, ipHash, ipDailyCap }) {
       return tx(async (c) => {
         const claimedImpressions = events.reduce((n, e) => n + (e.impressions || 0), 0);
@@ -787,9 +788,12 @@ function createRepo(pool) {
       return token;
     },
 
-    // Redeem a click token exactly once: bill the campaign 50x an impression,
-    // credit the device its share, return the destination URL to redirect to.
-    async redeemClickToken(token, revenueShare, dailyClickCap) {
+    // Redeem a click token exactly once: record the click and return the
+    // destination URL to redirect to. Clicks are FREE — we record a zero-value
+    // 'click_event' for analytics (clicks / CTR / CPC) but never bill the
+    // campaign, draw budget, or credit the device (the 50x click billing was
+    // removed). Historical 'click_credit' rows are untouched.
+    async redeemClickToken(token, dailyClickCap) {
       return tx(async (c) => {
         const t = await c.query(
           `update click_tokens set used_at = now()
@@ -800,15 +804,14 @@ function createRepo(pool) {
         if (!t.rows[0]) return null;
         const { campaign_id, device_id } = t.rows[0];
 
-        // Per-device daily click cap. A click bills 50x an impression, so an
-        // uncapped click path lets one device drain a campaign's budget and mint
-        // credit in a loop. Past the cap we still 302 the user onward (clean UX)
-        // but credit nothing — the analogue of the impression daily cap.
+        // Per-device daily cap still bounds how many clicks we RECORD per day, so
+        // the click metric can't be spammed. Past the cap we still 302 the user
+        // onward (clean UX) but record nothing.
         let overCap = false;
         if (Number.isFinite(dailyClickCap)) {
           const used = await c.query(
             `select count(*)::int as n from ledger
-              where device_id = $1 and entry_type = 'click_credit'
+              where device_id = $1 and entry_type = 'click_event'
                 and created_at >= date_trunc('day', now())`,
             [device_id]
           );
@@ -816,36 +819,18 @@ function createRepo(pool) {
         }
 
         const camp = await c.query(
-          `select url, price_per_block_cents, impressions_remaining from campaigns
-            where id = $1 and status = 'active' for update`,
+          "select url from campaigns where id = $1 and status = 'active'",
           [campaign_id]
         );
         if (!camp.rows[0]) return null;
-        const billed = overCap ? 0 : Math.min(50, camp.rows[0].impressions_remaining); // a click = 50 impressions
-        if (billed > 0) {
-          await c.query(
-            `update campaigns set
-               impressions_remaining = impressions_remaining - $2,
-               status = case when impressions_remaining - $2 <= 0 then 'exhausted' else status end
-             where id = $1`,
-            [campaign_id, billed]
-          );
-          const gross = BigInt(camp.rows[0].price_per_block_cents) * BigInt(billed);
-          const dev = (gross * BigInt(Math.round(revenueShare * 1000))) / 1000n;
-          const fee = gross - dev;
+        // Record the click for analytics only — amount 0, no budget draw, no
+        // platform fee, no affiliate accrual.
+        if (!overCap) {
           await c.query(
             `insert into ledger (entry_type, amount_millicents, device_id, campaign_id, meta)
-             values ('click_credit', $1, $2, $3, $4)`,
-            [dev.toString(), device_id, campaign_id, JSON.stringify({ via: "go", billed })]
+             values ('click_event', 0, $1, $2, $3)`,
+            [device_id, campaign_id, JSON.stringify({ via: "go" })]
           );
-          await c.query(
-            `insert into ledger (entry_type, amount_millicents, campaign_id, meta)
-             values ('platform_fee', $1, $2, '{}')`,
-            [fee.toString(), campaign_id]
-          );
-          // Accrue the affiliate's cut on this click credit, if any.
-          const dev2 = await c.query("select user_id from devices where id = $1", [device_id]);
-          await creditAffiliate(c, dev2.rows[0]?.user_id, dev);
         }
         return { url: camp.rows[0].url };
       });

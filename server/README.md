@@ -105,13 +105,14 @@ built in:
   raw); the cap is fail-open and `IP_DAILY_IMPRESSION_CAP=0` disables it. Raise
   it (or disable) for operators with large shared-NAT / mobile-CGNAT audiences,
   where many genuine users share one IP.
-- **Clicks are token-only** — `POST /v1/events` bills impressions *only*. A
-  click bills 50x, so self-reported click counts (which would also dodge the
-  impression cap) are never credited; genuine clicks earn solely through the
-  single-use, forgery-proof token path (`/v1/clicks/intent` → `/v1/go`).
+- **Clicks are token-only** — `POST /v1/events` bills impressions *only*.
+  Self-reported click counts are never credited; verified clicks go through the
+  single-use, forgery-proof token path (`/v1/clicks/intent` → `/v1/go`), which
+  records each click as a zero-value `click_event` for analytics — clicks are
+  free and never billed or paid.
 - **Daily click cap** — default 100 verified clicks/device/day; past it the
-  `/v1/go` redirect still works but credits nothing, so the 50x path can't be
-  looped to drain a budget.
+  `/v1/go` redirect still works but records nothing more, so the click path
+  can't be looped to spam the metric.
 - **Budget locks** — campaigns are row-locked on billing and can never be
   billed past `impressions_remaining`; they flip to `exhausted` atomically.
 - **No double-spend on redeem** — concurrent gift redemptions serialize on a

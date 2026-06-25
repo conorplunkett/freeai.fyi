@@ -68,7 +68,7 @@ These wrap the per-component READMEs, which stay the source of truth:
   `statusLine` JSON input and Claude transcript metadata. It launches Claude
   with a temporary `--settings` file, never edits `~/.claude/settings.json`, and
   falls back to unchanged Claude when FreeAI cannot safely serve.
-- Every 5 seconds served is one **impression**, and a click is worth more.
+- Every 5 seconds served is one **impression**. Clicks are tracked but no longer paid.
   Credits accrue to your balance as you earn. **Test mode** shows a labelled mock ad
   continuously, with its own counters that never touch real earnings.
 - It reads **none** of your prompts or the model's output. The terminal client
