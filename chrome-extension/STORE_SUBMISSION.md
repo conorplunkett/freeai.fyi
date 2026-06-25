@@ -65,13 +65,13 @@ manifest and pre-fills name, version, and icons. Then complete the tabs below.
 **Detailed description** (paste into the description box):
 
 ```
-FreeAI turns the AI "thinking" spinner into a tiny ad marketplace — and gives
+FreeAI turns the AI "thinking" spinner into a tiny ad marketplace and gives
 you half the money back as credits.
 
-While ChatGPT, Claude, or Gemini is generating an answer, FreeAI shows a
-sponsored line right by the reply. That's it. When the model finishes, it goes
-away. 50% of the ad revenue accrues to you as credits you can redeem for AI
-subscriptions like Claude.
+While ChatGPT, Claude, or Gemini is generating an answer, instead of sitting
+idle, FreeAI shows a sponsored line right by the reply. That's it. When the
+model finishes, it goes away. 50% of the ad revenue accrues to you as credits
+you can redeem for AI subscriptions like Claude.
 
 WHAT IT DOES
 • Shows a sponsored line only while the assistant is thinking.
@@ -81,7 +81,7 @@ WHAT IT DOES
 WHAT IT DOES NOT DO
 • It never reads, stores, or transmits your prompts or the model's answers.
 • It only detects the on/off "is it generating right now?" state of the page.
-• No keystroke logging. No selling your data — the only data we have is
+• No keystroke logging. No selling your data the only data we have is
   "a spinner showed an ad."
 
 SUPPORTED SITES
