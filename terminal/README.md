@@ -5,7 +5,7 @@ Standalone Claude Code terminal integration.
 ## Install
 
 ```bash
-npx @freeai/terminal claude setup
+npx @freeai.fyi/terminal claude setup
 ```
 
 ## Commands
@@ -71,7 +71,7 @@ fish uses an equivalent `claude` function that forwards `$argv`.
 ```bash
 freeai claude restore        # remove the shell alias/function
 # restart your shell, or source your rc
-npm rm -g @freeai/terminal   # remove the CLI (if installed globally)
+npm rm -g @freeai.fyi/terminal   # remove the CLI (if installed globally)
 rm -rf ~/.freeai             # optional: delete local state (device + config)
 ```
 

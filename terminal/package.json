@@ -1,5 +1,5 @@
 {
-  "name": "@freeai/terminal",
+  "name": "@freeai.fyi/terminal",
   "version": "0.1.0",
   "description": "FreeAI terminal integration for Claude Code.",
   "type": "module",
