@@ -238,6 +238,15 @@ a { color: inherit; text-decoration: none; }
 .jump-chev { font-size: 20px; color: var(--blue); animation: bob 1.8s ease infinite; }
 @keyframes bob { 50% { transform: translateY(4px); } }
 
+/* "Try it out" cue pointing down at the quick-install row (chevrons copied
+   from the hero demo's », rotated to point down). */
+.tryit {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin: 4px 0 14px; font-family: var(--mono); font-weight: 700;
+  font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+}
+.tryit-chev { font-size: 24px; line-height: 1; transform: rotate(90deg); }
+
 /* DOWNLOAD CTAs — three quick installs above the surfaces showcase. Chrome +
    Desktop are greyed "coming soon"; Terminal is a compact copy-paste. */
 .downloads { padding: 16px 0 4px; }
@@ -248,7 +257,7 @@ a { color: inherit; text-decoration: none; }
 .dl-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .dl-label {
   font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--gray); font-weight: 700;
+  color: var(--accent); font-weight: 700; text-align: center;
 }
 .dl-btn {
   display: flex; align-items: center; justify-content: center; gap: 9px;
@@ -300,7 +309,7 @@ a { color: inherit; text-decoration: none; }
      sponsor chips), content rather than FreeAI palette. Claude reuses coral. */
   --brand-claude: var(--accent); --brand-chatgpt: #0d0d0d; --brand-gemini: #4285f4;
   --brand-claude-soft: rgba(var(--accent-rgb), .12); --brand-chatgpt-soft: rgba(13, 13, 13, .06); --brand-gemini-soft: rgba(66, 133, 244, .12);
-  text-align: left; padding: 8px 0 24px;
+  text-align: left; padding: 40px 0 24px;
 }
 .surfaces .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 28px; }
 
@@ -314,6 +323,9 @@ a { color: inherit; text-decoration: none; }
 .surfaces .surface { display: grid; grid-template-columns: 1fr 1fr; column-gap: 56px; row-gap: 28px; align-items: center; padding: 52px 0; }
 .surfaces .surface.flip .stage { order: 2; }
 .surfaces .surface + .surface { border-top: 1px solid var(--line); }
+/* Let the 1fr tracks shrink so long terminal/command content scrolls or clips
+   instead of forcing the grid wider than the viewport on mobile. */
+.surfaces .surface > * { min-width: 0; }
 /* A CTA card (Chrome install / terminal paste) folded full-width under a
    surface's two-column row — always last. Light treatment so it sits on the
    section's light canvas instead of the dark hero version. */
