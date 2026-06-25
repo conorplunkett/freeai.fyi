@@ -292,6 +292,35 @@ function createMailer(cfg: any) {
       + `<td style="padding:8px 16px;font-family:${FONT};font-size:13px;font-weight:600;color:#1f1e1d;text-align:right;${i ? "border-top:1px solid #efeae0;" : ""}">${v}</td></tr>`).join("");
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 2px;background:#faf9f5;border:1px solid #e6e2d8;border-radius:12px;">${cells}</table>`;
   }
+  // Pure builder for the "campaign finished" advertiser receipt — returns
+  // { subject, html } so the admin can PREVIEW it (render, don't send) and the send
+  // path shares the same render. Advertiser fields are escaped (the preview renders
+  // in the admin's browser).
+  function buildCampaignCompletedEmail(s: any) {
+    const money = (n: any) => "US$" + (Number(n) || 0).toFixed(2);
+    const nfmt = (n: any) => (Number(n) || 0).toLocaleString("en-US");
+    const pct = (r: any) => (r == null ? "—" : (Number(r) * 100).toFixed(2) + "%");
+    return {
+      subject: "Your FreeAI campaign wrapped up — the final numbers",
+      html: shell({
+        preheader: "Your FreeAI campaign finished — here are its final results.",
+        hero: "📊", heading: "Your campaign wrapped up",
+        body: `<p style="margin:0 0 14px;">Your FreeAI campaign has finished — its budget is fully spent. Here's how it performed:</p>`
+          + detail([
+            ["Ad line", `“${escapeHtml(s.adLine)}”`],
+            s.brand ? ["Brand", escapeHtml(s.brand)] : null,
+            ["Impressions shown", nfmt(s.impressionsShown)],
+            ["Clicks", nfmt(s.clicks)],
+            ["Click-through rate", pct(s.ctr)],
+            ["Cost per click", s.cpcUsd == null ? "—" : money(s.cpcUsd)],
+            ["Effective CPM", s.ecpmUsd == null ? "—" : money(s.ecpmUsd)],
+            ["Total spent", money(s.totalPaidUsd)],
+            ["Campaign", escapeHtml(s.campaignId)],
+          ]),
+        note: "Thanks for advertising on FreeAI — just reply to this email to plan your next campaign.",
+      }),
+    };
+  }
   return {
     sendVerifyEmail: (to: string, link: string) => send(to, "Verify your email to get paid",
       shell({
@@ -338,6 +367,11 @@ function createMailer(cfg: any) {
           ]),
         note: "It goes live once we approve it — usually within a day. Stripe has emailed a separate itemized receipt for your records.",
       })),
+    buildCampaignCompletedEmail,
+    sendCampaignCompletedEmail: (to: string, stats: any) => {
+      const { subject, html } = buildCampaignCompletedEmail(stats);
+      return sendAds(to, subject, html);
+    },
     sendCampaignLiveEmail: (to: string, { campaignId, brand, adLine, impressionsTotal }: any) =>
       sendAds(to, "Your FreeAI ad is live 🎉",
       shell({
@@ -709,7 +743,9 @@ function createRepo(pool: any) {
       // not necessarily a multiple of 1000. budgetCents is the exact charge.
       const impressions = Number.isFinite(impressionsTotal) ? impressionsTotal : blocks * 1000;
       return tx(async (c: any) => {
-        const adv = await c.query("insert into advertisers (email) values ($1) returning id", [email]);
+        // Upsert so a returning advertiser (same email) reuses their row and owns many
+        // campaigns, rather than minting a disconnected advertiser per checkout.
+        const adv = await c.query("insert into advertisers (email) values ($1) on conflict (email) do update set email = excluded.email returning id", [email]);
         const { rows } = await c.query(
           `insert into campaigns
              (advertiser_id, brand, ad_line, url, category, color, price_per_block_cents,
@@ -1746,16 +1782,92 @@ function createRepo(pool: any) {
         `select c.id, c.brand, c.ad_line, c.url, c.category, c.status,
                 c.price_per_block_cents, c.blocks, c.impressions_total, c.impressions_remaining,
                 (c.impressions_total - c.impressions_remaining) as impressions_served,
-                c.show_on_leaderboard, c.review_note, c.created_at, c.paid_at, c.activated_at,
+                c.show_on_leaderboard, c.review_note, c.completion_email_sent_at, c.created_at, c.paid_at, c.activated_at,
                 a.email as advertiser_email,
                 coalesce((select sum(amount_millicents) from ledger
-                          where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents
+                          where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents,
+                coalesce((select count(*) from ledger
+                          where campaign_id = c.id and entry_type = 'click_credit'),0)::int as clicks,
+                coalesce((select sum((meta->>'billed')::int) from ledger
+                          where campaign_id = c.id and entry_type = 'impression_credit'),0)::bigint as impressions_shown
            from campaigns c left join advertisers a on a.id = c.advertiser_id
            ${where}
           order by c.created_at desc limit ${lim} offset ${ofs}`,
         params
       );
       return rows;
+    },
+    // One campaign's full data for the completion-receipt preview/send: advertiser
+    // email + ad copy + status + the receipt guard + realized metrics. Null if unknown.
+    async campaignReceiptData(campaignId: string) {
+      if (!isUuid(campaignId)) return null;
+      const { rows } = await pool.query(
+        `select c.id, c.brand, c.ad_line, c.url, c.status,
+                c.price_per_block_cents, c.blocks, c.budget_cents,
+                c.impressions_total, c.impressions_remaining, c.completion_email_sent_at,
+                c.created_at, c.activated_at,
+                a.email as advertiser_email,
+                coalesce((select sum(amount_millicents) from ledger
+                          where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents,
+                coalesce((select count(*) from ledger
+                          where campaign_id = c.id and entry_type = 'click_credit'),0)::int as clicks,
+                coalesce((select sum((meta->>'billed')::int) from ledger
+                          where campaign_id = c.id and entry_type = 'impression_credit'),0)::bigint as impressions_shown
+           from campaigns c left join advertisers a on a.id = c.advertiser_id
+          where c.id = $1`,
+        [campaignId]
+      );
+      return rows[0] || null;
+    },
+    // Atomically claim the one-time completion receipt (stamps only if exhausted and
+    // unstamped). { sentAt } on the winning claim, null otherwise — so no double-send.
+    async claimCampaignReceipt(campaignId: string) {
+      if (!isUuid(campaignId)) return null;
+      const { rows } = await pool.query(
+        `update campaigns set completion_email_sent_at = now()
+          where id = $1 and status = 'exhausted' and completion_email_sent_at is null
+          returning completion_email_sent_at`,
+        [campaignId]
+      );
+      return rows[0] ? { sentAt: rows[0].completion_email_sent_at } : null;
+    },
+    async clearCampaignReceipt(campaignId: string) {
+      if (!isUuid(campaignId)) return;
+      await pool.query("update campaigns set completion_email_sent_at = null where id = $1", [campaignId]);
+    },
+    // Per-advertiser rollup: one row per advertiser, aggregating realized metrics
+    // across all of their campaigns.
+    async adminAdvertisers({ limit, offset }: any = {}) {
+      const n = Math.max(1, Math.min(500, parseInt(limit, 10) || 200));
+      const off = Math.max(0, parseInt(offset, 10) || 0);
+      const { rows } = await pool.query(
+        `select a.id, a.email, a.created_at,
+                count(distinct c.id)::int as campaigns,
+                count(distinct c.id) filter (where c.status = 'active')::int as active_campaigns,
+                coalesce(sum(l.amount_millicents) filter (where l.entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as spend_millicents,
+                coalesce(sum((l.meta->>'billed')::int) filter (where l.entry_type = 'impression_credit'),0)::bigint as impressions_shown,
+                count(*) filter (where l.entry_type = 'click_credit')::int as clicks
+           from advertisers a
+           left join campaigns c on c.advertiser_id = a.id
+           left join ledger l on l.campaign_id = c.id
+          group by a.id, a.email, a.created_at
+          order by spend_millicents desc, a.created_at desc
+          limit $1 offset $2`,
+        [n, off]
+      );
+      return rows;
+    },
+    // Exhausted campaigns awaiting their one-time completion receipt — the sweep's
+    // work list, oldest-finished first.
+    async pendingReceiptCampaignIds(limit = 100) {
+      const n = Math.max(1, Math.min(500, parseInt(String(limit), 10) || 100));
+      const { rows } = await pool.query(
+        `select id from campaigns
+          where status = 'exhausted' and completion_email_sent_at is null
+          order by activated_at nulls last, created_at limit $1`,
+        [n]
+      );
+      return rows.map((r: any) => r.id);
     },
     async cancelCampaign(campaignId: string) {
       if (!isUuid(campaignId)) return false;
@@ -2929,6 +3041,29 @@ route("POST", "/v1/admin/pricing", async (ctx: any) => {
 // Money helpers: ledger is millicents, gift_redemptions is cents.
 const mcUsd = (v: any) => Number(v || 0) / 100000;
 const cUsd = (v: any) => Number(v || 0) / 100;
+// Realized per-campaign/advertiser metrics from raw ledger sums. eCPM/CTR use
+// impressions *shown* (impression_credit.meta.billed), never budget units — a
+// verified click burns 50 budget units but is one impression for rate math.
+const adMetrics = (spendMc: any, impressionsShown: any, clicks: any) => {
+  const spendUsd = mcUsd(spendMc), imp = Number(impressionsShown || 0), clk = Number(clicks || 0);
+  return { spendUsd, impressionsShown: imp, clicks: clk,
+    ctr: imp > 0 ? clk / imp : null,
+    cpcUsd: clk > 0 ? spendUsd / clk : null,
+    ecpmUsd: imp > 0 ? (spendUsd / imp) * 1000 : null };
+};
+// Advertiser-facing receipt stats for one campaignReceiptData row. Total spent =
+// budget_cents when present (budget+CPM campaigns), else legacy price*blocks.
+const receiptStats = (row: any) => {
+  const m = adMetrics(row.recognized_millicents, row.impressions_shown, row.clicks);
+  const totalPaidUsd = row.budget_cents != null
+    ? Number(row.budget_cents) / 100
+    : (Number(row.price_per_block_cents) * Number(row.blocks)) / 100;
+  return { campaignId: row.id, brand: row.brand, adLine: row.ad_line, url: row.url, status: row.status,
+    impressionsShown: m.impressionsShown, clicks: m.clicks, ctr: m.ctr, cpcUsd: m.cpcUsd, ecpmUsd: m.ecpmUsd,
+    spendUsd: m.spendUsd, totalPaidUsd, impressionsTotal: Number(row.impressions_total),
+    advertiserEmail: row.advertiser_email, completionEmailSentAt: row.completion_email_sent_at,
+    createdAt: row.created_at, activatedAt: row.activated_at };
+};
 
 route("GET", "/v1/admin/overview", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
@@ -2987,14 +3122,95 @@ route("GET", "/v1/admin/campaigns/all", async (ctx: any) => {
     status: ctx.query.get("status") || null,
     limit: ctx.query.get("limit"), offset: ctx.query.get("offset"),
   });
-  return json(200, { campaigns: rows.map((c: any) => ({
-    id: c.id, brand: c.brand, adLine: c.ad_line, url: c.url, category: c.category, status: c.status,
-    bidUsd: c.price_per_block_cents / 100, blocks: c.blocks,
-    impressionsTotal: c.impressions_total, impressionsRemaining: c.impressions_remaining, impressionsServed: c.impressions_served,
-    showOnLeaderboard: c.show_on_leaderboard, reviewNote: c.review_note,
-    recognizedUsd: mcUsd(c.recognized_millicents), advertiserEmail: c.advertiser_email,
-    createdAt: c.created_at, paidAt: c.paid_at, activatedAt: c.activated_at,
-  })) });
+  return json(200, { campaigns: rows.map((c: any) => {
+    const m = adMetrics(c.recognized_millicents, c.impressions_shown, c.clicks);
+    return {
+      id: c.id, brand: c.brand, adLine: c.ad_line, url: c.url, category: c.category, status: c.status,
+      bidUsd: c.price_per_block_cents / 100, blocks: c.blocks,
+      impressionsTotal: c.impressions_total, impressionsRemaining: c.impressions_remaining, impressionsServed: c.impressions_served,
+      showOnLeaderboard: c.show_on_leaderboard, reviewNote: c.review_note,
+      recognizedUsd: mcUsd(c.recognized_millicents), advertiserEmail: c.advertiser_email,
+      clicks: m.clicks, impressionsShown: m.impressionsShown, ctr: m.ctr, cpcUsd: m.cpcUsd, ecpmUsd: m.ecpmUsd, spendUsd: m.spendUsd,
+      completionEmailSentAt: c.completion_email_sent_at,
+      createdAt: c.created_at, paidAt: c.paid_at, activatedAt: c.activated_at,
+    };
+  }) });
+});
+
+// Per-advertiser rollup (one row per advertiser; aggregates across their campaigns).
+route("GET", "/v1/admin/advertisers", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const rows = await repo.adminAdvertisers({ limit: ctx.query.get("limit"), offset: ctx.query.get("offset") });
+  return json(200, { advertisers: rows.map((a: any) => {
+    const m = adMetrics(a.spend_millicents, a.impressions_shown, a.clicks);
+    return { id: a.id, email: a.email, createdAt: a.created_at,
+      campaigns: Number(a.campaigns), activeCampaigns: Number(a.active_campaigns),
+      spendUsd: m.spendUsd, impressionsShown: m.impressionsShown, clicks: m.clicks,
+      ctr: m.ctr, cpcUsd: m.cpcUsd, ecpmUsd: m.ecpmUsd };
+  }) });
+});
+
+// ── completion-receipt preview (no stamp) + manual once-only send (+ force resend) ──
+route("GET", "/v1/admin/campaigns/receipt-preview", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const row = await repo.campaignReceiptData(ctx.query.get("campaignId"));
+  if (!row) return json(404, { error: "campaign not found" });
+  const stats = receiptStats(row);
+  const { subject, html } = mailer.buildCampaignCompletedEmail(stats);
+  return json(200, { subject, html, stats, alreadySent: !!row.completion_email_sent_at });
+});
+route("POST", "/v1/admin/campaigns/send-receipt", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  const campaignId = ctx.body?.campaignId;
+  const row = await repo.campaignReceiptData(campaignId);
+  if (!row) return json(404, { error: "campaign not found" });
+  if (row.status !== "exhausted") return json(400, { error: "campaign not finished" });
+  if (ctx.body?.force) await repo.clearCampaignReceipt(campaignId);
+  const claim = await repo.claimCampaignReceipt(campaignId);
+  if (!claim) return json(200, { ok: true, alreadySent: true });
+  try {
+    await mailer.sendCampaignCompletedEmail(row.advertiser_email, receiptStats(row));
+  } catch (err) {
+    await repo.clearCampaignReceipt(campaignId); // roll back so the admin can retry
+    return json(502, { error: "send failed" });
+  }
+  return json(200, { ok: true, sentAt: claim.sentAt });
+});
+
+// ── auto-send toggle + batched sweep (a no-op while off unless { force:true }) ──
+route("GET", "/v1/admin/campaigns/receipts-auto", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  let enabled = false;
+  try { enabled = (await repo.getSetting("receipts_auto_send")) === true; } catch { /* settings absent */ }
+  return json(200, { enabled });
+});
+route("POST", "/v1/admin/campaigns/receipts-auto", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  if (typeof ctx.body?.enabled !== "boolean") return json(400, { error: "enabled (boolean) required" });
+  await repo.setSetting("receipts_auto_send", ctx.body.enabled);
+  return json(200, { enabled: ctx.body.enabled });
+});
+route("POST", "/v1/admin/campaigns/receipts-sweep", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  let enabled = false;
+  try { enabled = (await repo.getSetting("receipts_auto_send")) === true; } catch { /* settings absent */ }
+  if (!enabled && !ctx.body?.force) return json(200, { enabled: false, sent: 0, candidates: 0 });
+  const ids = await repo.pendingReceiptCampaignIds(200);
+  let sent = 0, failed = 0;
+  for (const id of ids) {
+    const claim = await repo.claimCampaignReceipt(id);
+    if (!claim) continue;
+    try {
+      const row = await repo.campaignReceiptData(id);
+      await mailer.sendCampaignCompletedEmail(row.advertiser_email, receiptStats(row));
+      sent++;
+    } catch (err) {
+      await repo.clearCampaignReceipt(id);
+      failed++;
+      console.error("[freeai] receipt sweep send failed", err);
+    }
+  }
+  return json(200, { enabled: true, sent, failed, candidates: ids.length });
 });
 route("POST", "/v1/admin/campaigns/cancel", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });

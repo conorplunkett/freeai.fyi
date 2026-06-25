@@ -2,6 +2,8 @@
 // end-to-end in dev/CI with no provider. In production, set MAIL_PROVIDER=resend
 // and RESEND_API_KEY (or wire your own transport) — no other code changes.
 
+const { escapeHtml } = require("./util");
+
 function createMailer(config) {
   const provider = config.mailProvider || "console";
   // Per-audience senders, all on the Resend-verified contact.freeai.fyi domain.
@@ -146,6 +148,40 @@ function createMailer(config) {
     }));
   }
 
+  // Pure builder for the "campaign finished" advertiser receipt — returns
+  // { subject, html } so the admin can PREVIEW it (render, don't send) and the send
+  // path shares the exact same render. Advertiser-controlled fields are escaped
+  // (defense-in-depth; the preview renders in the admin's browser).
+  function buildCampaignCompletedEmail(s) {
+    const money = (n) => "US$" + (Number(n) || 0).toFixed(2);
+    const nfmt = (n) => (Number(n) || 0).toLocaleString("en-US");
+    const pct = (r) => (r == null ? "—" : (Number(r) * 100).toFixed(2) + "%");
+    return {
+      subject: "Your FreeAI campaign wrapped up — the final numbers",
+      html: shell({
+        preheader: "Your FreeAI campaign finished — here are its final results.",
+        hero: "📊", heading: "Your campaign wrapped up",
+        body: `<p style="margin:0 0 14px;">Your FreeAI campaign has finished — its budget is fully spent. Here's how it performed:</p>`
+          + detail([
+            ["Ad line", `“${escapeHtml(s.adLine)}”`],
+            s.brand ? ["Brand", escapeHtml(s.brand)] : null,
+            ["Impressions shown", nfmt(s.impressionsShown)],
+            ["Clicks", nfmt(s.clicks)],
+            ["Click-through rate", pct(s.ctr)],
+            ["Cost per click", s.cpcUsd == null ? "—" : money(s.cpcUsd)],
+            ["Effective CPM", s.ecpmUsd == null ? "—" : money(s.ecpmUsd)],
+            ["Total spent", money(s.totalPaidUsd)],
+            ["Campaign", escapeHtml(s.campaignId)],
+          ]),
+        note: "Thanks for advertising on FreeAI — just reply to this email to plan your next campaign.",
+      }),
+    };
+  }
+  async function sendCampaignCompletedEmail(to, stats) {
+    const { subject, html } = buildCampaignCompletedEmail(stats);
+    await sendAds(to, subject, html);
+  }
+
   // Fulfillment notification for a Claude gift card redemption. Goes to the
   // fulfillment inbox (not the user); the gift card itself is sent manually
   // within 48 hours.
@@ -235,6 +271,7 @@ function createMailer(config) {
 
   return {
     sendVerifyEmail, sendWebLoginEmail, sendAdvertiserReceiptEmail, sendCampaignRejectedEmail,
+    sendCampaignCompletedEmail, buildCampaignCompletedEmail,
     sendGiftRedemptionEmail, sendReferralInviteEmail, sendCrewInviteEmail,
     sendRedemptionConfirmationEmail, sendReferralRewardEmail, sendWaitlistConfirmationEmail,
   };

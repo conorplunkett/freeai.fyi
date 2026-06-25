@@ -35,6 +35,8 @@ function h(tag, attrs = {}, ...kids) {
 const usd = (n) => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usd0 = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("en-US"); // whole-dollar (CPM)
 const num = (n) => (Number(n) || 0).toLocaleString("en-US");
+const pct = (r) => (r == null ? "—" : (Number(r) * 100).toFixed(2) + "%");
+const usdOrDash = (n) => (n == null ? "—" : usd(n));
 const dt = (s) => (s ? new Date(s).toLocaleString() : "—");
 const dShort = (s) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—");
 const short = (s, n = 10) => (s ? String(s).slice(0, n) + "…" : "—");
@@ -115,6 +117,7 @@ const TABS = [
   { id: "overview", label: "Overview", render: renderOverview },
   { id: "daily", label: "Daily Metrics", render: renderDaily },
   { id: "ads", label: "Ads", render: renderAds },
+  { id: "advertisers", label: "Advertisers", render: renderAdvertisers },
   { id: "redemptions", label: "Redemptions", render: renderRedemptions },
   { id: "income", label: "Income", render: renderIncome },
   { id: "users", label: "Users", render: renderUsers },
@@ -276,8 +279,9 @@ async function renderAds(view) {
     body.innerHTML = "";
     body.append(table([
       { label: "Brand" }, { label: "Ad line" }, { label: "Status" }, { label: "Bid", num: true },
-      { label: "Served / total", num: true }, { label: "Recognized", num: true }, { label: "Advertiser" },
-      { label: "Created" }, { label: "" },
+      { label: "Served / total", num: true }, { label: "Recognized", num: true },
+      { label: "Clicks", num: true }, { label: "CTR", num: true }, { label: "CPC", num: true }, { label: "eCPM", num: true },
+      { label: "Advertiser" }, { label: "Created" }, { label: "" },
     ], campaigns, (c) => [
       c.brand || "—",
       td(h("a", { href: c.url, target: "_blank", rel: "noopener nofollow" }, c.adLine), "wrap"),
@@ -285,6 +289,10 @@ async function renderAds(view) {
       usd(c.bidUsd) + " ×" + c.blocks,
       num(c.impressionsServed) + " / " + num(c.impressionsTotal),
       usd(c.recognizedUsd),
+      num(c.clicks),
+      pct(c.ctr),
+      usdOrDash(c.cpcUsd),
+      usdOrDash(c.ecpmUsd),
       td(h("span", { class: "mono" }, c.advertiserEmail || "—")),
       dShort(c.createdAt),
       td(adActions(c, load)),
@@ -308,8 +316,68 @@ function adActions(c, reload) {
       if (!confirm("Cancel this campaign? It stops serving.")) return;
       await api("/v1/admin/campaigns/cancel", { method: "POST", body: { campaignId: c.id } }); toast("Cancelled"); reload();
     } }, "Cancel"));
+  } else if (c.status === "exhausted") {
+    wrap.append(h("button", { class: "btn btn-sm", onclick: () => openReceiptModal(c, reload) },
+      c.completionEmailSentAt ? "Receipt ✓" : "Preview receipt"));
   } else { wrap.append(h("span", { class: "muted" }, "—")); }
   return wrap;
+}
+
+// Lightweight modal overlay (no modal infra existed before). Closes on backdrop
+// click or Escape; returns { close }.
+function modal(content) {
+  const overlay = h("div", { class: "modal-overlay" });
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  function close() { overlay.remove(); document.removeEventListener("keydown", onKey); }
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey);
+  overlay.append(content);
+  document.body.append(overlay);
+  return { close };
+}
+
+// Preview the advertiser's completion receipt (rendered in a SANDBOXED iframe, so
+// nothing in the email HTML can script the admin page), then send / resend it.
+async function openReceiptModal(c, reload) {
+  let data;
+  try { data = await api("/v1/admin/campaigns/receipt-preview?campaignId=" + encodeURIComponent(c.id)); }
+  catch (e) { return toast(e.message, true); }
+  const s = data.stats || {};
+  const sendBtn = h("button", { class: "btn btn-accent", onclick: async () => {
+    const force = !!data.alreadySent;
+    if (force && !confirm("Resend the completion receipt to " + (s.advertiserEmail || "the advertiser") + "?")) return;
+    try {
+      const r = await api("/v1/admin/campaigns/send-receipt", { method: "POST", body: { campaignId: c.id, force } });
+      toast(r.alreadySent ? "Already sent" : "Receipt sent");
+      close(); reload && reload();
+    } catch (e) { toast(e.message, true); }
+  } }, data.alreadySent ? "Resend receipt" : "Send receipt");
+  const { close } = modal(h("div", { class: "modal-card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Completion receipt"),
+      h("button", { class: "btn btn-sm", onclick: () => close() }, "Close")),
+    h("p", { class: "hint" }, "To " + (s.advertiserEmail || "—") + " · " + (data.subject || "")),
+    h("p", { class: "hint" }, data.alreadySent ? "Already sent " + dt(s.completionEmailSentAt) + " — sending again will resend." : "Not sent yet."),
+    h("iframe", { class: "receipt-frame", sandbox: "", srcdoc: data.html || "" }),
+    h("div", { class: "row-gap", style: "margin-top:14px" }, sendBtn)));
+}
+
+async function renderAdvertisers(view) {
+  const { advertisers } = await api("/v1/admin/advertisers");
+  view.innerHTML = "";
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Advertisers"),
+      h("p", { class: "hint" }, advertisers.length + " advertiser" + (advertisers.length === 1 ? "" : "s") + " — one row per email, aggregated across their campaigns.")),
+    table([
+      { label: "Advertiser" }, { label: "Ads", num: true }, { label: "Active", num: true },
+      { label: "Spend", num: true }, { label: "Impressions", num: true }, { label: "Clicks", num: true },
+      { label: "CTR", num: true }, { label: "CPC", num: true }, { label: "eCPM", num: true }, { label: "Joined" },
+    ], advertisers, (a) => [
+      td(h("span", { class: "mono" }, a.email)),
+      num(a.campaigns), num(a.activeCampaigns),
+      usd(a.spendUsd), num(a.impressionsShown), num(a.clicks),
+      pct(a.ctr), usdOrDash(a.cpcUsd), usdOrDash(a.ecpmUsd),
+      dShort(a.createdAt),
+    ])));
 }
 
 async function renderRedemptions(view) {
@@ -688,6 +756,7 @@ function setServePill(on) {
 }
 async function renderSettings(view) {
   const d = await api("/v1/admin/overview");
+  const ra = await tryApi("/v1/admin/campaigns/receipts-auto");
   setServePill(d.serving);
   view.innerHTML = "";
   view.append(h("div", { class: "card" },
@@ -699,6 +768,27 @@ async function renderSettings(view) {
         catch (e) { toast(e.message, true); }
       } }, d.serving ? "Pause ad serving" : "Resume ad serving")),
     h("p", { class: "hint" }, d.serving ? "Ads are live. Pausing stops /v1/ads from returning anything (propagates within ~15s)." : "Ad serving is paused. No ads are being delivered.")));
+
+  // Completion-receipt auto-send (off by default). On: a scheduled sweep emails each
+  // advertiser a final CPC/eCPM receipt as their campaign exhausts. "Send now" runs
+  // the sweep immediately regardless of the toggle.
+  const raOn = !!(ra && ra.enabled);
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Completion-receipt auto-send"),
+      h("div", { class: "row-gap" },
+        h("button", { class: "btn " + (raOn ? "btn-danger" : "btn-accent"), onclick: async () => {
+          const next = !raOn;
+          if (!confirm(next ? "Auto-send a finished-campaign receipt to advertisers as campaigns exhaust?" : "Stop auto-sending receipts? (manual per-campaign send still works)")) return;
+          try { await api("/v1/admin/campaigns/receipts-auto", { method: "POST", body: { enabled: next } }); toast(next ? "Auto-send on" : "Auto-send off"); route(true); }
+          catch (e) { toast(e.message, true); }
+        } }, raOn ? "Disable auto-send" : "Enable auto-send"),
+        h("button", { class: "btn", onclick: async () => {
+          try { const r = await api("/v1/admin/campaigns/receipts-sweep", { method: "POST", body: { force: true } }); toast("Swept — " + (r.sent || 0) + " receipt" + (r.sent === 1 ? "" : "s") + " sent"); route(true); }
+          catch (e) { toast(e.message, true); }
+        } }, "Send now"))),
+    h("p", { class: "hint" }, raOn
+      ? "On — a scheduled sweep emails each advertiser a final CPC / eCPM receipt as their budget runs out (delivered when the sweep runs)."
+      : "Off — receipts go out only when you send them per-campaign (Ads tab → Preview receipt). “Send now” sweeps all finished, un-sent campaigns immediately.")));
   await pricingCard(view);
   const cfg = await tryApi("/v1/admin/config");
   if (cfg) view.append(h("div", { class: "card" },

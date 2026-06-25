@@ -5,6 +5,8 @@ const crypto = require("node:crypto");
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+const isUuid = (s) => typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
 // Referral codes are short, human-shareable, and avoid ambiguous glyphs
 // (no 0/O/1/I) so they survive being typed by hand.
 const REFERRAL_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -316,8 +318,10 @@ function createRepo(pool) {
     // ---------- advertiser checkout ----------
     async createPendingCampaign({ email, brand, adLine, url, category, color, pricePerBlockCents, blocks, showOnLeaderboard }) {
       return tx(async (c) => {
+        // Upsert so a returning advertiser (same email) reuses their row and owns
+        // many campaigns, rather than minting a disconnected advertiser per checkout.
         const adv = await c.query(
-          "insert into advertisers (email) values ($1) returning id",
+          "insert into advertisers (email) values ($1) on conflict (email) do update set email = excluded.email returning id",
           [email]
         );
         const { rows } = await c.query(
@@ -386,6 +390,136 @@ function createRepo(pool) {
         [limit]
       );
       return rows;
+    },
+
+    // Full campaign list for the admin Ads view, with per-campaign realized metrics
+    // derived from the append-only ledger:
+    //   recognized_millicents = gross spend (advertiser's billed budget),
+    //   clicks                = one row per verified click,
+    //   impressions_shown     = sum of impression_credit.meta.billed.
+    // impressions_shown is NOT impressions_total - impressions_remaining: that's
+    // budget units consumed and counts each click as 50, inflating CPM/CTR.
+    async adminCampaigns({ status, limit, offset } = {}) {
+      const n = Math.max(1, Math.min(500, parseInt(limit, 10) || 200));
+      const off = Math.max(0, parseInt(offset, 10) || 0);
+      const params = [];
+      let where = "";
+      if (status) { params.push(status); where = `where c.status = $${params.length}`; }
+      params.push(n); const lim = `$${params.length}`;
+      params.push(off); const ofs = `$${params.length}`;
+      const { rows } = await pool.query(
+        `select c.id, c.brand, c.ad_line, c.url, c.category, c.status,
+                c.price_per_block_cents, c.blocks, c.impressions_total, c.impressions_remaining,
+                (c.impressions_total - c.impressions_remaining) as impressions_served,
+                c.show_on_leaderboard, c.review_note, c.completion_email_sent_at,
+                c.created_at, c.paid_at, c.activated_at,
+                a.email as advertiser_email,
+                coalesce((select sum(amount_millicents) from ledger
+                          where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents,
+                coalesce((select count(*) from ledger
+                          where campaign_id = c.id and entry_type = 'click_credit'),0)::int as clicks,
+                coalesce((select sum((meta->>'billed')::int) from ledger
+                          where campaign_id = c.id and entry_type = 'impression_credit'),0)::bigint as impressions_shown
+           from campaigns c left join advertisers a on a.id = c.advertiser_id
+           ${where}
+          order by c.created_at desc limit ${lim} offset ${ofs}`,
+        params
+      );
+      return rows;
+    },
+
+    // Per-advertiser rollup for the admin Advertisers view: one row per advertiser,
+    // aggregating realized metrics across all of their campaigns.
+    async adminAdvertisers({ limit, offset } = {}) {
+      const n = Math.max(1, Math.min(500, parseInt(limit, 10) || 200));
+      const off = Math.max(0, parseInt(offset, 10) || 0);
+      const { rows } = await pool.query(
+        `select a.id, a.email, a.created_at,
+                count(distinct c.id)::int as campaigns,
+                count(distinct c.id) filter (where c.status = 'active')::int as active_campaigns,
+                coalesce(sum(l.amount_millicents) filter (where l.entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as spend_millicents,
+                coalesce(sum((l.meta->>'billed')::int) filter (where l.entry_type = 'impression_credit'),0)::bigint as impressions_shown,
+                count(*) filter (where l.entry_type = 'click_credit')::int as clicks
+           from advertisers a
+           left join campaigns c on c.advertiser_id = a.id
+           left join ledger l on l.campaign_id = c.id
+          group by a.id, a.email, a.created_at
+          order by spend_millicents desc, a.created_at desc
+          limit $1 offset $2`,
+        [n, off]
+      );
+      return rows;
+    },
+
+    // One campaign's full data for the completion-receipt preview/send: advertiser
+    // email + ad copy + status + the receipt guard + the same realized metrics as
+    // adminCampaigns. Returns null for an unknown/invalid id.
+    async campaignReceiptData(campaignId) {
+      if (!isUuid(campaignId)) return null;
+      const { rows } = await pool.query(
+        `select c.id, c.brand, c.ad_line, c.url, c.status,
+                c.price_per_block_cents, c.blocks, c.budget_cents,
+                c.impressions_total, c.impressions_remaining, c.completion_email_sent_at,
+                c.created_at, c.activated_at,
+                a.email as advertiser_email,
+                coalesce((select sum(amount_millicents) from ledger
+                          where campaign_id = c.id and entry_type in ('impression_credit','click_credit','platform_fee')),0)::bigint as recognized_millicents,
+                coalesce((select count(*) from ledger
+                          where campaign_id = c.id and entry_type = 'click_credit'),0)::int as clicks,
+                coalesce((select sum((meta->>'billed')::int) from ledger
+                          where campaign_id = c.id and entry_type = 'impression_credit'),0)::bigint as impressions_shown
+           from campaigns c left join advertisers a on a.id = c.advertiser_id
+          where c.id = $1`,
+        [campaignId]
+      );
+      return rows[0] || null;
+    },
+
+    // Atomically claim the one-time completion receipt: stamps completion_email_sent_at
+    // only if the campaign is exhausted and unstamped. Returns { sentAt } on the
+    // winning claim, null if already sent / not finished — so a send can't double-fire.
+    async claimCampaignReceipt(campaignId) {
+      if (!isUuid(campaignId)) return null;
+      const { rows } = await pool.query(
+        `update campaigns set completion_email_sent_at = now()
+          where id = $1 and status = 'exhausted' and completion_email_sent_at is null
+          returning completion_email_sent_at`,
+        [campaignId]
+      );
+      return rows[0] ? { sentAt: rows[0].completion_email_sent_at } : null;
+    },
+    // Roll the stamp back when a send fails (so the admin can retry); also backs the
+    // deliberate resend ("force") path.
+    async clearCampaignReceipt(campaignId) {
+      if (!isUuid(campaignId)) return;
+      await pool.query("update campaigns set completion_email_sent_at = null where id = $1", [campaignId]);
+    },
+
+    // Persistent key/value settings (the receipts auto-send switch). Mirrors the
+    // edge function's jsonb-safe write: ($2::jsonb #>> '{}')::jsonb unwraps the
+    // JSON.stringify'd value so the driver can't double-encode it as a json string.
+    async getSetting(key) {
+      const { rows } = await pool.query("select value from settings where key = $1", [key]);
+      return rows[0] ? rows[0].value : null;
+    },
+    async setSetting(key, value) {
+      await pool.query(
+        `insert into settings (key, value, updated_at) values ($1, ($2::jsonb #>> '{}')::jsonb, now())
+         on conflict (key) do update set value = excluded.value, updated_at = now()`,
+        [key, JSON.stringify(value)]
+      );
+    },
+    // Exhausted campaigns still awaiting their one-time completion receipt — the
+    // batched sweep's work list, oldest-finished first.
+    async pendingReceiptCampaignIds(limit = 100) {
+      const n = Math.max(1, Math.min(500, parseInt(limit, 10) || 100));
+      const { rows } = await pool.query(
+        `select id from campaigns
+          where status = 'exhausted' and completion_email_sent_at is null
+          order by activated_at nulls last, created_at limit $1`,
+        [n]
+      );
+      return rows.map((r) => r.id);
     },
 
     async approveCampaign(campaignId) {

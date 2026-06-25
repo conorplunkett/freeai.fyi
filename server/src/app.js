@@ -45,6 +45,39 @@ function parseAffiliateSocials(body) {
   return { socials };
 }
 
+// Millicents -> USD (all ledger money is millicents, 1/1000 cent).
+const mcUsd = (v) => Number(v || 0) / 100000;
+// Realized per-campaign/advertiser metrics from raw ledger sums. eCPM and CTR use
+// impressions *shown* (impression_credit.meta.billed), never budget units — a
+// verified click burns 50 budget units but is one impression for rate math.
+function adMetrics(spendMc, impressionsShown, clicks) {
+  const spendUsd = mcUsd(spendMc), imp = Number(impressionsShown || 0), clk = Number(clicks || 0);
+  return {
+    spendUsd, impressionsShown: imp, clicks: clk,
+    ctr: imp > 0 ? clk / imp : null,
+    cpcUsd: clk > 0 ? spendUsd / clk : null,
+    ecpmUsd: imp > 0 ? (spendUsd / imp) * 1000 : null,
+  };
+}
+
+// Shape one campaignReceiptData row into the advertiser-facing receipt stats used
+// by both the preview and the sent email. Total spent = budget_cents when present
+// (budget+CPM campaigns), else the legacy price_per_block_cents * blocks.
+function receiptStats(row) {
+  const m = adMetrics(row.recognized_millicents, row.impressions_shown, row.clicks);
+  const totalPaidUsd = row.budget_cents != null
+    ? Number(row.budget_cents) / 100
+    : (Number(row.price_per_block_cents) * Number(row.blocks)) / 100;
+  return {
+    campaignId: row.id, brand: row.brand, adLine: row.ad_line, url: row.url, status: row.status,
+    impressionsShown: m.impressionsShown, clicks: m.clicks, ctr: m.ctr,
+    cpcUsd: m.cpcUsd, ecpmUsd: m.ecpmUsd, spendUsd: m.spendUsd, totalPaidUsd,
+    impressionsTotal: Number(row.impressions_total),
+    advertiserEmail: row.advertiser_email, completionEmailSentAt: row.completion_email_sent_at,
+    createdAt: row.created_at, activatedAt: row.activated_at,
+  };
+}
+
 function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   // Killswitch: when off, /v1/config tells extensions to stop serving and
   // /v1/ads returns an empty list (covers older extensions that never check
@@ -943,6 +976,115 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   route("GET", "/v1/admin/campaigns", async (req, res, body, rawBody, query) => {
     if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
     json(res, 200, { campaigns: await repo.pendingReviewCampaigns() });
+  });
+
+  // Full campaign list + realized metrics for the admin Ads view (mirrors the edge
+  // function's /v1/admin/campaigns/all; clicks/CTR/CPC/eCPM derived from the ledger).
+  route("GET", "/v1/admin/campaigns/all", async (req, res, body, rawBody, query) => {
+    if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
+    const rows = await repo.adminCampaigns({
+      status: query.get("status") || null,
+      limit: query.get("limit"), offset: query.get("offset"),
+    });
+    json(res, 200, { campaigns: rows.map((c) => {
+      const m = adMetrics(c.recognized_millicents, c.impressions_shown, c.clicks);
+      return {
+        id: c.id, brand: c.brand, adLine: c.ad_line, url: c.url, category: c.category, status: c.status,
+        bidUsd: c.price_per_block_cents / 100, blocks: c.blocks,
+        impressionsTotal: c.impressions_total, impressionsRemaining: c.impressions_remaining, impressionsServed: c.impressions_served,
+        showOnLeaderboard: c.show_on_leaderboard, reviewNote: c.review_note,
+        recognizedUsd: mcUsd(c.recognized_millicents), advertiserEmail: c.advertiser_email,
+        clicks: m.clicks, impressionsShown: m.impressionsShown, ctr: m.ctr, cpcUsd: m.cpcUsd, ecpmUsd: m.ecpmUsd, spendUsd: m.spendUsd,
+        completionEmailSentAt: c.completion_email_sent_at,
+        createdAt: c.created_at, paidAt: c.paid_at, activatedAt: c.activated_at,
+      };
+    }) });
+  });
+
+  // Per-advertiser rollup (one row per advertiser; aggregates across their campaigns).
+  route("GET", "/v1/admin/advertisers", async (req, res, body, rawBody, query) => {
+    if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
+    const rows = await repo.adminAdvertisers({ limit: query.get("limit"), offset: query.get("offset") });
+    json(res, 200, { advertisers: rows.map((a) => {
+      const m = adMetrics(a.spend_millicents, a.impressions_shown, a.clicks);
+      return {
+        id: a.id, email: a.email, createdAt: a.created_at,
+        campaigns: Number(a.campaigns), activeCampaigns: Number(a.active_campaigns),
+        spendUsd: m.spendUsd, impressionsShown: m.impressionsShown, clicks: m.clicks,
+        ctr: m.ctr, cpcUsd: m.cpcUsd, ecpmUsd: m.ecpmUsd,
+      };
+    }) });
+  });
+
+  // ---------- completion-receipt preview + manual send ----------
+  // Preview renders the exact email the advertiser would get, plus the stats, and
+  // does NOT stamp the campaign (so the admin can look before sending).
+  route("GET", "/v1/admin/campaigns/receipt-preview", async (req, res, body, rawBody, query) => {
+    if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
+    const row = await repo.campaignReceiptData(query.get("campaignId"));
+    if (!row) return json(res, 404, { error: "campaign not found" });
+    const stats = receiptStats(row);
+    const { subject, html } = mailer.buildCampaignCompletedEmail(stats);
+    json(res, 200, { subject, html, stats, alreadySent: !!row.completion_email_sent_at });
+  });
+
+  // Manually email the advertiser their campaign-finished receipt. Once-only via an
+  // atomic claim; { force:true } clears any prior stamp first to deliberately resend.
+  route("POST", "/v1/admin/campaigns/send-receipt", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    const campaignId = body.campaignId;
+    const row = await repo.campaignReceiptData(campaignId);
+    if (!row) return json(res, 404, { error: "campaign not found" });
+    if (row.status !== "exhausted") return json(res, 400, { error: "campaign not finished" });
+    if (body.force) await repo.clearCampaignReceipt(campaignId);
+    const claim = await repo.claimCampaignReceipt(campaignId);
+    if (!claim) return json(res, 200, { ok: true, alreadySent: true });
+    try {
+      await mailer.sendCampaignCompletedEmail(row.advertiser_email, receiptStats(row));
+    } catch (err) {
+      await repo.clearCampaignReceipt(campaignId); // roll back so the admin can retry
+      return json(res, 502, { error: "send failed" });
+    }
+    json(res, 200, { ok: true, sentAt: claim.sentAt });
+  });
+
+  // ---------- completion-receipt auto-send toggle + batched sweep ----------
+  route("GET", "/v1/admin/campaigns/receipts-auto", async (req, res, body, rawBody, query) => {
+    if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
+    let enabled = false;
+    try { enabled = (await repo.getSetting("receipts_auto_send")) === true; } catch { /* settings table absent */ }
+    json(res, 200, { enabled });
+  });
+  route("POST", "/v1/admin/campaigns/receipts-auto", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    if (typeof body.enabled !== "boolean") return json(res, 400, { error: "enabled (boolean) required" });
+    await repo.setSetting("receipts_auto_send", body.enabled);
+    json(res, 200, { enabled: body.enabled });
+  });
+  // Batched sweep: emails a completion receipt to every exhausted campaign that hasn't
+  // had one. A no-op while auto-send is off, unless { force:true } (the admin "Send
+  // now"). Built to be poked by a scheduler; the toggle is the safety switch.
+  route("POST", "/v1/admin/campaigns/receipts-sweep", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    let enabled = false;
+    try { enabled = (await repo.getSetting("receipts_auto_send")) === true; } catch { /* settings table absent */ }
+    if (!enabled && !(body && body.force)) return json(res, 200, { enabled: false, sent: 0, candidates: 0 });
+    const ids = await repo.pendingReceiptCampaignIds(200);
+    let sent = 0, failed = 0;
+    for (const id of ids) {
+      const claim = await repo.claimCampaignReceipt(id);
+      if (!claim) continue;
+      try {
+        const row = await repo.campaignReceiptData(id);
+        await mailer.sendCampaignCompletedEmail(row.advertiser_email, receiptStats(row));
+        sent++;
+      } catch (err) {
+        await repo.clearCampaignReceipt(id);
+        failed++;
+        console.error("[freeai] receipt sweep send failed:", err.message);
+      }
+    }
+    json(res, 200, { enabled: true, sent, failed, candidates: ids.length });
   });
 
   route("POST", "/v1/admin/campaigns/approve", async (req, res, body) => {

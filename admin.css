@@ -137,6 +137,22 @@ label.fld { display: flex; flex-direction: column; gap: 4px; font-size: 12px; fo
 .actions { display: flex; gap: 6px; }
 .inline-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 
+/* ── modal (completion-receipt preview) ──────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  padding: 24px; background: rgba(30, 28, 26, .5);
+}
+.modal-card {
+  background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px;
+  width: 560px; max-width: 100%; max-height: 88vh; overflow: auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+}
+.modal-card .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.receipt-frame {
+  width: 100%; height: 440px; margin-top: 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg-cream);
+}
+
 @media (max-width: 720px) {
   .app { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }

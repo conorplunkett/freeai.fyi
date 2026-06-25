@@ -37,6 +37,11 @@ create table if not exists advertisers (
   created_at timestamptz not null default now()
 );
 
+-- One advertiser per email: a returning advertiser's campaigns all hang off the
+-- same row (createPendingCampaign upserts on this). On existing databases the
+-- 20260625 migration merges any pre-existing duplicates before adding this.
+create unique index if not exists advertisers_email_key on advertisers (email);
+
 create table if not exists campaigns (
   id uuid primary key default gen_random_uuid(),
   advertiser_id uuid not null references advertisers(id),
@@ -70,6 +75,9 @@ alter table campaigns add column if not exists color text;
 -- Exact charge (budget) for the budget+CPM checkout; older campaigns are null
 -- and the funding code falls back to price_per_block_cents * blocks.
 alter table campaigns add column if not exists budget_cents integer;
+-- Set when the one-time "campaign finished" advertiser receipt has been emailed;
+-- the send is guarded on this being null so a receipt goes out at most once.
+alter table campaigns add column if not exists completion_email_sent_at timestamptz;
 
 create index if not exists campaigns_auction_idx
   on campaigns (status, price_per_block_cents desc)
@@ -119,6 +127,18 @@ create table if not exists ledger (
 
 create index if not exists ledger_device_idx on ledger (device_id);
 create index if not exists ledger_user_idx on ledger (user_id);
+-- Backs the per-campaign metric rollups (clicks / impressions-shown / spend),
+-- which all filter the ledger by campaign + entry_type.
+create index if not exists ledger_campaign_idx on ledger (campaign_id, entry_type);
+
+-- Persistent admin key/value config (the ad-serving killswitch, advertiser pricing
+-- knobs, and the completion-receipt auto-send switch). Mirrors the table created in
+-- server/db/20260619_admin.sql so fresh and test databases have it too.
+create table if not exists settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
 
 create table if not exists payouts (
   id uuid primary key default gen_random_uuid(),

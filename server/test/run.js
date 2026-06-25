@@ -44,6 +44,8 @@ const fakeMailer = {
   sendWebLoginEmail: async (to, link) => { mailbox.push({ to, link }); },
   sendAdvertiserReceiptEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendCampaignRejectedEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  buildCampaignCompletedEmail: (s) => ({ subject: "Your FreeAI campaign wrapped up — the final numbers", html: `<p>shown ${s.impressionsShown} clicks ${s.clicks} spent ${s.totalPaidUsd}</p>` }),
+  sendCampaignCompletedEmail: async (to, stats) => { mailbox.push({ to, kind: "campaign_completed", ...stats }); },
   sendGiftRedemptionEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendReferralInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendCrewInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
@@ -1079,6 +1081,120 @@ const fakeMailer = {
     for (let i = 0; i < 5; i++) codes.push((await fetch(b2 + "/healthz")).status);
     s2.close();
     assert.deepStrictEqual(codes, [200, 200, 200, 429, 429]);
+  });
+
+  // ---------- advertiser metrics, receipts, auto-send (rebuild) ----------
+  let metricCamp;
+  await check("two checkouts with one email unify under a single advertiser", async () => {
+    const mk = (line) => api("POST", "/v1/checkout", {
+      email: "metrics@adv.test", adLine: line, url: "https://adv.test/",
+      brand: "AdvCo", pricePerBlock: 2, blocks: 1,
+    });
+    metricCamp = (await mk("metrics campaign one")).body.campaignId;
+    await mk("metrics campaign two");
+    const { body } = await api("GET", "/v1/admin/advertisers", undefined, { "X-Admin-Key": "test-admin" });
+    const rows = body.advertisers.filter((a) => a.email === "metrics@adv.test");
+    assert.strictEqual(rows.length, 1, "one advertiser row per email");
+    assert.strictEqual(rows[0].campaigns, 2, "both campaigns hang off it");
+  });
+
+  await check("per-campaign metrics: clicks, impressions-shown, CPC, eCPM from the ledger", async () => {
+    await payWebhook(metricCamp); await approve(metricCamp);
+    const d = (await api("POST", "/v1/devices/register")).body;
+    // 950 shown impressions + 1 verified click (50 budget units) = 1000 = exhausted.
+    await api("POST", "/v1/events", { ...d, batchKey: "bmetric", events: [{ campaignId: metricCamp, impressions: 950, clicks: 0 }] });
+    const intent = await api("POST", "/v1/clicks/intent", { ...d, campaignId: metricCamp });
+    await api("GET", `/v1/go/${intent.body.trackingUrl.split("/v1/go/")[1]}`);
+
+    const { body } = await api("GET", "/v1/admin/campaigns/all?status=exhausted", undefined, { "X-Admin-Key": "test-admin" });
+    const c = body.campaigns.find((x) => x.id === metricCamp);
+    assert.ok(c, "exhausted campaign present in the metrics list");
+    assert.strictEqual(c.clicks, 1);
+    assert.strictEqual(c.impressionsShown, 950, "shown = impression_credit.billed, not budget units");
+    assert.strictEqual(c.spendUsd, 2);                    // full $2 budget billed out
+    assert.strictEqual(c.cpcUsd, 2);                      // spend / clicks
+    assert.ok(Math.abs(c.ecpmUsd - 2000 / 950) < 1e-9);   // spend / shown * 1000
+    // the rollup aggregates the same realized numbers for the advertiser
+    const adv = (await api("GET", "/v1/admin/advertisers", undefined, { "X-Admin-Key": "test-admin" })).body
+      .advertisers.find((a) => a.email === "metrics@adv.test");
+    assert.strictEqual(adv.clicks, 1);
+    assert.strictEqual(adv.impressionsShown, 950);
+    assert.strictEqual(adv.spendUsd, 2);
+  });
+
+  await check("completion-email builder escapes advertiser-controlled fields", async () => {
+    const rm = require("../src/mailer").createMailer({ siteUrl: "https://freeai.fyi" });
+    const { subject, html } = rm.buildCampaignCompletedEmail({
+      adLine: "safe line", brand: "<b>x</b>", campaignId: "id", impressionsShown: 950,
+      clicks: 1, ctr: 1 / 950, cpcUsd: 2, ecpmUsd: 2.1, totalPaidUsd: 2,
+    });
+    assert.ok(subject.includes("wrapped up"));
+    assert.ok(html.includes("950"));
+    assert.ok(!html.includes("<b>x</b>") && html.includes("&lt;b&gt;"), "brand HTML-escaped");
+  });
+
+  await check("receipt preview doesn't stamp; first send stamps once; force resends", async () => {
+    const prev = await api("GET", `/v1/admin/campaigns/receipt-preview?campaignId=${metricCamp}`, undefined, { "X-Admin-Key": "test-admin" });
+    assert.strictEqual(prev.status, 200);
+    assert.strictEqual(prev.body.alreadySent, false);
+    assert.strictEqual(prev.body.stats.clicks, 1);
+    assert.strictEqual(prev.body.stats.impressionsShown, 950);
+    assert.ok(prev.body.subject.includes("wrapped up"));
+
+    // a still-active campaign can't be sent a completion receipt
+    assert.strictEqual((await api("POST", "/v1/admin/campaigns/send-receipt", { adminKey: "test-admin", campaignId: campA })).status, 400);
+
+    const sent = () => mailbox.filter((m) => m.campaignId === metricCamp && m.kind === "campaign_completed").length;
+    const s1 = await api("POST", "/v1/admin/campaigns/send-receipt", { adminKey: "test-admin", campaignId: metricCamp });
+    assert.strictEqual(s1.status, 200); assert.ok(s1.body.sentAt);
+    assert.strictEqual(sent(), 1);
+    const mail = mailbox.find((m) => m.campaignId === metricCamp && m.kind === "campaign_completed");
+    assert.strictEqual(mail.to, "metrics@adv.test");
+    assert.strictEqual(mail.cpcUsd, 2);
+
+    // second send is once-only
+    assert.strictEqual((await api("POST", "/v1/admin/campaigns/send-receipt", { adminKey: "test-admin", campaignId: metricCamp })).body.alreadySent, true);
+    assert.strictEqual(sent(), 1, "not resent");
+
+    // force resends
+    const s3 = await api("POST", "/v1/admin/campaigns/send-receipt", { adminKey: "test-admin", campaignId: metricCamp, force: true });
+    assert.ok(s3.body.sentAt);
+    assert.strictEqual(sent(), 2);
+  });
+
+  await check("receipt auto-send: toggle defaults off + gates the sweep; force + once-only", async () => {
+    const ADMIN = { "X-Admin-Key": "test-admin" };
+    assert.strictEqual((await api("GET", "/v1/admin/campaigns/receipts-auto", undefined, ADMIN)).body.enabled, false);
+
+    // a fresh exhausted, un-sent campaign
+    const cid = (await api("POST", "/v1/checkout", {
+      email: "sweep@adv.test", adLine: "sweep regression campaign", url: "https://sweep.example/",
+      brand: "Sweep", pricePerBlock: 2, blocks: 1,
+    })).body.campaignId;
+    await payWebhook(cid); await approve(cid);
+    const d = (await api("POST", "/v1/devices/register")).body;
+    await api("POST", "/v1/events", { ...d, batchKey: "bsweep", events: [{ campaignId: cid, impressions: 1000, clicks: 0 }] });
+    const got = () => mailbox.filter((m) => m.campaignId === cid && m.kind === "campaign_completed").length;
+
+    // off + no force → no-op
+    const off = await api("POST", "/v1/admin/campaigns/receipts-sweep", { adminKey: "test-admin" });
+    assert.strictEqual(off.body.enabled, false);
+    assert.strictEqual(off.body.sent, 0);
+    assert.strictEqual(got(), 0, "swept while disabled");
+
+    // force overrides the toggle (the admin "Send now") → sends exactly one
+    const forced = await api("POST", "/v1/admin/campaigns/receipts-sweep", { adminKey: "test-admin", force: true });
+    assert.ok(forced.body.sent >= 1);
+    assert.strictEqual(got(), 1);
+
+    // re-sweep (forced) → already stamped, not resent
+    await api("POST", "/v1/admin/campaigns/receipts-sweep", { adminKey: "test-admin", force: true });
+    assert.strictEqual(got(), 1, "swept twice");
+
+    // toggle persists (so a scheduled sweep would auto-send), then restore to off
+    assert.strictEqual((await api("POST", "/v1/admin/campaigns/receipts-auto", { adminKey: "test-admin", enabled: true })).body.enabled, true);
+    assert.strictEqual((await api("GET", "/v1/admin/campaigns/receipts-auto", undefined, ADMIN)).body.enabled, true);
+    await api("POST", "/v1/admin/campaigns/receipts-auto", { adminKey: "test-admin", enabled: false });
   });
 
   // ---------- cleanup ----------
