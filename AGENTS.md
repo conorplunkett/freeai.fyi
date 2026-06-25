@@ -170,6 +170,14 @@ bar), and the macOS app. Always use it.
 mode, demo-mode messaging, mock seeds, or debugging affordances in user-facing
 copy.
 
+**Reviewing frontend changes.** Whenever you push a change to a front-end
+surface (`index.html` / `styles.css`, the portal, the extension popup), share
+the Vercel **branch preview URL** so it can be reviewed live before merging —
+the stable per-branch alias
+`freeai-fyi-git-<branch-slug>-conorplunketts-projects.vercel.app` (find the exact
+one via the PR's Vercel check or the project's deployments). The sandbox can't
+fetch the deployed site, so the human reviewer needs this link.
+
 ## Shipping the macOS app
 
 The desktop overlay (`desktop/macos/`) is distributed as a **notarized Developer

@@ -238,6 +238,57 @@ a { color: inherit; text-decoration: none; }
 .jump-chev { font-size: 20px; color: var(--blue); animation: bob 1.8s ease infinite; }
 @keyframes bob { 50% { transform: translateY(4px); } }
 
+/* "Get it on your platform" — coral label above the quick-install row. */
+.tryit {
+  display: flex; align-items: center; justify-content: center;
+  margin: 4px 0 14px; font-family: var(--mono); font-weight: 700;
+  font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+}
+
+/* DOWNLOAD CTAs — three quick installs above the surfaces showcase. Chrome +
+   Desktop are greyed "coming soon"; Terminal is a compact copy-paste. */
+.downloads { padding: 16px 0 4px; }
+.dl-grid {
+  max-width: 1180px; margin: 0 auto; padding: 0 28px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start;
+}
+.dl-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.dl-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink); font-weight: 700; text-align: center;
+}
+.dl-btn {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; min-height: 56px; padding: 14px 18px; border-radius: var(--radius-lg);
+  font-family: var(--sans); font-weight: 700; font-size: 15px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease;
+}
+.dl-btn:not(.dl-soon):hover { transform: translateY(-2px); border-color: var(--border-strong); }
+.dl-btn.dl-soon {
+  background: var(--surface-inset); color: var(--gray-2);
+  border-style: dashed; box-shadow: none; cursor: default;
+}
+.dl-cli {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 56px;
+  padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--bg-tint);
+}
+.dl-cmd {
+  flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
+  font-family: var(--mono); font-size: 13px; color: var(--ink-2); scrollbar-width: none;
+}
+.dl-cmd::-webkit-scrollbar { display: none; }
+.dl-copy {
+  flex: none; background: rgba(var(--accent-rgb),.16); color: var(--accent);
+  border: 1px solid rgba(var(--accent-rgb),.32); border-radius: 9px;
+  padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: var(--sans);
+  transition: background .15s, border-color .15s;
+}
+.dl-copy:hover { background: rgba(var(--accent-rgb),.26); border-color: rgba(var(--accent-rgb),.5); }
+@media (max-width: 860px) { .dl-grid { grid-template-columns: 1fr; } }
+
 /* SURFACES — "Native everywhere it appears" (Claude Design handoff).
    Pixel-for-pixel port of the design's <section class="surfaces">, embedded in
    the hero. Every selector is scoped under .surfaces so the design's generic
@@ -256,7 +307,7 @@ a { color: inherit; text-decoration: none; }
      sponsor chips), content rather than FreeAI palette. Claude reuses coral. */
   --brand-claude: var(--accent); --brand-chatgpt: #0d0d0d; --brand-gemini: #4285f4;
   --brand-claude-soft: rgba(var(--accent-rgb), .12); --brand-chatgpt-soft: rgba(13, 13, 13, .06); --brand-gemini-soft: rgba(66, 133, 244, .12);
-  text-align: left; padding: 8px 0 24px;
+  text-align: left; padding: 40px 0 24px;
 }
 .surfaces .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 28px; }
 
@@ -270,6 +321,9 @@ a { color: inherit; text-decoration: none; }
 .surfaces .surface { display: grid; grid-template-columns: 1fr 1fr; column-gap: 56px; row-gap: 28px; align-items: center; padding: 52px 0; }
 .surfaces .surface.flip .stage { order: 2; }
 .surfaces .surface + .surface { border-top: 1px solid var(--line); }
+/* Let the 1fr tracks shrink so long terminal/command content scrolls or clips
+   instead of forcing the grid wider than the viewport on mobile. */
+.surfaces .surface > * { min-width: 0; }
 /* A CTA card (Chrome install / terminal paste) folded full-width under a
    surface's two-column row — always last. Light treatment so it sits on the
    section's light canvas instead of the dark hero version. */
