@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FreeAI.fyi — Earn from ChatGPT, Claude & Gemini",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Earn money while you use AI. Ads appear while AI thinks — 50% of revenue goes to you.",
   "icons": {
     "16": "icons/icon16.png",

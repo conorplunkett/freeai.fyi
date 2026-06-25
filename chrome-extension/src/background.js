@@ -198,11 +198,29 @@ async function reportClick(campaignId) {
       body: JSON.stringify({ deviceId: device.deviceId, deviceKey: device.deviceKey, campaignId }),
     });
     if (!res.ok) return;
+    // The POST above already records the click server-side. If the server also
+    // returns a tracking pixel, fire it ONLY when it's first-party — the
+    // extension must never request a host it didn't declare in host_permissions.
+    // Any advertiser-side pixel is fired by the server during the
+    // freeai.fyi/go/* click redirect instead.
     const { trackingUrl } = await res.json();
-    if (trackingUrl) {
+    if (trackingUrl && isFirstPartyUrl(trackingUrl)) {
       try { await fetch(trackingUrl, { redirect: "manual" }); } catch (_) {}
     }
   } catch (_) {}
+}
+
+// True only for the hosts the extension actually declares in host_permissions
+// (freeai.fyi and the Supabase backend), so the service worker never reaches out
+// to an undeclared origin. Anything else (e.g. an advertiser's pixel) is left to
+// the server to fire during the freeai.fyi/go/* click redirect.
+function isFirstPartyUrl(u) {
+  try {
+    const h = new URL(u).hostname;
+    return h === "freeai.fyi" || h.endsWith(".supabase.co");
+  } catch (_) {
+    return false;
+  }
 }
 
 async function refreshAll() {

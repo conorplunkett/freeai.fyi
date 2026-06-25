@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Privacy · FreeAI.fyi</title>
-  <meta name="description" content="How FreeAI.fyi handles your data — anonymous from day one, never reads your prompts, and only asks for an email when you redeem credits for Claude." />
+  <meta name="description" content="How FreeAI.fyi handles your data — anonymous from day one, never reads your prompts, and asks for an email only when you redeem credits or invite a friend." />
 
   <!-- Link previews (OpenGraph + Twitter). Shares the brand share image; see
        index.html and tools/gen-og.mjs. -->
@@ -15,7 +15,7 @@
   <meta property="og:url" content="https://freeai.fyi/privacy" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:title" content="Privacy · FreeAI.fyi" />
-  <meta property="og:description" content="Anonymous from day one. FreeAI never reads your prompts and only asks for an email when you redeem credits for Claude." />
+  <meta property="og:description" content="Anonymous from day one. FreeAI never reads your prompts and asks for an email only when you redeem credits or invite a friend." />
   <meta property="og:image" content="https://freeai.fyi/og.png?v=20260620" />
   <meta property="og:image:secure_url" content="https://freeai.fyi/og.png?v=20260620" />
   <meta property="og:image:type" content="image/png" />
@@ -24,7 +24,7 @@
   <meta property="og:image:alt" content="FreeAI.fyi — earn Claude credits while you use ChatGPT, Claude and Gemini." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Privacy · FreeAI.fyi" />
-  <meta name="twitter:description" content="Anonymous from day one. FreeAI never reads your prompts and only asks for an email when you redeem credits for Claude." />
+  <meta name="twitter:description" content="Anonymous from day one. FreeAI never reads your prompts and asks for an email only when you redeem credits or invite a friend." />
   <meta name="twitter:image" content="https://freeai.fyi/og.png?v=20260620" />
   <meta name="twitter:image:alt" content="FreeAI.fyi — earn Claude credits while you use ChatGPT, Claude and Gemini." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
@@ -76,6 +76,8 @@
       <li><strong>An anonymous device ID</strong> — a random identifier created on first run so we can attribute impressions and earnings. It is not tied to your name, and there is no account until you choose to sign in to redeem.</li>
       <li><strong>Aggregate impression &amp; click counts</strong> — which sponsored line served, when, and how much you earned, recorded in an append-only ledger.</li>
       <li><strong>Your email address</strong> — only if you sign in on freeai.fyi to redeem credits. We use it to send the magic-link login and to confirm your gift-card redemption.</li>
+      <li><strong>A friend's email address</strong> — only if you choose to invite a friend from the extension's referral panel. We use it once to send that invitation, so you earn a share when they join.</li>
+      <li><strong>An account link</strong> — if you're signed in to freeai.fyi, the extension reads your freeai.fyi session token (on freeai.fyi only, the same token the site itself uses) and sends it to our server to connect this device to your account, so your earnings show in your portal. It's your own first-party session, used solely to link the device to you.</li>
       <li><strong>Basic client info</strong> — the extension/app version and which supported site served the ad, to render the sponsored line correctly.</li>
     </ul>
 
@@ -85,13 +87,13 @@
       <li><strong>Resend</strong> — sends the login magic link and the gift-card redemption confirmation, only when you sign in to redeem.</li>
       <li><strong>Stripe</strong> — processes advertisers' payments into the ad auction. It does not receive your data, and we never see anyone's full card details.</li>
     </ul>
-    <p>That's it. We don't sell your data, because the only data we have is "a spinner showed an ad."</p>
+    <p>That's it. We never sell or rent your data, and we use what's listed above only to serve ads, pay you, and (if you ask) invite your friends — nothing else.</p>
 
     <h2>Your choices</h2>
     <p>
       You can opt out of any ad category, pause FreeAI, or uninstall at any time. Credits
       you've already earned stay redeemable for Claude gift cards on freeai.fyi. Questions?
-      Email <a href="mailto:privacy@freeai.fyi">privacy@freeai.fyi</a>.
+      Email <a href="mailto:hello@contact.freeai.fyi">hello@contact.freeai.fyi</a>.
     </p>
 
     <a class="back" href="/">← Back to FreeAI</a>

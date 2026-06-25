@@ -104,17 +104,31 @@ the #1 cause of rejection. Answer it to match what the code actually does
   > response, and returns 50% of that ad revenue to the user as credits to redeem
   > for gift cards.
 
-- **Data usage disclosures** — check honestly:
-  - **Does NOT collect** prompts, page content, model output, keystrokes,
-    personal communications, health/financial/location/web-history data, or
-    authentication info.
-  - **Collects** only anonymous, aggregate **ad impression/click counts** tied
-    to an **anonymous device ID** (no account, no PII), reported to the FreeAI
-    backend to compute earnings.
+- **Data usage disclosures** — check honestly. In the "What user data do you
+  collect?" checklist, **tick exactly these** (and nothing else):
+  - ☑ **User activity** — ad impression/click counts (a click is user activity).
+  - ☑ **Personally identifiable information** — an **email address**, in two
+    cases: the email you sign in with to redeem, and a **friend's email** you
+    type into the referral "invite" form (sent once to deliver the invite).
+  - ☑ **Authentication information** — only your **own freeai.fyi session
+    token**, read on **freeai.fyi only**, sent to our server to link this device
+    to your account so earnings show in your portal. It's first-party and used
+    solely for that link; we never read auth tokens on the AI chat sites.
+  - **Leave UNCHECKED:** prompts/page content/model output (Website content),
+    keystrokes, Personal communications, Health, Financial, Location, Web
+    history — none are collected. The extension only detects the on/off "is it
+    generating?" state on the AI sites.
+  - Tie it to an **anonymous device ID** (no account until you sign in).
   - Affirm: data is **not sold**, **not used for unrelated purposes**, and
     **not used for creditworthiness/lending**.
-  - You **do** transmit data to a remote server (the impression/click counts) —
-    declare it and point to the privacy policy.
+  - You **do** transmit data to a remote server — declare it and point to the
+    privacy policy (which now lists email, the friend-invite email, and the
+    account-link session).
+
+  > Note: ticking PII + Authentication is the honest answer given the referral
+  > invite and the account link, and it matches the privacy policy. It can mean
+  > a slightly deeper review, but a disclosure that doesn't match observed
+  > behavior is the faster path to rejection.
 
 - **Remote code**: Answer **No** — the extension executes no remotely-hosted
   code. It only `fetch`es JSON ad data/config from the backend; it never loads or

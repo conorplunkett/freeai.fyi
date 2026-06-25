@@ -231,6 +231,7 @@ function makeChrome(stateRef, sentRef) {
   bg.BB_MOCK_AD = sandbox.BB_MOCK_AD;
   const store = {};
   bg.crypto = require("node:crypto"); // randomUUID for event batch keys
+  bg.URL = URL; // service workers expose URL globally; the host guard uses it
   bg.chrome = {
     runtime: { onInstalled: { addListener: () => {} }, onMessage: { addListener: (fn) => { bg._onMessage = fn; } } },
     alarms: { create: () => {}, onAlarm: { addListener: () => {} } },
@@ -249,8 +250,9 @@ function makeChrome(stateRef, sentRef) {
     if (u.endsWith("/v1/config")) return ok({ serving: true, revenueShare: 0.5 });
     if (u.endsWith("/v1/ads")) return ok({ revenueShare: 0.5, ads: [] });
     if (u.endsWith("/v1/events")) return ok({ ok: true, creditedMillicents: 0 });
-    if (u.endsWith("/v1/clicks/intent")) return ok({ trackingUrl: "https://api.freeai.fyi/v1/go/tok123" });
-    if (u.includes("/v1/go/")) return ok({});
+    // Return an UNDECLARED third-party tracking host; the SW must refuse to fetch it.
+    if (u.endsWith("/v1/clicks/intent")) return ok({ trackingUrl: "https://tracker.example.com/go/tok123" });
+    if (u.includes("/v1/go/") || u.includes("tracker.example.com")) return ok({});
     return { ok: false, status: 404, json: async () => ({}) };
   };
   const bgCtx = vm.createContext(bg);
@@ -330,14 +332,16 @@ function makeChrome(stateRef, sentRef) {
     assert.ok(!fetches.some((f) => f.url.endsWith("/v1/clicks/intent")), "mock click requested a token");
   });
 
-  await check("a live-ad click requests a single-use forgery-proof token", async () => {
+  await check("a live-ad click records via a first-party token and never fetches an undeclared host", async () => {
     fetches.length = 0;
     await msg({ type: "BB_CLICK", mock: false, campaignId: "c1" });
     await settle();
     const intent = fetches.find((f) => f.url.endsWith("/v1/clicks/intent"));
-    assert.ok(intent, "no /v1/clicks/intent POST");
+    assert.ok(intent, "no /v1/clicks/intent POST"); // click recorded on our own backend
     assert.strictEqual(JSON.parse(intent.options.body).campaignId, "c1");
-    assert.ok(fetches.some((f) => f.url.includes("/v1/go/")), "tracking token was not redeemed");
+    // the server returned a third-party trackingUrl; the SW must NOT request it
+    // (only declared hosts — freeai.fyi / *.supabase.co — may be fetched).
+    assert.ok(!fetches.some((f) => f.url.includes("tracker.example.com")), "fetched an UNDECLARED tracking host");
   });
 
   console.log(`\nall ${pass} checks passed — detection, test mode, the 50% split, and prod wiring verified.`);
