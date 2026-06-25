@@ -394,6 +394,101 @@ if (adForm) {
   });
 }
 
+// --- Waitlist email capture (hero) --------------------------------------
+// Injected directly under the hero tagline on the home page AND every lander —
+// they all load this file + styles.css, so this is the single source for the
+// widget rather than 10 copies of divergent markup. Pre-account: it POSTs a bare
+// email to /v1/waitlist (no login, no magic link). The "Want to advertise?"
+// button just jumps to the on-page advertiser form (#advertisers exists on all
+// of these pages). Where a lander already shows the big "FOR ADVERTISERS" jump
+// chevron under the tagline, we hide it so there's exactly one advertiser CTA.
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+// Tag each signup with the page it came from so a lead's `source` is useful
+// later (e.g. "index", "lander:gemini").
+function waitlistSource() {
+  const slug = location.pathname.replace(/\/+$/, "").split("/").pop() || "index";
+  if (!slug || /^index(\.html)?$/.test(slug)) return "index";
+  return "lander:" + slug.replace(/\.html$/, "");
+}
+function initWaitlist() {
+  const note = document.querySelector(".hero-note");
+  if (!note || document.getElementById("wl")) return; // need a hero; inject once
+
+  const wl = document.createElement("div");
+  wl.className = "wl";
+  wl.id = "wl";
+  wl.innerHTML =
+    '<span class="wl-eyebrow">Join the waitlist to earn</span>' +
+    '<div class="wl-row">' +
+      '<form class="wl-form" id="wl-form" novalidate>' +
+        '<input class="wl-input" id="wl-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
+        '<button class="wl-btn" type="submit">Join waitlist</button>' +
+      '</form>' +
+      '<a class="wl-adv" href="#advertisers">Want to advertise?</a>' +
+    '</div>' +
+    '<p class="wl-note" id="wl-note">Chrome extension is in review — be first in line.</p>';
+  note.insertAdjacentElement("afterend", wl);
+
+  // Drop the redundant hero "FOR ADVERTISERS · BID ON THIS LINE" jump (landers
+  // only) — the new "Want to advertise?" button now owns that jump.
+  const jump = note.parentElement && note.parentElement.querySelector(".jump");
+  if (jump) jump.style.display = "none";
+
+  const form = wl.querySelector("#wl-form");
+  const email = wl.querySelector("#wl-email");
+  const btn = wl.querySelector(".wl-btn");
+  const noteEl = wl.querySelector("#wl-note");
+
+  const setNote = (msg, kind) => {
+    noteEl.textContent = msg;
+    noteEl.className = "wl-note" + (kind ? " wl-note--" + kind : "");
+  };
+  const succeed = () => {
+    form.outerHTML = '<p class="wl-ok">You’re on the list ✓ — we’ll email you when surfaces are live.</p>';
+    noteEl.remove();
+  };
+
+  // Clicking "Want to advertise?" scrolls to the form (the anchor handles that)
+  // and focuses its email field once the smooth-scroll settles.
+  wl.querySelector(".wl-adv").addEventListener("click", () => {
+    setTimeout(() => document.querySelector('.adform input[name="email"]')?.focus({ preventScroll: true }), 600);
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const value = (email.value || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+      setNote("Enter a valid email address.", "err");
+      email.focus();
+      return;
+    }
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Joining…";
+    // No API base (dev mode / misconfig): show success rather than hang.
+    if (!API_BASE) { succeed(); return; }
+    try {
+      const res = await fetch(`${API_BASE}/v1/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: value, source: waitlistSource() }),
+      });
+      if (res.ok) { succeed(); return; }
+      if (res.status === 429) {
+        setNote("Too many signups from here today — try again later.", "err");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNote(data.error ? cap(data.error) : "Something went wrong — try again.", "err");
+      }
+    } catch (_) {
+      setNote("Couldn’t reach the server — check your connection and try again.", "err");
+    }
+    btn.disabled = false;
+    btn.textContent = label;
+  });
+}
+initWaitlist();
+
 // --- Surfaces showcase: provider-tab cross-fade ("Native everywhere it
 // appears"). Clicking a tab swaps the active screenshot within that surface
 // row only. Scoped to .surfaces so it can't touch anything else on the page. ---

@@ -51,6 +51,7 @@ function loadConfig() {
     dailyImpressionCap: parseInt(env("DAILY_IMPRESSION_CAP", "5000"), 10),
     ipDailyImpressionCap: parseInt(env("IP_DAILY_IMPRESSION_CAP", "5000"), 10), // per source IP per UTC day; 0 disables
     dailyClickCap: parseInt(env("DAILY_CLICK_CAP", "100"), 10),
+    leadDailyCap: parseInt(env("LEAD_IP_DAILY_CAP", "100"), 10), // bare-email waitlist captures per source IP per UTC day; 0 disables
     payoutThresholdCents: parseInt(env("PAYOUT_THRESHOLD_CENTS", "1000"), 10),
     referralRewardCents: parseInt(env("REFERRAL_REWARD_CENTS", "2000"), 10),
     referralCap: parseInt(env("REFERRAL_CAP", "10"), 10),
@@ -72,6 +73,10 @@ function loadConfig() {
     resendApiKey: env("RESEND_API_KEY"),
     mailFrom: env("MAIL_FROM"),
     mailFromAds: env("MAIL_FROM_ADS"),
+    // Resend segment that waitlist contacts are added to, so the launch-day
+    // broadcast targets exactly them. Not a secret (just an id; the project ref
+    // is already public) — overridable via env. Empty disables segment tagging.
+    resendWaitlistSegmentId: env("RESEND_WAITLIST_SEGMENT_ID", "758789ec-3294-4ba5-90ac-765f5d6765e1"),
   };
 }
 const config = loadConfig();
@@ -304,6 +309,19 @@ function createMailer(cfg: any) {
         cta: { href: link, label: "Sign in to FreeAI" },
         note: "This link expires in 30 minutes and can only be used once. If you didn't request it, ignore this email.",
       })),
+    // Pre-account waitlist confirmation: someone typed their email under the hero
+    // ("Join the waitlist to earn") while a surface is still in review. No account
+    // exists yet — this is just a friendly receipt that warms the address up
+    // before the launch broadcast.
+    sendWaitlistConfirmationEmail: (to: string) =>
+      send(to, "You're on the FreeAI waitlist 🎉",
+      shell({
+        preheader: "You're on the list — we'll email you the moment FreeAI is live.",
+        hero: "🎉", heading: "You're on the waitlist",
+        body: `<p style="margin:0 0 14px;">Thanks for joining FreeAI — you're on the list. We'll email you the moment you can install it and start earning Claude credits while you use ChatGPT, Claude &amp; Gemini.</p>`
+          + `<p style="margin:0;">The Chrome extension is in review right now, with the command line and desktop apps close behind.</p>`,
+        note: "You're getting this because you joined the waitlist at freeai.fyi. Didn't sign up? You can safely ignore this email.",
+      })),
     sendAdvertiserReceiptEmail: (to: string, { campaignId, brand, adLine, cpmCents, impressionsTotal, budgetCents }: any) =>
       sendAds(to, "Your FreeAI campaign receipt",
       shell({
@@ -411,6 +429,29 @@ function createMailer(cfg: any) {
   };
 }
 const mailer = createMailer(config);
+
+// Best-effort mirror of a waitlist email into the Resend contact list, so a
+// launch-day broadcast can reach waitlisters from the Resend dashboard. The DB
+// (email_leads) is the source of truth; this is a convenience copy. Each contact
+// is tagged with a `signup_source` property so a Resend segment can target
+// exactly the people who joined to earn. Callers must not await this on the hot
+// path — a Resend hiccup must never fail the capture.
+async function addResendContact(email: string, source: string | null) {
+  if (config.mailProvider !== "resend" || !config.resendApiKey) return;
+  const res = await fetch("https://api.resend.com/contacts", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config.resendApiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email, unsubscribed: false,
+      properties: { signup_source: source || "lander_earn" },
+      ...(config.resendWaitlistSegmentId ? { segments: [{ id: config.resendWaitlistSegmentId }] } : {}),
+    }),
+  });
+  // A contact that already exists comes back 409/422 — that's a success for us.
+  if (!res.ok && res.status !== 409 && res.status !== 422) {
+    throw new Error("resend contact failed: " + res.status + " " + (await res.text().catch(() => "")).slice(0, 200));
+  }
+}
 
 // ────────────────────────────── repo.js ────────────────────────────────────
 const sha256 = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
@@ -1513,6 +1554,32 @@ function createRepo(pool: any) {
         await c.query("insert into payouts (user_id, amount_cents, stripe_transfer_id) values ($1,$2,$3)", [userId, amountCents, transferId]);
       });
     },
+    // Pre-account email capture from the public landers. Normalizes the email,
+    // enforces a soft per-IP daily cap (the edge runtime has no in-memory limiter
+    // and this endpoint is unauthenticated), and is idempotent on (email, kind):
+    // a re-submit returns created:false. Distinct from joinWaitlist below, which
+    // is the signed-in, per-ad-surface interest list.
+    async addEmailLead({ email, kind = "earn", source = null, ipHash = null, ipDailyCap = 0 }: any) {
+      const e = String(email || "").trim().toLowerCase();
+      if (ipHash && Number.isFinite(ipDailyCap) && ipDailyCap > 0) {
+        const cap = await pool.query(
+          `select count(*)::int as n from email_leads
+            where ip_hash = $1 and created_at >= date_trunc('day', now())`,
+          [ipHash]
+        );
+        if (cap.rows[0].n >= ipDailyCap) {
+          const err: any = new Error("daily lead cap exceeded");
+          err.code = "CAP_EXCEEDED";
+          throw err;
+        }
+      }
+      const { rows } = await pool.query(
+        `insert into email_leads (email, kind, source, ip_hash) values ($1, $2, $3, $4)
+         on conflict (email, kind) do nothing returning id`,
+        [e, kind, source, ipHash]
+      );
+      return { created: !!rows[0] };
+    },
     async listWaitlistSurfaces() {
       const { rows } = await pool.query("select surface, label from waitlist_surfaces order by sort_order asc, surface asc");
       return rows;
@@ -2154,6 +2221,29 @@ route("POST", "/v1/checkout", async (ctx: any) => {
   });
   await repo.attachCheckoutSession(campaignId, session.id);
   return json(200, { campaignId, checkoutUrl: session.url });
+});
+
+// ── Pre-account email capture (launch waitlist) ──
+// Public, no-auth: someone types their email under the hero on freeai.fyi (or a
+// lander) to be told when they can install and start earning. We store the bare
+// email (no account, no magic link), then — best-effort, off the hot path — send
+// a confirmation and mirror them into Resend for the launch broadcast.
+route("POST", "/v1/waitlist", async (ctx: any) => {
+  const email = String(ctx.body?.email || "").trim().toLowerCase();
+  const source = typeof ctx.body?.source === "string" ? ctx.body.source.slice(0, 80) : null;
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(400, { error: "valid email required" });
+  try {
+    const { created } = await repo.addEmailLead({ email, kind: "earn", source, ipHash: hashIp(ctx), ipDailyCap: config.leadDailyCap });
+    if (created) {
+      // Fire-and-forget: never let a mail/Resend failure fail the capture.
+      mailer.sendWaitlistConfirmationEmail(email).catch((e: any) => console.error("[freeai] waitlist confirm mail failed:", e?.message));
+      addResendContact(email, source).catch((e: any) => console.error("[freeai] waitlist resend contact failed:", e?.message));
+    }
+    return json(200, { ok: true, joined: true, alreadyJoined: !created });
+  } catch (err: any) {
+    if (err.code === "CAP_EXCEEDED") return json(429, { error: "too many signups from here today — try again later" });
+    throw err;
+  }
 });
 
 // ── Stripe webhooks ──

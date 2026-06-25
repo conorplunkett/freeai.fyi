@@ -353,3 +353,24 @@ create table if not exists onboarding_surveys (
   updated_at timestamptz not null default now()
 );
 
+-- ── Pre-account email capture (launch waitlist) ─────────────────────────────
+-- Bare email captures from the public landing pages — NO account, so this is
+-- deliberately separate from waitlist_signups (which is keyed on a signed-in
+-- user_id and tracks per-surface ad interest). One row per (email, kind):
+-- 'earn' = "tell me when I can install and start earning"; kind is reserved so
+-- other capture points (e.g. 'advertiser') can share the table later. Email is
+-- normalized (lowercased/trimmed) by the API before insert, so the unique
+-- (email, kind) makes a re-submit a no-op. source is a free-text hint of where
+-- they signed up (page slug, e.g. 'index' or 'lander:gemini'); ip_hash is the
+-- same HMAC(ip) the fraud caps use — never the raw IP.
+create table if not exists email_leads (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  kind text not null default 'earn',
+  source text,
+  ip_hash text,
+  created_at timestamptz not null default now(),
+  unique (email, kind)
+);
+create index if not exists email_leads_kind_created_idx on email_leads (kind, created_at desc);
+

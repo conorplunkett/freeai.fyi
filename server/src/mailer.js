@@ -220,10 +220,23 @@ function createMailer(config) {
     }));
   }
 
+  // Pre-account waitlist confirmation: someone typed their email under the hero
+  // ("Join the waitlist to earn") while a surface is still in review. No account
+  // exists yet — a friendly receipt that warms the address up before launch.
+  async function sendWaitlistConfirmationEmail(to) {
+    await send(to, "You're on the FreeAI waitlist 🎉", shell({
+      preheader: "You're on the list — we'll email you the moment FreeAI is live.",
+      hero: "🎉", heading: "You're on the waitlist",
+      body: `<p style="margin:0 0 14px;">Thanks for joining FreeAI — you're on the list. We'll email you the moment you can install it and start earning Claude credits while you use ChatGPT, Claude &amp; Gemini.</p>`
+        + `<p style="margin:0;">The Chrome extension is in review right now, with the command line and desktop apps close behind.</p>`,
+      note: "You're getting this because you joined the waitlist at freeai.fyi. Didn't sign up? You can safely ignore this email.",
+    }));
+  }
+
   return {
     sendVerifyEmail, sendWebLoginEmail, sendAdvertiserReceiptEmail, sendCampaignRejectedEmail,
     sendGiftRedemptionEmail, sendReferralInviteEmail, sendCrewInviteEmail,
-    sendRedemptionConfirmationEmail, sendReferralRewardEmail,
+    sendRedemptionConfirmationEmail, sendReferralRewardEmail, sendWaitlistConfirmationEmail,
   };
 }
 

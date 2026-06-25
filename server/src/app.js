@@ -180,6 +180,27 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
     redirect(res, result?.url || config.siteUrl);
   });
 
+  // ---------- pre-account email capture (launch waitlist) ----------
+  // Public, no-auth: someone types their email under the hero on freeai.fyi (or a
+  // lander) to be told when they can install and start earning. Store the bare
+  // email (no account, no magic link), then best-effort send a confirmation. (In
+  // production the edge function additionally mirrors the contact into Resend.)
+  route("POST", "/v1/waitlist", async (req, res, body) => {
+    const email = String(body?.email || "").trim().toLowerCase();
+    const source = typeof body?.source === "string" ? body.source.slice(0, 80) : null;
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { error: "valid email required" });
+    try {
+      const { created } = await repo.addEmailLead({ email, kind: "earn", source, ipHash: hashIp(req), ipDailyCap: config.leadDailyCap });
+      if (created) {
+        mailer.sendWaitlistConfirmationEmail(email).catch((e) => console.error("[freeai] waitlist confirm mail failed:", e?.message));
+      }
+      json(res, 200, { ok: true, joined: true, alreadyJoined: !created });
+    } catch (err) {
+      if (err.code === "CAP_EXCEEDED") return json(res, 429, { error: "too many signups from here today — try again later" });
+      throw err;
+    }
+  });
+
   // ---------- money in: advertiser checkout ----------
   route("POST", "/v1/checkout", async (req, res, body) => {
     const { email, adLine, url, brand, category, color, pricePerBlock, blocks, showOnLeaderboard } = body || {};

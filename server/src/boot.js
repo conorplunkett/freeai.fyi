@@ -23,6 +23,7 @@ function loadConfig(env = process.env) {
     dailyImpressionCap: parseInt(env.DAILY_IMPRESSION_CAP || "5000", 10),
     ipDailyImpressionCap: parseInt(env.IP_DAILY_IMPRESSION_CAP || "5000", 10), // per source IP per UTC day; 0 disables (for shared-NAT/CGNAT audiences)
     dailyClickCap: parseInt(env.DAILY_CLICK_CAP || "100", 10), // verified clicks per device per UTC day
+    leadDailyCap: parseInt(env.LEAD_IP_DAILY_CAP || "100", 10), // bare-email waitlist captures per source IP per UTC day; 0 disables
     payoutThresholdCents: parseInt(env.PAYOUT_THRESHOLD_CENTS || "1000", 10), // $10
     referralRewardCents: parseInt(env.REFERRAL_REWARD_CENTS || "2000", 10), // $20 to the referrer
     referralCap: parseInt(env.REFERRAL_CAP || "10", 10), // max rewarded referrals per user

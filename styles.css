@@ -224,6 +224,58 @@ a { color: inherit; text-decoration: none; }
 .hero-note { font-size: 14.5px; color: var(--gray-2); margin: 0 auto 8px; line-height: 1.55; max-width: 620px; }
 .hero-note strong { color: var(--gray); }
 
+/* ── Hero waitlist — pre-account email capture, injected under .hero-note by
+   script.js on the home page and every lander. Reuses the .btn-green gradient
+   and the redeem ok/err result tokens so it sits in the existing palette. ── */
+.wl { max-width: 580px; margin: 16px auto 6px; }
+.wl-eyebrow {
+  display: block; margin: 0 0 10px;
+  font: 800 12.5px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent-d);
+}
+.wl-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: stretch; }
+.wl-form { display: flex; gap: 8px; flex: 1 1 340px; min-width: 0; }
+.wl-input {
+  flex: 1 1 auto; min-width: 0;
+  font: 500 16px/1.2 var(--sans); color: var(--ink);
+  background: var(--bg-cream); border: 1px solid var(--line);
+  border-radius: 11px; padding: 12px 14px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.wl-input::placeholder { color: var(--gray-2); }
+.wl-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); }
+.wl-btn {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  font: 800 15px/1 var(--sans); color: #fff;
+  background: linear-gradient(180deg, var(--green-grad-a), var(--green-grad-b));
+  border: none; border-radius: 11px; padding: 0 20px; min-height: 46px;
+  box-shadow: 0 12px 28px -14px rgba(var(--accent-rgb), .7);
+  transition: transform .15s, filter .15s;
+}
+.wl-btn:hover { transform: translateY(-2px); filter: brightness(1.04); }
+.wl-btn:disabled { opacity: .6; cursor: default; transform: none; box-shadow: none; }
+.wl-adv {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; white-space: nowrap;
+  font: 700 14px/1 var(--sans); color: var(--accent-d); text-decoration: none;
+  background: var(--bg-tint); border: 1px solid var(--line);
+  border-radius: 11px; padding: 0 18px; min-height: 46px;
+  transition: border-color .15s, background .15s, transform .15s;
+}
+.wl-adv::after { content: " →"; white-space: pre; }
+.wl-adv:hover { border-color: var(--accent); background: var(--bg-cream); transform: translateY(-2px); }
+.wl-note { margin: 12px 0 0; font: 500 13px/1.5 var(--sans); color: var(--gray-2); }
+.wl-note--err { color: var(--err-fg); }
+.wl-ok {
+  margin: 0; flex: 1 1 100%;
+  font: 600 15px/1.5 var(--sans);
+  background: var(--ok-bg); color: var(--ok-fg); border: 1px solid var(--ok-line);
+  border-radius: 11px; padding: 13px 16px;
+}
+@media (max-width: 560px) {
+  .wl-form, .wl-adv { flex-basis: 100%; }
+}
+
 /* The "FOR ADVERTISERS" scroll cue now sits between the surfaces section and
    the advertiser auction (outside the centered hero), so center it here. */
 .jump-wrap { text-align: center; margin-top: 6px; }

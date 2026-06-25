@@ -49,6 +49,7 @@ const fakeMailer = {
   sendCrewInviteEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendRedemptionConfirmationEmail: async (to, details) => { mailbox.push({ to, ...details }); },
   sendReferralRewardEmail: async (to, details) => { mailbox.push({ to, ...details }); },
+  sendWaitlistConfirmationEmail: async (to) => { mailbox.push({ to, kind: "waitlist" }); },
 };
 
 (async () => {
@@ -977,6 +978,46 @@ const fakeMailer = {
     assert.strictEqual((await api("POST", "/v1/web/waitlist", { surface: "smoke-signals" }, { Authorization: `Bearer ${sess}` })).status, 400);
     assert.strictEqual((await api("GET", "/v1/web/waitlist")).status, 401);
     assert.strictEqual((await api("POST", "/v1/web/waitlist", { surface: "desktop" })).status, 401);
+  });
+
+  // ---------- pre-account email capture (launch waitlist) ----------
+  await check("public /v1/waitlist captures a bare email — no auth, normalized, idempotent, validated", async () => {
+    // no auth required; a valid email is accepted and recorded as a new lead
+    const r1 = await api("POST", "/v1/waitlist", { email: "Lead@Example.com", source: "index" });
+    assert.strictEqual(r1.status, 200);
+    assert.strictEqual(r1.body.joined, true);
+    assert.strictEqual(r1.body.alreadyJoined, false);
+
+    // stored normalized (lowercased/trimmed), kind 'earn', with the source slug
+    const rows = (await poolNs.query("select email, kind, source from email_leads where email = $1", ["lead@example.com"])).rows;
+    assert.strictEqual(rows.length, 1);
+    assert.strictEqual(rows[0].kind, "earn");
+    assert.strictEqual(rows[0].source, "index");
+
+    // a new lead also queues a confirmation email (best-effort, created-only)
+    assert.strictEqual(
+      mailbox.filter((m) => m.kind === "waitlist" && m.to === "lead@example.com").length,
+      1, "confirmation email queued once for a new lead"
+    );
+
+    // re-submitting the same address (any case) is a clean no-op — no duplicate row
+    const dup = await api("POST", "/v1/waitlist", { email: "lead@example.com" });
+    assert.strictEqual(dup.status, 200);
+    assert.strictEqual(dup.body.alreadyJoined, true);
+    assert.strictEqual(
+      (await poolNs.query("select count(*)::int n from email_leads where email = $1", ["lead@example.com"])).rows[0].n,
+      1
+    );
+    // the idempotent re-submit must NOT send a second confirmation
+    assert.strictEqual(
+      mailbox.filter((m) => m.kind === "waitlist" && m.to === "lead@example.com").length,
+      1, "re-submit does not send another confirmation"
+    );
+
+    // malformed emails are rejected before any insert
+    for (const bad of ["", "nope", "a@b", "x@y.", "@example.com"]) {
+      assert.strictEqual((await api("POST", "/v1/waitlist", { email: bad })).status, 400, `rejects ${JSON.stringify(bad)}`);
+    }
   });
 
   // ---------- rejection + refund ----------

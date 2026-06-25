@@ -1373,6 +1373,33 @@ function createRepo(pool) {
       });
     },
 
+    // ---------- pre-account email capture (launch waitlist) ----------
+    // Bare email from the public landers — no account, no magic link. Normalizes
+    // the email, enforces a soft per-IP daily cap (this endpoint is public), and
+    // is idempotent on (email, kind): a re-submit returns created:false. Distinct
+    // from joinWaitlist below, which is the signed-in per-ad-surface interest list.
+    async addEmailLead({ email, kind = "earn", source = null, ipHash = null, ipDailyCap = 0 }) {
+      const e = String(email || "").trim().toLowerCase();
+      if (ipHash && Number.isFinite(ipDailyCap) && ipDailyCap > 0) {
+        const cap = await pool.query(
+          `select count(*)::int as n from email_leads
+            where ip_hash = $1 and created_at >= date_trunc('day', now())`,
+          [ipHash]
+        );
+        if (cap.rows[0].n >= ipDailyCap) {
+          const err = new Error("daily lead cap exceeded");
+          err.code = "CAP_EXCEEDED";
+          throw err;
+        }
+      }
+      const { rows } = await pool.query(
+        `insert into email_leads (email, kind, source, ip_hash) values ($1, $2, $3, $4)
+         on conflict (email, kind) do nothing returning id`,
+        [e, kind, source, ipHash]
+      );
+      return { created: !!rows[0] };
+    },
+
     // ---------- waitlists ----------
     // The surfaces a user can join a waitlist for, read from the enum table so a
     // new surface is a data change, not a deploy. Ordered for display.
