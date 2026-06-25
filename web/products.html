@@ -414,21 +414,56 @@
     <!-- ═══════════ FAQ ═══════════ -->
     <section class="faq" id="faq" aria-labelledby="faq-h">
       <h2 id="faq-h">FAQ</h2>
+      <p class="faq-sub">Everything people ask before installing — from how much you earn to privacy, the 50% split, and how to turn it off.</p>
 
       <div class="faq-list">
-        <details class="faq-item" id="uninstall">
-          <summary>How do I uninstall FreeAI?</summary>
+        <details class="faq-item">
+          <summary>Is FreeAI really free?</summary>
           <div class="faq-a">
-            <p><strong>Chrome extension</strong> — <code>chrome://extensions</code> → Remove.</p>
-            <p><strong>Claude Code terminal</strong> — <code>freeai claude restore</code>, then <code>npm rm -g @freeai.fyi/terminal</code>. Add <code>rm -rf ~/.freeai</code> to clear local state.</p>
-            <p><strong>macOS app</strong> — drag FreeAI from Applications to the Trash.</p>
+            <p>Yes — free forever, with no subscription and no catch. You install it once, keep using the AI tools you already use, and <strong>50%</strong> of the ad revenue your spinner earns comes back to you as Claude credits. You never pay us a cent.</p>
           </div>
         </details>
 
         <details class="faq-item">
-          <summary>Does FreeAI change my real <code>claude</code> command?</summary>
+          <summary>How much can I earn?</summary>
           <div class="faq-a">
-            <p>No — it adds a reversible shell alias and never edits your Claude install or settings. Undo with <code>freeai claude restore</code>.</p>
+            <p>It depends on how much you use AI — every 5 seconds an assistant spends thinking is one impression, and the more you prompt, the more impressions you generate. Heavy daily users earn the most; the estimate on each install card updates from live auction prices.</p>
+            <p>You keep <strong>50%</strong> of whatever your impressions sell for, redeemable as Claude credits.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>What are Claude credits, and how do I redeem them?</summary>
+          <div class="faq-a">
+            <p>Your earnings accrue as a balance you can convert into a <strong>Claude gift card</strong> — usable toward Claude Pro or Max. Sign in to your portal at <a href="/redeem">freeai.fyi/redeem</a> to see your balance and redeem. We never touch your bank details.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Does FreeAI read my prompts or conversations?</summary>
+          <div class="faq-a">
+            <p>No. It reads <strong>none</strong> of your prompts or the model's output. It only detects whether the assistant is currently thinking — a visible Stop button, a busy region, or a streaming marker — so it knows when to show the sponsored line. The terminal client reads only structural transcript metadata needed to tell active from idle.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Which AI tools does it work with?</summary>
+          <div class="faq-a">
+            <p><strong>ChatGPT, Claude and Gemini</strong> in your browser via the Chrome extension, <strong>Claude Code</strong> in your terminal, and the native <strong>Claude and ChatGPT desktop apps</strong> on macOS. The sponsored line is styled to look native on each surface and only appears while the AI is working.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Do I need an account to start earning?</summary>
+          <div class="faq-a">
+            <p>No — you're anonymous from day one and start earning the moment you install. An email is only needed when you want to <em>redeem</em> your credits for a Claude gift card, so we can deliver it to you.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Where do I see my earnings?</summary>
+          <div class="faq-a">
+            <p>Your portal at <a href="/redeem">freeai.fyi/redeem</a> — sign in with the email you linked.</p>
           </div>
         </details>
 
@@ -440,9 +475,47 @@
         </details>
 
         <details class="faq-item">
-          <summary>Where do I see my earnings?</summary>
+          <summary>How does the 50% split work — can I trust it?</summary>
           <div class="faq-a">
-            <p>Your portal at <a href="/redeem">freeai.fyi/redeem</a> — sign in with the email you linked.</p>
+            <p>Because you can audit it. Our backend is open source — the auction, the ledger, and the credit sweep. Your balance is an <strong>append-only ledger</strong> recomputed from every credit and debit, and amounts are stored in 1/1000ths of a cent so the 50/50 split is exact, never rounded in our favor.</p>
+            <p><a href="https://github.com/conorplunkett/freeai.fyi" rel="noopener" target="_blank">Read the ledger &amp; credit code on GitHub →</a></p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Will the ads get in my way?</summary>
+          <div class="faq-a">
+            <p>One subtle, clickable sponsored line — that's it. It only appears <em>while</em> the assistant is thinking, then gets out of the way when the answer arrives. No pop-ups, no autoplay, no takeovers. You can opt out any time.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Does FreeAI change my real <code>claude</code> command?</summary>
+          <div class="faq-a">
+            <p>No — it adds a reversible shell alias and never edits your Claude install or settings. Undo with <code>freeai claude restore</code>.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Are you affiliated with Anthropic, OpenAI, or Google?</summary>
+          <div class="faq-a">
+            <p>No. FreeAI.fyi is an independent product and is not affiliated with Anthropic, OpenAI, or Google. "Claude," "ChatGPT," and "Gemini" are trademarks of their respective owners.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Can I advertise on FreeAI?</summary>
+          <div class="faq-a">
+            <p>Yes. You bid live for the sponsored line that shows while ChatGPT, Claude and Gemini think — the one moment every AI user stares at the screen. You're billed for impressions only; clicks are tracked, never billed. <a href="/#advertisers">Set up a campaign →</a></p>
+          </div>
+        </details>
+
+        <details class="faq-item" id="uninstall">
+          <summary>How do I uninstall FreeAI?</summary>
+          <div class="faq-a">
+            <p><strong>Chrome extension</strong> — <code>chrome://extensions</code> → Remove.</p>
+            <p><strong>Claude Code terminal</strong> — <code>freeai claude restore</code>, then <code>npm rm -g @freeai.fyi/terminal</code>. Add <code>rm -rf ~/.freeai</code> to clear local state.</p>
+            <p><strong>macOS app</strong> — drag FreeAI from Applications to the Trash.</p>
           </div>
         </details>
       </div>
@@ -456,5 +529,30 @@
     <p class="fdim">The AI is already thinking. Might as well earn Claude.</p>
     <p class="fdim tiny">Not affiliated with Anthropic, OpenAI, or Google.</p>
   </footer>
+
+  <!-- FAQPage structured data — lets search engines show these Q&As as rich
+       results. Mirrors the visible #faq section above; keep them in sync. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "Is FreeAI really free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — free forever, with no subscription and no catch. You install it once, keep using the AI tools you already use, and 50% of the ad revenue your spinner earns comes back to you as Claude credits. You never pay us a cent." } },
+      { "@type": "Question", "name": "How much can I earn?", "acceptedAnswer": { "@type": "Answer", "text": "It depends on how much you use AI — every 5 seconds an assistant spends thinking is one impression, and the more you prompt, the more impressions you generate. Heavy daily users earn the most. You keep 50% of whatever your impressions sell for, redeemable as Claude credits." } },
+      { "@type": "Question", "name": "What are Claude credits, and how do I redeem them?", "acceptedAnswer": { "@type": "Answer", "text": "Your earnings accrue as a balance you can convert into a Claude gift card, usable toward Claude Pro or Max. Sign in to your portal at freeai.fyi/redeem to see your balance and redeem. We never touch your bank details." } },
+      { "@type": "Question", "name": "Does FreeAI read my prompts or conversations?", "acceptedAnswer": { "@type": "Answer", "text": "No. It reads none of your prompts or the model's output. It only detects whether the assistant is currently thinking so it knows when to show the sponsored line. The terminal client reads only structural transcript metadata needed to tell active from idle." } },
+      { "@type": "Question", "name": "Which AI tools does it work with?", "acceptedAnswer": { "@type": "Answer", "text": "ChatGPT, Claude and Gemini in your browser via the Chrome extension, Claude Code in your terminal, and the native Claude and ChatGPT desktop apps on macOS. The sponsored line is styled to look native on each surface and only appears while the AI is working." } },
+      { "@type": "Question", "name": "Do I need an account to start earning?", "acceptedAnswer": { "@type": "Answer", "text": "No — you're anonymous from day one and start earning the moment you install. An email is only needed when you want to redeem your credits for a Claude gift card, so we can deliver it to you." } },
+      { "@type": "Question", "name": "Where do I see my earnings?", "acceptedAnswer": { "@type": "Answer", "text": "Your portal at freeai.fyi/redeem — sign in with the email you linked." } },
+      { "@type": "Question", "name": "How do my terminal credits reach my account?", "acceptedAnswer": { "@type": "Answer", "text": "Link by email during freeai claude setup (or freeai claude link). Run freeai claude doctor to confirm." } },
+      { "@type": "Question", "name": "How does the 50% split work — can I trust it?", "acceptedAnswer": { "@type": "Answer", "text": "Because you can audit it. Our backend is open source — the auction, the ledger, and the credit sweep. Your balance is an append-only ledger recomputed from every credit and debit, and amounts are stored in 1/1000ths of a cent so the 50/50 split is exact, never rounded in our favor." } },
+      { "@type": "Question", "name": "Will the ads get in my way?", "acceptedAnswer": { "@type": "Answer", "text": "One subtle, clickable sponsored line — that's it. It only appears while the assistant is thinking, then gets out of the way when the answer arrives. No pop-ups, no autoplay, no takeovers. You can opt out any time." } },
+      { "@type": "Question", "name": "Does FreeAI change my real claude command?", "acceptedAnswer": { "@type": "Answer", "text": "No — it adds a reversible shell alias and never edits your Claude install or settings. Undo with freeai claude restore." } },
+      { "@type": "Question", "name": "Are you affiliated with Anthropic, OpenAI, or Google?", "acceptedAnswer": { "@type": "Answer", "text": "No. FreeAI.fyi is an independent product and is not affiliated with Anthropic, OpenAI, or Google. Claude, ChatGPT, and Gemini are trademarks of their respective owners." } },
+      { "@type": "Question", "name": "Can I advertise on FreeAI?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. You bid live for the sponsored line that shows while ChatGPT, Claude and Gemini think. You're billed for impressions only; clicks are tracked, never billed." } },
+      { "@type": "Question", "name": "How do I uninstall FreeAI?", "acceptedAnswer": { "@type": "Answer", "text": "Chrome extension — chrome://extensions then Remove. Claude Code terminal — freeai claude restore, then npm rm -g @freeai.fyi/terminal. macOS app — drag FreeAI from Applications to the Trash." } }
+    ]
+  }
+  </script>
 </body>
 </html>
