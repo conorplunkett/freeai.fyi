@@ -1,6 +1,6 @@
 {
   "name": "@freeai.fyi/terminal",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "FreeAI terminal integration for Claude Code.",
   "type": "module",
   "bin": {
@@ -9,10 +9,12 @@
   "files": [
     "bin",
     "src",
+    "scripts",
     "README.md"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "postinstall": "node scripts/postinstall.js"
   },
   "engines": {
     "node": ">=20.12.0"
