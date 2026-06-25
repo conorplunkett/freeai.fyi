@@ -19,7 +19,7 @@ insert into campaigns (
   'FreeAI — get Claude for free with ads.',
   'https://freeai.fyi',
   'other',
-  '#34a853',
+  '#d97757',
   500, 10, 10000, 10000,
   true, 'active', now(), now()
 ) on conflict (id) do nothing;

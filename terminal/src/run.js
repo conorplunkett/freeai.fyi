@@ -204,10 +204,15 @@ function signalNumber(signal) {
   return { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 }[signal] || 1;
 }
 
+// Custom spinner verbs (the line that replaces Claude's "Thinking…") exist since
+// Claude Code 2.1.23 and the settings schema is unchanged. We only suppress them
+// on a positively-detected older build — if `claude --version` is slow or
+// unparseable we assume a modern Claude and still write them, since a failed
+// probe used to silently drop the ad from the spinner line entirely.
 async function supportedSpinnerVerbs(realClaude) {
   const version = await detectClaudeVersion(realClaude);
-  if (!version) return false;
-  return gte(version, [2, 1, 143]);
+  if (!version) return true;
+  return gte(version, [2, 1, 23]);
 }
 
 function detectClaudeVersion(realClaude) {

@@ -65,10 +65,16 @@ export function brandColor(seed) {
   return hslToRgb(hash % 360, 62, 64);
 }
 
-// Resolve the rgb the ad line should use: advertiser color when valid,
-// otherwise the per-brand fallback.
-export function resolveAdColor({ color, seed } = {}) {
-  return hexToRgb(color) || brandColor(seed);
+// FreeAI / Claude accent (#d97757). The default ad color when an advertiser
+// sets none, so the sponsored line reads in the brand orange — matching Claude's
+// own spinner — instead of a per-brand hue.
+export const ACCENT_RGB = { r: 217, g: 119, b: 87 };
+
+// The sponsored line always renders in the FreeAI / Claude accent orange so it
+// reads as native next to Claude's spinner. Advertiser-supplied colors are
+// intentionally ignored for now (pre-launch brand consistency).
+export function resolveAdColor() {
+  return ACCENT_RGB;
 }
 
 // Style `text` with bold + underline in `rgb`, sweeping a lightened shimmer
