@@ -1047,6 +1047,8 @@ a { color: inherit; text-decoration: none; }
 
 /* Affiliate codes — a separate, application-gated program below referrals. */
 .aff-sep { border: none; border-top: 1px solid var(--line); margin: 34px 0 22px; }
+/* Influencer upgrade lives in its own card, set off with a bigger gap. */
+.aff-upgrade-box { margin-top: 40px; border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; background: #fff; }
 .aff-row { display: flex; gap: 10px; margin: 0 0 10px; }
 .aff-row .auth-input { margin: 0; flex: 1; min-width: 0; }
 .aff-row .aff-followers { flex: 0 0 140px; }

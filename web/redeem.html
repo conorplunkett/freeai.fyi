@@ -342,7 +342,7 @@
       </button>
       <button class="dash-tab" data-section="referrals" type="button" role="tab" aria-selected="false">
         <span class="dash-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.5"/><path d="M17.5 19a5 5 0 0 0-3-4.6"/></svg></span>
-        <span class="dash-tab-label">Crew</span>
+        <span class="dash-tab-label">Referrals</span>
       </button>
       <button class="dash-tab" data-section="ledger" type="button" role="tab" aria-selected="false">
         <span class="dash-tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12"/><path d="M8 12h12"/><path d="M8 18h12"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/></svg></span>
@@ -547,10 +547,9 @@
           </div>
 
           <!-- Influencer upgrade — apply for more than 10% + uncapped + custom link. -->
-          <div class="aff-upgrade" id="aff-upgrade" hidden>
-            <hr class="aff-sep" />
+          <div class="aff-upgrade aff-upgrade-box" id="aff-upgrade" hidden>
             <form class="aff-apply" id="aff-apply-form">
-              <h3 class="ref-invite-h">Want to make more money?</h3>
+              <h3 class="ref-invite-h">Want to join an affiliate program?</h3>
               <p class="aff-hint">Apply for <strong>more than 10%</strong> and <strong>uncapped</strong> earnings with a custom affiliate link.</p>
               <div class="aff-row">
                 <input type="text" id="aff-ig" class="auth-input" placeholder="Instagram @handle" autocomplete="off" />
@@ -564,8 +563,7 @@
                 <input type="text" id="aff-tw" class="auth-input" placeholder="Twitter / X @handle" autocomplete="off" />
                 <input type="number" min="0" id="aff-tw-f" class="auth-input aff-followers" placeholder="Followers" autocomplete="off" />
               </div>
-              <p class="aff-hint">Share your socials so we can set your custom rate — a follower count is required for each handle you add.</p>
-              <button class="btn-green" id="aff-apply-btn" type="submit">Apply for the upgrade</button>
+              <button class="btn-green" id="aff-apply-btn" type="submit">Apply for affiliate program</button>
               <p class="ref-invite-msg" id="aff-apply-msg" hidden></p>
             </form>
           </div>

@@ -266,11 +266,13 @@ $("install-list").addEventListener("click", (e) => {
 // upgradeRequested. The "have an affiliate code?" form shows only when the
 // account has no attribution of its own.
 async function loadAffiliate() {
+  // Reveal the block up front so the tab isn't blank while the request is in
+  // flight — the data-driven sub-states below fill in once it resolves.
+  $("affiliate-block").hidden = false;
   const { status, body } = await apiGet("/v1/web/affiliate");
   if (status === 401) { localStorage.removeItem(SESSION_KEY); location.reload(); return; }
   if (status !== 200) return;
   const show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
-  $("affiliate-block").hidden = false;
   $("aff-have-code").hidden = !body.canApplyCode;
 
   const upgraded = !!body.upgraded;
