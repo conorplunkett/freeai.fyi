@@ -12,9 +12,16 @@ const PENDING_LINK_KEY = "freeai_pending_link";
 const $ = (id) => document.getElementById(id);
 const usd = (n) => "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usdWhole = (n) => "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
-// Per-event credits are fractions of a cent — round to 2 dp and they all read $0.00.
-// The ledger shows the real value, keeping up to 6 fractional digits.
-const usdPrecise = (n) => "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+// Per-event credits are fractions of a cent — round to 2 dp and they all read
+// $0.00. The ledger shows the real value: sub-dollar amounts render in cents
+// (e.g. 0.24¢) so a tiny credit reads cleanly; a dollar or more stays in dollars.
+const usdPrecise = (n) => {
+  const v = Number(n) || 0;
+  if (v > 0 && v < 1) {
+    return (v * 100).toLocaleString(undefined, { maximumFractionDigits: 4 }) + "¢";
+  }
+  return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 // The desktop app opens this page with its device creds in the fragment
 // (#linkDevice=…&deviceKey=…) so we can link that device to the account once
