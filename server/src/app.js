@@ -140,9 +140,11 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
   // ---------- health & catalog ----------
   route("GET", "/healthz", async (req, res) => json(res, 200, { ok: true }));
 
-  route("GET", "/v1/config", async (req, res) =>
-    json(res, 200, { serving, revenueShare: config.revenueShare })
-  );
+  route("GET", "/v1/config", async (req, res) => {
+    let leaderboardPublic = false;
+    try { leaderboardPublic = (await repo.getSetting("leaderboard_public")) === true; } catch { /* settings table absent */ }
+    json(res, 200, { serving, revenueShare: config.revenueShare, leaderboardPublic });
+  });
 
   route("GET", "/v1/ads", async (req, res) => {
     const ads = serving ? await repo.activeAds() : [];
@@ -1047,6 +1049,20 @@ function createApp({ repo, stripe, mailer, rateLimiter, config }) {
       return json(res, 502, { error: "send failed" });
     }
     json(res, 200, { ok: true, sentAt: claim.sentAt });
+  });
+
+  // ---------- public "Live bid market" leaderboard visibility (off by default) ----------
+  route("GET", "/v1/admin/leaderboard-visibility", async (req, res, body, rawBody, query) => {
+    if (!adminOk(req, body, query)) return json(res, 401, { error: "bad admin key" });
+    let isPublic = false;
+    try { isPublic = (await repo.getSetting("leaderboard_public")) === true; } catch { /* settings table absent */ }
+    json(res, 200, { public: isPublic });
+  });
+  route("POST", "/v1/admin/leaderboard-visibility", async (req, res, body) => {
+    if (!adminOk(req, body)) return json(res, 401, { error: "bad admin key" });
+    if (typeof body.public !== "boolean") return json(res, 400, { error: "public (boolean) required" });
+    await repo.setSetting("leaderboard_public", body.public);
+    json(res, 200, { ok: true, public: body.public });
   });
 
   // ---------- completion-receipt auto-send toggle + batched sweep ----------

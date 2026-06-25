@@ -265,6 +265,7 @@ a { color: inherit; text-decoration: none; }
 .wl-adv::after { content: " →"; white-space: pre; }
 .wl-adv:hover { border-color: var(--accent); background: var(--bg-cream); transform: translateY(-2px); }
 .wl-note { margin: 12px 0 0; font: 500 13px/1.5 var(--sans); color: var(--gray-2); }
+.wl-note:empty { margin: 0; }
 .wl-note--err { color: var(--err-fg); }
 .wl-ok {
   margin: 0; flex: 1 1 100%;
@@ -272,8 +273,21 @@ a { color: inherit; text-decoration: none; }
   background: var(--ok-bg); color: var(--ok-fg); border: 1px solid var(--ok-line);
   border-radius: 11px; padding: 13px 16px;
 }
+/* Home variant: the waitlist sits below the 3-up downloads grid as one row —
+   column 1 is the email + Join button, column 2 is the advertise button. The
+   email input is kept compact and there's a clear gap between the signup and
+   the advertise button. */
+.wl--wide { max-width: 760px; margin-top: 22px; padding: 0 28px; }
+.wl--wide .wl-row { flex-wrap: nowrap; gap: 36px; }
+.wl--wide .wl-form { flex: 0 1 auto; }
+.wl--wide .wl-input { flex: 0 1 230px; width: 230px; }
+
 @media (max-width: 560px) {
-  .wl-form, .wl-adv { flex-basis: 100%; }
+  /* Stack vertically on mobile, advertise button on top of the waitlist. */
+  .wl-row, .wl--wide .wl-row { flex-direction: column; flex-wrap: wrap; gap: 12px; }
+  .wl-form, .wl-adv, .wl--wide .wl-form, .wl--wide .wl-adv { flex-basis: 100%; width: 100%; }
+  .wl--wide .wl-input { flex: 1 1 auto; width: auto; }
+  .wl-adv { order: -1; }
 }
 
 /* The "FOR ADVERTISERS" scroll cue now sits between the surfaces section and
@@ -567,6 +581,20 @@ a { color: inherit; text-decoration: none; }
   margin: 0; line-height: 1.5;
 }
 .est-note strong { color: #4a2c1f; }
+/* CPM slider folded inside the budget box — space it off the min/max hint, and
+   order it above the top-CPM note and the CPM/impressions readout. */
+.est-cpmfield { margin-top: 14px; }
+.est-cpmfield .flabel { color: var(--gray); }
+.est-rows { margin-bottom: 0; }
+
+/* One-line campaign summary above the pay button. */
+.adsummary {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+  background: #f7f3ec; border: 1px solid #e8e2d4; border-radius: 12px;
+  padding: 13px 16px; font-size: 14px; color: var(--gray);
+}
+.adsummary strong { color: var(--ink); font-weight: 800; }
+.adsummary-sep { color: var(--gray-2); }
 
 /* LIVE PREVIEW — mirrors the dark spinner overlay a viewer sees. Chip/line/dots
    recolor to the advertiser's chosen ad color via --prev-accent (set in JS;
@@ -904,7 +932,7 @@ a { color: inherit; text-decoration: none; }
   .hero { padding: 36px 20px 20px; }
   .hero h1 { white-space: normal; font-size: clamp(30px, 9.6vw, 38px); line-height: 1.08; }
   .sub { font-size: 16.5px; margin-bottom: 32px; }
-  .hero-note { margin-bottom: 40px; }
+  .hero-note { margin-bottom: 16px; }
 
   /* demo */
   .demo { grid-template-columns: 1fr; gap: 8px; }

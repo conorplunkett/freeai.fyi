@@ -769,6 +769,21 @@ async function renderSettings(view) {
       } }, d.serving ? "Pause ad serving" : "Resume ad serving")),
     h("p", { class: "hint" }, d.serving ? "Ads are live. Pausing stops /v1/ads from returning anything (propagates within ~15s)." : "Ad serving is paused. No ads are being delivered.")));
 
+  // Public "Live bid market" leaderboard on the landing page (off by default).
+  const lb = await tryApi("/v1/admin/leaderboard-visibility");
+  const lbOn = !!(lb && lb.public);
+  view.append(h("div", { class: "card" },
+    h("div", { class: "card-head" }, h("h2", {}, "Live bid market"),
+      h("button", { class: "btn " + (lbOn ? "btn-danger" : "btn-accent"), onclick: async () => {
+        const next = !lbOn;
+        if (!confirm(next ? "Show the public “Live bid market” leaderboard on the landing page?" : "Hide the “Live bid market” leaderboard from the landing page?")) return;
+        try { await api("/v1/admin/leaderboard-visibility", { method: "POST", body: { public: next } }); toast(next ? "Leaderboard shown" : "Leaderboard hidden"); route(true); }
+        catch (e) { toast(e.message, true); }
+      } }, lbOn ? "Hide leaderboard" : "Show leaderboard")),
+    h("p", { class: "hint" }, lbOn
+      ? "On — the “Live bid market” leaderboard is visible on the public landing page."
+      : "Off — the leaderboard is hidden from the public landing page (the lander reads this from /v1/config).")));
+
   // Completion-receipt auto-send (off by default). On: a scheduled sweep emails each
   // advertiser a final CPC/eCPM receipt as their campaign exhausts. "Send now" runs
   // the sweep immediately regardless of the toggle.

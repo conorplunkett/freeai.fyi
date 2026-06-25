@@ -2110,6 +2110,9 @@ async function runPayouts() {
 // admin dashboard propagates across isolates. syncServing() refreshes at most
 // once per 15s to keep the /v1/ads hot path cheap.
 let serving = !config.killswitch;
+// Whether the public "Live bid market" leaderboard is shown on the lander.
+// Off by default; flipped from the admin dashboard and surfaced via /v1/config.
+let leaderboardPublic = false;
 let servingSyncedAt = 0;
 async function syncServing() {
   if (Date.now() - servingSyncedAt < 15000) return;
@@ -2118,6 +2121,9 @@ async function syncServing() {
     const v = await repo.getSetting("serving");
     if (typeof v === "boolean") serving = v;
   } catch { /* settings table absent / unreachable — keep current value */ }
+  try {
+    leaderboardPublic = (await repo.getSetting("leaderboard_public")) === true;
+  } catch { /* settings absent — keep default (hidden) */ }
 }
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -2220,7 +2226,7 @@ function parseAffiliateSocials(body: any): { socials?: any; error?: string } {
 
 // ── health & catalog ──
 route("GET", "/healthz", async () => json(200, { ok: true }));
-route("GET", "/v1/config", async () => { await syncServing(); return json(200, { serving, revenueShare: config.revenueShare }); });
+route("GET", "/v1/config", async () => { await syncServing(); return json(200, { serving, revenueShare: config.revenueShare, leaderboardPublic }); });
 
 // Advertiser pricing for the lander (min / suggested / top). Kept off /v1/config
 // so the extension's frequent config polls stay query-free. top = max(anchor,
@@ -3165,6 +3171,21 @@ route("POST", "/v1/admin/campaigns/send-receipt", async (ctx: any) => {
 });
 
 // ── auto-send toggle + batched sweep (a no-op while off unless { force:true }) ──
+// Public "Live bid market" leaderboard visibility (off by default).
+route("GET", "/v1/admin/leaderboard-visibility", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  let isPublic = false;
+  try { isPublic = (await repo.getSetting("leaderboard_public")) === true; } catch { /* settings absent */ }
+  return json(200, { public: isPublic });
+});
+route("POST", "/v1/admin/leaderboard-visibility", async (ctx: any) => {
+  if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
+  if (typeof ctx.body?.public !== "boolean") return json(400, { error: "public (boolean) required" });
+  await repo.setSetting("leaderboard_public", ctx.body.public);
+  leaderboardPublic = ctx.body.public;
+  servingSyncedAt = Date.now(); // reflect immediately in /v1/config without waiting on the sync window
+  return json(200, { ok: true, public: ctx.body.public });
+});
 route("GET", "/v1/admin/campaigns/receipts-auto", async (ctx: any) => {
   if (!adminOk(ctx)) return json(401, { error: "bad admin key" });
   let enabled = false;

@@ -223,6 +223,10 @@ function recompute() {
   const impressions = Math.floor((budget * 1000) / cpm); // round down — advertiser pays full budget
   setTxt("est-cpm", fmt(cpm));
   setTxt("est-imp", fmtInt(impressions));
+  // One-line summary above the pay button mirrors the budget box.
+  setTxt("sum-budget", "$" + fmtInt(Math.round(budget)));
+  setTxt("sum-cpm", fmt(cpm));
+  setTxt("sum-imp", fmtInt(impressions));
   positionCpmBubble();
 }
 if (budgetEl && cpmEl) {
@@ -290,20 +294,28 @@ const escapeHtml = (s) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // Pull the live bid market into the leaderboard (escaped — advertiser text).
+// The whole section is hidden by default; it's only revealed when the admin has
+// turned the "Live bid market" switch on (surfaced via /v1/config →
+// leaderboardPublic). Dev/offline mode keeps it hidden.
 async function loadLeaderboard() {
-  if (!API_BASE) return;
+  const section = document.getElementById("leaderboard");
   const board = document.getElementById("board");
-  if (!board) return;
+  if (!section || !board || !API_BASE) return;
   try {
+    const cfg = await fetch(`${API_BASE}/v1/config`).then((r) => (r.ok ? r.json() : null));
+    if (!cfg || !cfg.leaderboardPublic) return; // switch is off — stay hidden
     const res = await fetch(`${API_BASE}/v1/leaderboard`);
-    if (!res.ok) return;
-    const { leaderboard } = await res.json();
-    if (!Array.isArray(leaderboard) || !leaderboard.length) return;
-    board.innerHTML = leaderboard
-      .map((r) => `<li><span class="rk">${r.rank}</span> ${escapeHtml(r.line)}</li>`)
-      .join("");
+    if (res.ok) {
+      const { leaderboard } = await res.json();
+      if (Array.isArray(leaderboard) && leaderboard.length) {
+        board.innerHTML = leaderboard
+          .map((r) => `<li><span class="rk">${r.rank}</span> ${escapeHtml(r.line)}</li>`)
+          .join("");
+      }
+    }
+    section.hidden = false; // reveal now that we know it's public
   } catch (_) {
-    /* offline — keep the demo leaderboard */
+    /* offline — keep it hidden */
   }
 }
 loadLeaderboard();
@@ -418,7 +430,6 @@ function initWaitlist() {
   wl.className = "wl";
   wl.id = "wl";
   wl.innerHTML =
-    '<span class="wl-eyebrow">Join the waitlist to earn</span>' +
     '<div class="wl-row">' +
       '<form class="wl-form" id="wl-form" novalidate>' +
         '<input class="wl-input" id="wl-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
@@ -426,8 +437,20 @@ function initWaitlist() {
       '</form>' +
       '<a class="wl-adv" href="#advertisers">Want to advertise?</a>' +
     '</div>' +
-    '<p class="wl-note" id="wl-note">Chrome extension is in review — be first in line.</p>';
-  note.insertAdjacentElement("afterend", wl);
+    // Kept (empty) so submit validation/errors still have somewhere to render;
+    // .wl-note:empty collapses it so there's no default copy under the row.
+    '<p class="wl-note" id="wl-note"></p>';
+  // On the home page the waitlist sits BELOW the 3-up downloads grid (so "Get it
+  // on your platform" reads directly under the hero note); the landers have no
+  // downloads section, so it stays right under the hero note there. .wl--wide
+  // widens the home variant to sit as one row under the three product columns.
+  const downloads = document.querySelector(".downloads");
+  if (downloads) {
+    wl.classList.add("wl--wide");
+    downloads.insertAdjacentElement("afterend", wl);
+  } else {
+    note.insertAdjacentElement("afterend", wl);
+  }
 
   // Drop the redundant hero "FOR ADVERTISERS · BID ON THIS LINE" jump (landers
   // only) — the new "Want to advertise?" button now owns that jump.
