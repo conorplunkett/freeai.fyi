@@ -39,35 +39,76 @@ a { color: inherit; text-decoration: none; }
 .tick-brand { color: var(--green); font-weight: 700; letter-spacing: .03em; }
 .tick-text { color: #aab1bd; }
 
-/* NAV */
+/* NAV — segmented-control pill. The menu is a single rounded "segment" tray
+   (.nav-btns) holding flat link segments (.navbtn) plus the coral Install CTA
+   (.navbtn-cta). A link segment is visually flat at rest, then lifts onto a
+   white pill on hover (and stays white when marked current via .is-active /
+   aria-current). The CTA is always coral and lifts + brightens on hover. These
+   shared classes render the control on every page that uses them. */
 .nav {
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 32px;
+  gap: 28px;
+  padding: 18px 32px;
   max-width: 1180px; margin: 0 auto;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
-.navbtn-cta {
-  color: var(--accent-d); border-color: #f0cbbb; background: #fbf2ee; font-weight: 700;
-}
-.navbtn-cta:hover { border-color: var(--accent); background: #f7e9e2; }
+
+/* --- brand (sized up within the nav to balance the segmented control) --- */
 .brand { display: flex; align-items: center; gap: 9px; }
+.nav .brand { gap: 12px; }
 .logo {
-  width: 30px; height: 30px; border-radius: 8px;
+  width: 30px; height: 30px; border-radius: var(--radius-sm);
   background: linear-gradient(180deg, var(--green-grad-a), var(--green-grad-b));
   color: #fff; font-family: var(--mono); font-weight: 700; font-size: 14px;
-  display: grid; place-items: center; box-shadow: 0 2px 8px rgba(var(--accent-rgb),.35);
+  display: grid; place-items: center; box-shadow: var(--shadow-logo);
 }
+.nav .logo { width: 40px; height: 40px; border-radius: var(--radius-md); font-size: 16px; }
 .brand-name { font-weight: 800; font-size: 17px; letter-spacing: -.02em; }
-.nav-btns { display: flex; gap: 8px; }
-.navbtn {
-  font-size: 14px; font-weight: 600; color: var(--ink);
-  padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px;
-  background: #fff; transition: border-color .15s, background .15s;
-  white-space: nowrap;
+.nav .brand-name { font-size: 22px; }
+
+/* --- the segment tray --- */
+.nav-btns {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 5px;
 }
-.navbtn:hover { border-color: #cfd4dc; background: #fafbfc; }
-.nav-short { display: none; }
+
+/* --- a link segment: flat at rest, white pill on hover / current page --- */
+.navbtn {
+  font-size: 14.5px; font-weight: 600; line-height: 1; color: var(--gray);
+  padding: 10px 20px; border: 0; border-radius: var(--radius-pill);
+  background: transparent; white-space: nowrap; cursor: pointer;
+}
+.navbtn:not(.navbtn-cta):hover {
+  background: #fff; color: var(--ink); box-shadow: var(--shadow-seg-hover);
+}
+.navbtn:not(.navbtn-cta).is-active,
+.navbtn:not(.navbtn-cta)[aria-current="page"] {
+  background: #fff; color: var(--ink); box-shadow: var(--shadow-seg-active);
+}
+.navbtn:focus-visible { outline: none; box-shadow: var(--ring-focus); }
+
+/* --- the Install CTA segment: always coral, lifts + brightens on hover --- */
+.navbtn-cta {
+  color: #fff; font-weight: 700; padding: 10px 22px;
+  background: linear-gradient(180deg, var(--accent-grad-a), var(--accent-grad-b));
+  box-shadow: var(--shadow-cta);
+}
+.navbtn-cta:hover { filter: brightness(1.05); box-shadow: var(--shadow-cta-hover); }
+.navbtn-cta:active { filter: brightness(.98); }
+.navbtn-cta:focus-visible { outline: none; box-shadow: var(--ring-focus), var(--shadow-cta); }
+
+/* Motion — gate the transitions/transform behind a motion preference; the
+   color / background / shadow swaps above still apply when motion is reduced. */
+@media (prefers-reduced-motion: no-preference) {
+  .navbtn { transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+  .navbtn-cta { transition: transform .15s ease, filter .15s ease, box-shadow .15s ease; }
+  .navbtn-cta:hover { transform: translateY(-1px); }
+  .navbtn-cta:active { transform: translateY(0); }
+}
 
 /* HERO */
 .hero { max-width: 920px; margin: 0 auto; padding: 56px 32px 24px; text-align: center; }
@@ -924,18 +965,20 @@ a { color: inherit; text-decoration: none; }
   .ticker { height: 34px; }
   .tick { padding: 0 18px; font-size: 11.5px; }
 
-  /* nav — short labels + tighter pills so the brand + buttons fit a phone.
-     The Advertise button is dropped here because the hero already carries a
-     prominent "FOR ADVERTISERS" jump link — keeping Products · Login · Install
-     uncramped with the CTA always visible. (Attribute selector → no HTML edit,
-     applies to every page that shares this nav, incl. the generated landers.) */
-  .nav { padding: 10px 12px; gap: 6px; }
-  .nav-btns { gap: 5px; }
-  .navbtn { padding: 8px 10px; font-size: 12.5px; }
+  /* nav — tighter segments + a smaller brand so the whole control fits a phone.
+     The Advertisers segment is dropped here because the hero already carries a
+     prominent "FOR ADVERTISERS" jump link — keeping User Login · Products ·
+     Install uncramped with the coral CTA always visible. (Attribute selector →
+     no HTML edit, applies to every page that shares this nav, incl. the
+     generated landers. The .nav-scoped brand rules below need .nav specificity
+     to override the desktop sizing.) */
+  .nav { padding: 10px 12px; gap: 10px; }
+  .nav-btns { gap: 4px; padding: 4px; }
+  .navbtn { padding: 8px 12px; font-size: 13px; }
+  .navbtn-cta { padding: 8px 14px; }
   .nav-btns a[href="#advertisers"] { display: none; }
-  .nav-long { display: none; }
-  .nav-short { display: inline; }
-  .brand-name { font-size: 14px; letter-spacing: -.03em; }
+  .nav .logo { width: 32px; height: 32px; font-size: 14px; }
+  .nav .brand-name { font-size: 15px; letter-spacing: -.03em; }
 
   /* hero — let the headline wrap at a real headline size */
   .hero { padding: 36px 20px 20px; }
@@ -988,7 +1031,7 @@ a { color: inherit; text-decoration: none; }
   .redeem-foot .btn-green { justify-self: stretch; }
 }
 @media (max-width: 380px) {
-  .brand-name { display: none; }
+  .nav .brand-name { display: none; }
 }
 
 /* Reduced motion — park the perpetual hero/ticker animation for anyone who asks

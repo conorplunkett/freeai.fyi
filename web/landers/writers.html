@@ -38,27 +38,22 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/theme.css?v=20260622a" />
-  <link rel="stylesheet" href="/styles.css?v=20260624c" />
+  <link rel="stylesheet" href="/theme.css?v=20260625a" />
+  <link rel="stylesheet" href="/styles.css?v=20260625e" />
   <link rel="stylesheet" href="/landers/landers.css?v=20260620a" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
 </head>
 <body data-lander="writers">
-  <!-- LIVE TICKER -->
-  <div class="ticker" aria-label="Live sponsored lines">
-    <div class="ticker-track" id="ticker-track"></div>
-  </div>
-
   <!-- NAV -->
   <header class="nav">
     <a class="brand" href="#top">
       <span class="logo">F$</span>
       <span class="brand-name">FreeAI.fyi</span>
     </a>
-    <nav class="nav-btns">
-      <a href="/products" class="navbtn">Products</a>
-      <a href="#advertisers" class="navbtn"><span class="nav-long">Advertisers Portal</span><span class="nav-short">Advertise</span></a>
+    <nav class="nav-btns" aria-label="Primary">
+      <a href="#advertisers" class="navbtn">Advertisers</a>
       <a href="/redeem" class="navbtn">User Login</a>
+      <a href="/products" class="navbtn">Products</a>
       <a href="#install" class="navbtn navbtn-cta">Install</a>
     </nav>
   </header>
@@ -146,7 +141,7 @@
               <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
               <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Coming soon
+            Join the waitlist
           </button>
         </div>
         <div class="dl-col">
@@ -163,7 +158,7 @@
               <rect x="3" y="4.5" width="18" height="12" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>
               <path d="M8.5 20h7M12 16.5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Coming soon
+            Join the waitlist
           </button>
         </div>
       </div>
@@ -292,13 +287,44 @@
     <!-- ADVERTISERS -->
     <section id="advertisers" class="advertisers">
       <div class="adv-card">
-        <span class="eyebrow">For advertisers</span>
-        <h2>Bid live for the most-watched spinner on Earth.</h2>
-        <p class="adv-intro">
-          <strong>50% of every dollar becomes Claude credits for the user whose machine showed the ad.</strong>
-        </p>
+        <span class="eyebrow">Advertisers</span>
+        <h2>Get your product in front of customers who are already using AI.</h2>
 
         <form class="adform" onsubmit="return false;">
+          <!-- YOUR CAMPAIGN — leads the form. The big number is the editable
+               budget; the CPM slider lives inside the box, then the top-CPM
+               note, then the live CPM + impressions readout. -->
+          <div class="estimate">
+            <span class="est-head">Your budget</span>
+            <label class="est-budget">
+              <span class="est-budget-prefix">$</span>
+              <input type="number" id="budget" min="100" max="100000" step="1" placeholder="2500" inputmode="numeric" aria-label="Budget" />
+            </label>
+            <span class="est-sub" id="budget-hint">min $100 · max $100,000</span>
+
+            <!-- CPM slider, folded into the budget box -->
+            <div class="field cpmfield est-cpmfield">
+              <span class="flabel">CPM <em>· cost per 1,000 impressions</em></span>
+              <div class="cpm-slider-wrap">
+                <output class="cpm-bubble" id="cpm-bubble">$15</output>
+                <input type="range" id="cpm" min="5" max="100" step="1" value="15" />
+                <div class="cpm-ticks">
+                  <span>min <strong id="cpm-min-lbl">$5</strong></span>
+                  <span>top <strong id="cpm-top-lbl">$110</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <p class="est-note">
+              Top CPM is <strong id="note-top">$110.00</strong> — outbid it to take #1,
+              or bid from <strong id="note-min">$5.00</strong> to join the queue.
+            </p>
+            <div class="est-rows">
+              <div class="est-line"><strong id="est-cpm">$15.00</strong> <span>CPM</span></div>
+              <div class="est-line"><strong id="est-imp">166,666</strong> <span>impressions</span></div>
+            </div>
+          </div>
+
           <label class="field">
             <span class="flabel">Email <em>(required)</em></span>
             <input type="email" name="email" autocomplete="email" placeholder="you@example.com" required />
@@ -337,36 +363,6 @@
             <span>Show me on the public leaderboard</span>
           </label>
 
-          <div class="field cpmfield">
-            <span class="flabel">CPM <em>· cost per 1,000 impressions</em></span>
-            <div class="cpm-slider-wrap">
-              <output class="cpm-bubble" id="cpm-bubble">$15</output>
-              <input type="range" id="cpm" min="5" max="100" step="1" value="15" />
-              <div class="cpm-ticks">
-                <span>min <strong id="cpm-min-lbl">$5</strong></span>
-                <span>top <strong id="cpm-top-lbl">$110</strong></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- YOUR CAMPAIGN — the big number is the editable budget -->
-          <div class="estimate">
-            <span class="est-head">Your budget</span>
-            <label class="est-budget">
-              <span class="est-budget-prefix">$</span>
-              <input type="number" id="budget" min="100" max="100000" step="1" placeholder="2500" inputmode="numeric" aria-label="Budget" />
-            </label>
-            <span class="est-sub" id="budget-hint">min $100 · max $100,000</span>
-            <div class="est-rows">
-              <div class="est-line"><strong id="est-cpm">$15.00</strong> <span>CPM</span></div>
-              <div class="est-line"><strong id="est-imp">166,666</strong> <span>impressions</span></div>
-            </div>
-            <p class="est-note">
-              Top CPM is <strong id="note-top">$110.00</strong> — outbid it to take #1,
-              or bid from <strong id="note-min">$5.00</strong> to join the queue.
-            </p>
-          </div>
-
           <!-- LIVE PREVIEW — mirrors the dark spinner overlay viewers see -->
           <div class="field adpreview">
             <span class="flabel">Live preview <em>· what every viewer sees</em></span>
@@ -375,6 +371,15 @@
               <span class="adpreview-line" id="prev-line">Your ad here</span>
               <span class="adpreview-dots" id="prev-dots" aria-hidden="true"><i></i><i></i><i></i></span>
             </div>
+          </div>
+
+          <!-- One-line campaign summary, just above the pay button -->
+          <div class="adsummary" id="ad-summary">
+            <span class="adsummary-item"><strong id="sum-budget">$2,500</strong> budget</span>
+            <span class="adsummary-sep" aria-hidden="true">·</span>
+            <span class="adsummary-item"><strong id="sum-cpm">$15.00</strong> CPM</span>
+            <span class="adsummary-sep" aria-hidden="true">·</span>
+            <span class="adsummary-item"><strong id="sum-imp">166,666</strong> impressions</span>
           </div>
 
           <button class="stripe-btn" type="submit">
@@ -393,8 +398,9 @@
       </div>
     </section>
 
-    <!-- LEADERBOARD -->
-    <section id="leaderboard" class="leaderboard">
+    <!-- LEADERBOARD — hidden by default; revealed only when the admin flips the
+         "Live bid market" switch on (exposed via /v1/config → leaderboardPublic). -->
+    <section id="leaderboard" class="leaderboard" hidden>
       <span class="bidmarket">Live bid market</span>
       <ol class="board" id="board">
         <li><span class="rk">1</span> Fluidstack — building 10GW of compute. Join us.</li>
@@ -469,6 +475,6 @@
        user-facing copy production-only — no test/demo wording. The one developer
        affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
        handled in script.js, which never shows unless explicitly requested. -->
-  <script src="/script.js?v=20260624c"></script>
+  <script src="/script.js?v=20260625d"></script>
 </body>
 </html>

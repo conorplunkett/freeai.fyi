@@ -106,4 +106,14 @@
   --shadow-dark: 0 18px 44px -24px rgba(0, 0, 0, 0.55);      /* dark demo / install cards */
   --shadow-accent: 0 12px 28px -14px rgba(var(--accent-rgb), 0.7); /* coral CTA glow */
   --shadow-logo: 0 2px 8px rgba(var(--accent-rgb), 0.35);    /* "F$" brand mark */
+
+  /* Segmented-control nav (web): a link segment lifts onto a white pill on
+   * hover, sits a touch stronger when it's the current page, and the coral
+   * Install CTA carries its own resting + hover glow. --ring-focus is the shared
+   * coral keyboard focus ring (reusable anywhere a :focus-visible ring is wanted). */
+  --shadow-seg-hover: 0 1px 2px rgba(20, 30, 40, 0.06);
+  --shadow-seg-active: 0 1px 3px rgba(20, 30, 40, 0.1);
+  --shadow-cta: 0 8px 18px -10px rgba(var(--accent-rgb), 0.7);
+  --shadow-cta-hover: 0 12px 24px -10px rgba(var(--accent-rgb), 0.8);
+  --ring-focus: 0 0 0 3px rgba(var(--accent-rgb), 0.35);
 }
