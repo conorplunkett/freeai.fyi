@@ -1,6 +1,6 @@
 {
   "name": "freeai-chrome",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "private": true,
   "description": "FreeAI.fyi Chrome extension — earn while you use ChatGPT, Claude, and Gemini.",
   "scripts": {
