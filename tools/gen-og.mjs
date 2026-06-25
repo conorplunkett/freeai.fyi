@@ -48,7 +48,7 @@ if (!chromium) {
 
 // ── Pull the tokens we need straight out of theme.css's :root block ──────────
 // We resolve one level of `var(--x)` aliasing so legacy names still work.
-const themeCss = readFileSync(join(root, "theme.css"), "utf8");
+const themeCss = readFileSync(join(root, "web", "theme.css"), "utf8");
 const rootBlock = themeCss.slice(themeCss.indexOf(":root"));
 const raw = {};
 for (const m of rootBlock.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
@@ -225,7 +225,7 @@ try {
     await page.setContent(cardHtml(card), { waitUntil: "networkidle" });
     // Make sure the web fonts have actually painted before we snapshot.
     await page.evaluate(() => document.fonts.ready);
-    const out = join(root, card.file);
+    const out = join(root, "web", card.file);
     await page.screenshot({ path: out, clip: { x: 0, y: 0, width: 1200, height: 630 } });
     console.log(`gen-og: wrote ${card.file} (1200×630 @${SCALE}x) → ${out}`);
   }

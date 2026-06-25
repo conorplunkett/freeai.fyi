@@ -88,9 +88,9 @@ done <<< "$popup_refs"
 # Guard the theme.css mirror discipline (AGENTS.md): the popup copy must be
 # byte-identical to the repo-root source of truth, or the store build would
 # ship a stale theme.
-if ! cmp -s "$ROOT/theme.css" popup/theme.css; then
-  echo "error: popup/theme.css is not byte-identical to root theme.css" >&2
-  echo "       fix with: cp theme.css chrome-extension/popup/theme.css" >&2
+if ! cmp -s "$ROOT/web/theme.css" popup/theme.css; then
+  echo "error: popup/theme.css is not byte-identical to web/theme.css" >&2
+  echo "       fix with: cp web/theme.css chrome-extension/popup/theme.css" >&2
   exit 1
 fi
 

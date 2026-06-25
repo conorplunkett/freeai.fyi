@@ -46,7 +46,7 @@ TARGETS = [
 
 def read_gradient():
     """Pull --accent-grad-a / -b from theme.css (the palette source of truth)."""
-    css = open(os.path.join(ROOT, "theme.css")).read()
+    css = open(os.path.join(ROOT, "web", "theme.css")).read()
 
     def tok(name, default):
         m = re.search(r"--%s:\s*(#[0-9a-fA-F]{6})" % name, css)

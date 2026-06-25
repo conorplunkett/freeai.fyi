@@ -48,7 +48,7 @@ for (const spec of ["playwright", "/opt/node22/lib/node_modules/playwright", "pl
 if (!chromium) { console.error("gen-store-assets: Playwright not found (npm i -g playwright)."); process.exit(1); }
 
 // ── palette from theme.css :root (resolve one var() alias level) ─────────────
-const themeCss = readFileSync(join(ROOT, "theme.css"), "utf8");
+const themeCss = readFileSync(join(ROOT, "web", "theme.css"), "utf8");
 const rootBlock = themeCss.slice(themeCss.indexOf(":root"));
 const raw = {};
 for (const m of rootBlock.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) raw[m[1]] = m[2].trim();
@@ -160,7 +160,7 @@ try {
   // random spot mid-capture it reads like an artifact, so hide it for clean shots.
   const HIDE = "#claude-guy{display:none!important}";
   const page = await browser.newPage({ viewport: { width: 1440, height: 980 }, deviceScaleFactor: 2 });
-  await page.goto(`${base}/index.html`, { waitUntil: "load", timeout: 30000 });
+  await page.goto(`${base}/web/index.html`, { waitUntil: "load", timeout: 30000 });
   await page.addStyleTag({ content: HIDE });
   await settle(page);
   const demoPath = join(tmp, "demo.png");
@@ -170,7 +170,7 @@ try {
 
   // homepage hero as a native 1280×800 viewport (2× → 2560×1600), then 50% down
   const hero = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
-  await hero.goto(`${base}/index.html`, { waitUntil: "load", timeout: 30000 });
+  await hero.goto(`${base}/web/index.html`, { waitUntil: "load", timeout: 30000 });
   await hero.addStyleTag({ content: HIDE });
   await settle(hero);
   const heroPath = join(tmp, "hero.png");

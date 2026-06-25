@@ -32,8 +32,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = join(root, "landers");
-const src = readFileSync(join(root, "index.html"), "utf8");
+const outDir = join(root, "web", "landers");
+const src = readFileSync(join(root, "web", "index.html"), "utf8");
 
 // Reusable "Stock <tool>" demo cards. `label` is the card's eyebrow; `icon` is
 // the markup that replaces the default spinning coral asterisk. The classes map
@@ -367,7 +367,7 @@ writeFileSync(join(outDir, "landers.json"), JSON.stringify(manifest, null, 2) + 
 // Keep vercel.json's lander rewrites in sync with the LANDERS list above, so
 // each campaign is served at a clean short URL (`/chatgpt`). Non-lander
 // rewrites (e.g. the api.freeai.fyi proxy) are preserved untouched.
-const vercelPath = join(root, "vercel.json");
+const vercelPath = join(root, "web", "vercel.json");
 const vercel = JSON.parse(readFileSync(vercelPath, "utf8"));
 const isLanderRewrite = (r) =>
   typeof r?.destination === "string" && r.destination.startsWith("/landers/");
@@ -380,5 +380,5 @@ vercel.rewrites = [...preserved, ...landerRewrites];
 writeFileSync(vercelPath, JSON.stringify(vercel, null, 2) + "\n");
 
 console.log(
-  `gen-landers: generated ${written} landing page(s) → landers/, and synced ${landerRewrites.length} rewrite(s) in vercel.json`,
+  `gen-landers: generated ${written} landing page(s) → web/landers/, and synced ${landerRewrites.length} rewrite(s) in vercel.json`,
 );

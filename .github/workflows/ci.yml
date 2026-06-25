@@ -106,4 +106,4 @@ jobs:
         with:
           node-version: 20
       - name: Syntax check site JS
-        run: node -c script.js
+        run: node -c web/script.js

@@ -25,9 +25,10 @@ auction, an append-only credit ledger, and gift-card redemption.
 
 ## Tech stack
 
-- **Landing page + user portal** (`index.html`, `redeem.html`, `styles.css`,
-  `theme.css`, `script.js`, `redeem.js`): plain static HTML/CSS/vanilla JS. No
-  framework, no build step, no bundler. Served as static files.
+- **Landing page + user portal** (`web/index.html`, `web/redeem.html`,
+  `web/styles.css`, `web/theme.css`, `web/script.js`, `web/redeem.js`): plain
+  static HTML/CSS/vanilla JS. No framework, no build step, no bundler. Served
+  from `web/` (Vercel Root Directory = `web`).
 - **Backend** — the production API is the **Supabase Edge Function** in
   `supabase/functions/api/` (Deno), a full port of the original `node:http`
   server. It runs on the same platform as the database and deploys via the
@@ -104,7 +105,7 @@ auction, an append-only credit ledger, and gift-card redemption.
 
 ## Design system
 
-**`theme.css` at the repo root is the single source of truth for every color and
+**`web/theme.css` is the single source of truth for every color and
 font in the project** — landing page, portal, Chrome extension (popup + injected
 bar), and the macOS app. Always use it.
 
@@ -131,7 +132,7 @@ bar), and the macOS app. Always use it.
    | Surface | How it consumes tokens |
    | --- | --- |
    | Landing page + portal | links `theme.css` directly → `var(--…)` |
-   | Extension popup | `chrome-extension/popup/theme.css` — **byte-identical copy** of root `theme.css` (`cp theme.css chrome-extension/popup/theme.css`) |
+   | Extension popup | `chrome-extension/popup/theme.css` — **byte-identical copy** of `web/theme.css` (`cp web/theme.css chrome-extension/popup/theme.css`) |
    | Injected sponsor bar | `chrome-extension/src/inject.css` — re-declares the `--ov-*` + font tokens on `.bb-bar` (theme.css is **not** loaded on third-party pages like claude.ai), then uses `var(--…)` |
    | macOS overlay | `OverlayPanel.swift` `Palette` enum — each member tagged with its `--ov-*` token name |
    | macOS onboarding | `desktop/macos/SponsorOverlay/Sources/SponsorOverlay/Resources/onboarding/tokens.css` — the Setup window's WKWebView loads bundled files, so it ports the `theme.css` color block, then uses `var(--…)` |
@@ -166,12 +167,12 @@ bar), and the macOS app. Always use it.
 
 ## The landing page is live
 
-`index.html` is the production public page. Keep it production-only: no test
+`web/index.html` is the production public page. Keep it production-only: no test
 mode, demo-mode messaging, mock seeds, or debugging affordances in user-facing
 copy.
 
 **Reviewing frontend changes.** Whenever you push a change to a front-end
-surface (`index.html` / `styles.css`, the portal, the extension popup), share
+surface (`web/index.html` / `web/styles.css`, the portal, the extension popup), share
 the Vercel **branch preview URL** so it can be reviewed live before merging —
 the stable per-branch alias
 `freeai-fyi-git-<branch-slug>-conorplunketts-projects.vercel.app` (find the exact
@@ -191,7 +192,7 @@ can download." Signing identity: `Developer ID Application: Conor Plunkett
 
 The download is wired so **a release needs no site edit**: `vercel.json` redirects
 `/download/mac` → the repo's `releases/latest/download/FreeAI.dmg`, and the
-**Download for macOS** button in `products.html` (the `#desktop` section) points
+**Download for macOS** button in `web/products.html` (the `#desktop` section) points
 at `/download/mac`. Each `gh release create` automatically becomes the live
 download (the link only 404s until the first release exists).
 

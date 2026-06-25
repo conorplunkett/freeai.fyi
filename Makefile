@@ -29,7 +29,7 @@ help:
 ## site: Serve the static site locally (default http://localhost:8000).
 site:
 	@echo "Serving site at http://localhost:$(SITE_PORT) (Ctrl-C to stop)"
-	@python3 -m http.server $(SITE_PORT)
+	@python3 -m http.server $(SITE_PORT) --directory web
 
 ## landers: Regenerate the per-audience landing pages from index.html.
 landers:
