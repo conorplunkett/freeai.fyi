@@ -6,7 +6,7 @@ import { locateRealClaude, readTerminalConfig, writeTerminalConfig } from "./cla
 import { runClaude } from "./run.js";
 import { runStatusLine } from "./statusline.js";
 import { terminalConfigPath, resolveApiBase } from "./paths.js";
-import { defaultBackend, ensureDevice, linkAccountEmail } from "./backend.js";
+import { defaultBackend, ensureDevice, linkAccountEmail, readDevice, waitForLink } from "./backend.js";
 
 export async function main(argv) {
   const [product, command, ...rest] = argv;
@@ -57,20 +57,21 @@ async function setup(argv) {
     console.log("Skipped account link (--no-link). Run `freeai claude link` to attribute credits to your FreeAI account.");
     return;
   }
-  await linkStep({ home, emailArg: flags.email, allowPrompt: true });
+  await linkStep({ home, emailArg: flags.email, allowPrompt: true, wait: flags["no-wait"] !== true });
 }
 
 async function link(argv) {
   const flags = parseFlags(argv);
   const emailArg = typeof flags.email === "string" ? flags.email : flags._[0];
-  const res = await linkStep({ home: homedir(), emailArg, allowPrompt: true });
+  const res = await linkStep({ home: homedir(), emailArg, allowPrompt: true, wait: flags["no-wait"] !== true });
   if (res.skipped || res.error) process.exitCode = 1;
 }
 
 // Shared by `setup` and `link`. Resolves an email (flag/arg, else an interactive
-// prompt on a TTY), emails the magic link, and records that a link was requested
-// so `doctor` can show it. Never throws — a failed link must not break setup.
-async function linkStep({ home, emailArg, allowPrompt }) {
+// prompt on a TTY), emails the magic link, and — on a TTY — waits for the user
+// to click it so we confirm the link instead of just hoping. Never throws: a
+// failed link must not break setup.
+async function linkStep({ home, emailArg, allowPrompt, wait = true }) {
   let email = String(emailArg || "").trim();
   if (!email && allowPrompt && process.stdin.isTTY) {
     email = await promptLine("Email to link your FreeAI account (press enter to skip): ");
@@ -80,20 +81,36 @@ async function linkStep({ home, emailArg, allowPrompt }) {
     console.log("No email linked — run `freeai claude link` to attribute Claude Code credits to your FreeAI account.");
     return { skipped: true };
   }
+  let backend;
   try {
-    const backend = defaultBackend({ home, env: process.env });
+    backend = defaultBackend({ home, env: process.env });
     const res = await linkAccountEmail(home, backend, email);
     writeTerminalConfig(home, {
       ...readTerminalConfig(home),
       linkEmail: res.email,
       linkRequestedAt: new Date().toISOString(),
     });
-    console.log(`Magic link sent to ${res.email}. Open it to finish linking your FreeAI account; future Claude Code credits will land in your balance.`);
-    return { sent: true, email: res.email };
+    console.log(`Magic link sent to ${res.email}. Open it to finish linking your FreeAI account.`);
   } catch (err) {
     console.error(`Could not send the link: ${String(err?.message || err)} (run \`freeai claude link\` to retry).`);
     return { error: String(err?.message || err) };
   }
+
+  // Confirm the click while the user is still watching (interactive only).
+  if (wait && process.stdout.isTTY) {
+    const device = readDevice(home);
+    if (device) {
+      console.log("Waiting for you to open the link… (Ctrl-C to skip — linking still finishes when you click it)");
+      const status = await waitForLink(backend, device, { timeoutMs: 60000 });
+      if (status.linked) {
+        writeTerminalConfig(home, { ...readTerminalConfig(home), linkedAt: new Date().toISOString() });
+        console.log(`✓ Linked to ${status.email || email}. Claude Code credits now land in your FreeAI balance.`);
+        return { linked: true, email: status.email || email };
+      }
+      console.log("Didn't see a click yet — that's fine, the link still works. Run `freeai claude doctor` to check, or `freeai claude link` to resend.");
+    }
+  }
+  return { sent: true, email };
 }
 
 async function promptLine(question) {
@@ -179,8 +196,8 @@ async function probeBackend(home) {
 
 function usage(code) {
   console.error(`Usage:
-  freeai claude setup [--shell zsh|bash|fish] [--rc PATH] [--real-claude PATH] [--force] [--email YOU@EXAMPLE.COM] [--no-link]
-  freeai claude link [--email YOU@EXAMPLE.COM]
+  freeai claude setup [--shell zsh|bash|fish] [--rc PATH] [--real-claude PATH] [--force] [--email YOU@EXAMPLE.COM] [--no-link] [--no-wait]
+  freeai claude link [--email YOU@EXAMPLE.COM] [--no-wait]
   freeai claude run [...claude args]
   freeai claude restore [--shell zsh|bash|fish] [--rc PATH]
   freeai claude doctor [--no-backend]

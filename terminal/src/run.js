@@ -3,14 +3,14 @@ import { writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { defaultBackend, ensureDevice } from "./backend.js";
-import { locateRealClaude, readTerminalConfig } from "./claude.js";
+import { defaultBackend, ensureDevice, readDevice } from "./backend.js";
+import { locateRealClaude, readTerminalConfig, writeTerminalConfig } from "./claude.js";
 import { startSessionMonitor } from "./monitor.js";
 import { sessionDir } from "./paths.js";
 import { buildFreeAiStatusLine, effectiveStatusLine, extractSettingsArg,
   readSettingsValue, writeSessionSettings } from "./settings.js";
 import { initialState, updateState, writeState } from "./state.js";
-import { composeAdText, removePath, safeHttpUrl, randomId } from "./util.js";
+import { composeAdText, delay, removePath, safeHttpUrl, randomId } from "./util.js";
 
 // Opt-in stderr tracing. The ad path is intentionally silent in normal use, so
 // when "doctor" is green but no ad shows, `FREEAI_DEBUG=1 claude` reveals which
@@ -45,6 +45,10 @@ export async function runClaude(argv, {
   }
 
   debug(env, `wrapper active; real claude: ${realClaude}`);
+  // One throttled nudge (≤ once/day) if this machine's credits aren't reaching
+  // an account yet, so a user who skipped/abandoned linking isn't silently
+  // unattributed. Best-effort and printed before Claude takes over the screen.
+  await maybeNudgeUnlinked({ home, env, backend }).catch((err) => debug(env, `nudge skipped: ${err?.message || err}`));
   const prepared = await prepareFreeAiSession({
     argv, cwd, env, home, realClaude, cliPath, backend, monitorOptions,
   }).catch((err) => {
@@ -66,6 +70,32 @@ export async function runClaude(argv, {
     if (refreshTimer) clearInterval(refreshTimer);
     if (!keepSession) cleanup();
   }
+}
+
+const NUDGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+// Print at most one stderr line per day when this machine has a device (so it
+// can earn) but isn't linked to an account (so the credits go nowhere claimable).
+// Local-throttled; the single network probe runs at most once/day and stays
+// silent on unknown/timeout so a linked user is never wrongly nudged.
+async function maybeNudgeUnlinked({ home, env, backend }) {
+  if (env.FREEAI_NO_NUDGE === "1" || env.FREEAI_NO_NUDGE === "true") return;
+  const cfg = readTerminalConfig(home);
+  if (cfg.linkedAt) return;                                   // already confirmed linked
+  if (Date.now() - (Date.parse(cfg.lastLinkNudgeAt || "") || 0) < NUDGE_INTERVAL_MS) return;
+  const device = readDevice(home);
+  if (!device) return;                                        // nothing to attribute yet
+  const status = await Promise.race([
+    backend.linkStatus(device).catch(() => null),
+    delay(3000).then(() => null),                             // don't delay startup
+  ]);
+  if (!status) return;                                        // unknown — stay silent, retry next run
+  if (status.linked) {
+    writeTerminalConfig(home, { ...readTerminalConfig(home), linkedAt: new Date().toISOString() });
+    return;
+  }
+  writeTerminalConfig(home, { ...readTerminalConfig(home), lastLinkNudgeAt: new Date().toISOString() });
+  console.error("freeai: this machine's Claude Code credits aren't linked to an account yet — run `freeai claude link` to claim them (silence with FREEAI_NO_NUDGE=1).");
 }
 
 async function prepareFreeAiSession({

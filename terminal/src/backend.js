@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { devicePath, resolveApiBase } from "./paths.js";
-import { readJson, safeHttpUrl, writeJsonAtomic } from "./util.js";
+import { delay, readJson, safeHttpUrl, writeJsonAtomic } from "./util.js";
 
 export class FreeAiBackend {
   constructor({ base, fetchImpl = fetch, timeoutMs = 8000 } = {}) {
@@ -150,4 +150,22 @@ export async function linkAccountEmail(home, backend, email) {
   const device = await ensureDevice(home, backend);
   const result = await backend.requestEmailLink(device, clean);
   return { ...result, email: clean, deviceId: device.deviceId };
+}
+
+// Poll the device's link status until it goes linked or `timeoutMs` elapses, so
+// setup can confirm the user actually clicked the magic link instead of just
+// firing it off. Probe errors are transient — keep polling. `sleep` is injected
+// for tests. Returns the last status seen ({ linked, email }).
+export async function waitForLink(backend, device, { timeoutMs = 60000, intervalMs = 2500, sleep = delay } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let last = { linked: false, email: null };
+  while (Date.now() < deadline) {
+    try {
+      last = await backend.linkStatus(device);
+      if (last.linked) return last;
+    } catch { /* transient — keep polling until the deadline */ }
+    if (Date.now() + intervalMs >= deadline) break;
+    await sleep(intervalMs);
+  }
+  return last;
 }

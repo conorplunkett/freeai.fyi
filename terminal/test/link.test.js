@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FreeAiBackend, linkAccountEmail, readDevice, EMAIL_RE } from "../src/backend.js";
+import { FreeAiBackend, linkAccountEmail, readDevice, waitForLink, EMAIL_RE } from "../src/backend.js";
 
 function tempHome() {
   return mkdtempSync(join(tmpdir(), "freeai-terminal-"));
@@ -93,4 +93,34 @@ test("linkStatus reports linked accounts via /v1/me/affiliate", async () => {
     linked: true,
     email: "me@example.com",
   });
+});
+
+test("waitForLink resolves once the device goes linked", async () => {
+  let calls = 0;
+  const backend = {
+    async linkStatus() {
+      calls++;
+      return calls >= 3 ? { linked: true, email: "me@example.com" } : { linked: false, email: null };
+    },
+  };
+  const sleeps = [];
+  const status = await waitForLink(backend, { deviceId: "d", deviceKey: "k" }, {
+    timeoutMs: 60000, intervalMs: 10, sleep: async (ms) => { sleeps.push(ms); },
+  });
+  assert.deepEqual(status, { linked: true, email: "me@example.com" });
+  assert.equal(calls, 3);
+  assert.equal(sleeps.length, 2, "slept between polls, not after success");
+});
+
+test("waitForLink keeps polling through transient errors, returns last status on timeout", async () => {
+  let calls = 0;
+  const backend = {
+    async linkStatus() { calls++; if (calls === 1) throw new Error("network"); return { linked: false, email: null }; },
+  };
+  // Tiny timeout so the loop ends quickly; sleep is a no-op.
+  const status = await waitForLink(backend, { deviceId: "d", deviceKey: "k" }, {
+    timeoutMs: 25, intervalMs: 10, sleep: async () => {},
+  });
+  assert.deepEqual(status, { linked: false, email: null });
+  assert.ok(calls >= 1, "an error did not abort the poll loop");
 });

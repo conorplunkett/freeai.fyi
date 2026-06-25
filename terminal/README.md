@@ -35,6 +35,16 @@ until that device is linked to a FreeAI account. Linking emails you a magic link
 the same device→account flow the Chrome extension popup uses. Until you link, the
 `account` step in `freeai claude doctor` reports `linked: false`.
 
+**Confirming the link.** On a terminal, `setup`/`link` send the magic link and
+then wait up to ~60s for you to click it, printing `✓ Linked to <email>` once
+confirmed (or a "didn't see a click yet" hint). Pass `--no-wait` to fire the
+email and return immediately; non-interactive runs never block.
+
+**If you skip or abandon linking**, `freeai claude run` prints a single reminder
+to stderr (at most once per day) — `… aren't linked to an account yet — run
+freeai claude link` — so credits don't pile up unclaimed. It's local-throttled,
+never nags a linked user, and can be silenced with `FREEAI_NO_NUDGE=1`.
+
 ### Debugging "no ad shows"
 
 The ad path is silent in normal use, so `doctor` can be green on the local
