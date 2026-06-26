@@ -35,6 +35,36 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "web", "landers");
 const src = readFileSync(join(root, "web", "index.html"), "utf8");
 
+// ── Reusable advertiser checkout card ───────────────────────────────────────
+// The advertiser checkout form lives once, in index.html. The bespoke
+// /advertisers page (built below) reuses the exact same markup so the form has a
+// single source of truth — we only *read* it out of `src` here, never rewrite
+// index.html. We grab the whole `.adv-card` inner (heading + form) so every form
+// selector script.js wires up comes along automatically, then apply the two
+// advertiser-page tweaks: drop the orange "Advertisers" eyebrow, and swap the
+// heading. Each step asserts its anchor so a future copy edit to index.html
+// fails the build loudly instead of silently shipping a stale form.
+const advMatch = src.match(/<div class="adv-card">([\s\S]*?)<\/div>\s*<\/section>/);
+if (!advMatch) {
+  throw new Error("gen-landers: .adv-card block not found in index.html");
+}
+let advCardInner = advMatch[1];
+const advNoEyebrow = advCardInner.replace(
+  /\s*<span class="eyebrow">Advertisers<\/span>/,
+  "",
+);
+if (advNoEyebrow === advCardInner) {
+  throw new Error('gen-landers: advertisers eyebrow anchor not found in .adv-card');
+}
+const advSwapHeading = advNoEyebrow.replace(
+  /<h2>Get your product in front of customers who are already AI-native\.<\/h2>/,
+  "<h2>Spend your ad budget where it matters.</h2>",
+);
+if (advSwapHeading === advNoEyebrow) {
+  throw new Error("gen-landers: advertisers heading anchor not found in .adv-card");
+}
+const advFormVariant = advSwapHeading;
+
 // Reusable "Stock <tool>" demo cards. `label` is the card's eyebrow; `icon` is
 // the markup that replaces the default spinning coral asterisk. The classes map
 // to indicators in landers.css. Claude is the index.html default, so a lander
@@ -201,25 +231,11 @@ const LANDERS = [
       "becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.chatgpt,
   },
-  {
-    slug: "advertisers",
-    title: "FreeAI.fyi — Advertise on the most-watched spinner on Earth",
-    description:
-      "Bid live for the sponsored line that shows while ChatGPT, Claude and Gemini think. Each block buys 1,000 five-second impressions; you're billed for impressions only. Start from $0.50.",
-    ogTitle: "FreeAI.fyi — Advertise on the most-watched spinner on Earth",
-    ogDescription:
-      "Bid live for the most-watched spinner on Earth. Each block buys 1,000 impressions; start from $0.50.",
-    h1: "Bid on the most-watched spinner on Earth.",
-    sub:
-      "Your line shows while <strong>ChatGPT, Claude &amp; Gemini</strong> think — the one moment " +
-      "every AI user stares at the screen. Bid live from <strong>$0.50</strong>, " +
-      "<span class=\"hl\">pay only for attention</span>, and 50% of every dollar becomes Claude " +
-      "credits for the user who showed your ad.",
-    heroNote:
-      "Each block buys <strong>1,000</strong> five-second impressions while ChatGPT, Claude &amp; " +
-      "Gemini think — you're billed for impressions only. Highest bid serves first — outbid the top " +
-      "to take #1.",
-  },
+  // NB: `advertisers` is intentionally NOT in this list. Unlike the audience
+  // landers (which are index.html clones with swapped hero copy), /advertisers
+  // is a bespoke, advertiser-built page assembled by buildAdvertisersPage()
+  // below — it reuses only the extracted checkout card (advFormVariant), not the
+  // whole homepage layout.
 ];
 
 // Replace the first match of `re` in `html`, or fail loudly so a copy/markup
@@ -229,6 +245,195 @@ function sub(html, label, re, value) {
     throw new Error(`gen-landers: anchor not found in index.html: ${label}`);
   }
   return html.replace(re, value);
+}
+
+// The bespoke /advertisers <main>. Unlike the audience landers this is NOT the
+// homepage layout — it's a lean, advertiser-built page: a text hero, the three
+// surfaces advertisers reach, the "what you get" receipt promise, the SAME
+// checkout form (reused via advFormVariant — no eyebrow, swapped heading), a
+// recurring-budget note, and an advertiser FAQ. It deliberately omits the
+// before/after demo, downloads, surfaces screenshots and leaderboard.
+//
+// Reused styles only: .hero/.sub, .surfaces .wrap/.secthead, .eyebrow,
+// .trust/.trust-list, .faq/.faq-item/.faq-q/.faq-a/.faq-lead, .advertisers/
+// .adv-card. The only page-specific CSS is .adv-cols and .adv-recurring.
+//
+// NOTE: the hero uses <p class="sub">, NOT <p class="hero-note"> — script.js's
+// initWaitlist() injects a "join waitlist" email widget after any .hero-note,
+// which is wrong for an advertiser page. With no .hero-note it cleanly no-ops.
+const ADV_MAIN = `<main id="top">
+    <!-- HERO -->
+    <section class="hero">
+      <h1>Get your product in front of customers who are already AI-native.</h1>
+      <p class="sub">
+        Higher conversion than every other saturated channel.<br /><strong>Lower CPM.</strong>
+      </p>
+    </section>
+
+    <!-- THE THREE SURFACES ADVERTISERS REACH -->
+    <section class="surfaces">
+      <div class="wrap">
+        <div class="secthead">
+          <h2>Get your product seen by buyers who use AI in their workflows.</h2>
+        </div>
+        <div class="adv-cols">
+          <div class="adv-col">
+            <span class="idx">01</span>
+            <h3>AI in Chrome</h3>
+            <p>Beside the thinking spinner in Claude, ChatGPT &amp; Gemini.</p>
+          </div>
+          <div class="adv-col">
+            <span class="idx">02</span>
+            <h3>AI in the CLI</h3>
+            <p>In the terminal, while Claude Code cooks.</p>
+          </div>
+          <div class="adv-col">
+            <span class="idx">03</span>
+            <h3>AI on the desktop</h3>
+            <p>Above the composer in the native Mac apps.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WHAT YOU GET -->
+    <section class="trust">
+      <span class="eyebrow">What you get</span>
+      <h2>We send a customized receipt for every advertiser.</h2>
+      <ul class="trust-list">
+        <li><strong>CPM report</strong> — where your ad was seen.</li>
+        <li><strong>CPC report</strong> — clicks, and where they clicked from.</li>
+        <li><strong>Ad performance</strong> — impressions, CTR and spend pacing.</li>
+      </ul>
+    </section>
+
+    <!-- ADVERTISER CHECKOUT — the exact homepage form (advFormVariant): same
+         fields + script.js wiring, only the eyebrow dropped and heading swapped. -->
+    <section id="advertisers" class="advertisers">
+      <div class="adv-card">${advFormVariant}</div>
+      <p class="adv-recurring">
+        Want a recurring budget? Reach out to <a href="mailto:ads@contact.freeai.fyi">ads@contact.freeai.fyi</a>.
+      </p>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq">
+      <span class="eyebrow">FAQ</span>
+      <h2>Questions advertisers ask.</h2>
+
+      <details class="faq-item">
+        <summary class="faq-q">Where do my ads show?</summary>
+        <div class="faq-a">
+          <p class="faq-lead">On the sponsored line that appears while Claude, ChatGPT and Gemini think — in the Chrome extension, in the terminal beside Claude Code, and above the composer in the native Mac apps. It's the one moment every AI user is staring at the screen.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">How does pricing work?</summary>
+        <div class="faq-a">
+          <p class="faq-lead">It's a live CPM auction. You set a budget and a CPM (cost per 1,000 impressions) and receive <strong>budget &times; 1,000 &divide; CPM</strong> impressions. The highest CPM serves first — outbid the current top to take the #1 slot, or bid the floor to join the queue.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">Am I billed per impression or per click?</summary>
+        <div class="faq-a">
+          <p class="faq-lead">Per impression — clicks are a bonus. Your receipt breaks out both: a <strong>CPM report</strong> of where the ad was seen and a <strong>CPC report</strong> of where the clicks came from.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">How do I pay?</summary>
+        <div class="faq-a">
+          <p class="faq-lead">Checkout runs through Stripe. Fill in the form, hit <strong>Pay with Stripe</strong>, and you're redirected to a secure Stripe Checkout page. Your campaign goes live once payment clears.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">Can I run a recurring or always-on budget?</summary>
+        <div class="faq-a">
+          <p class="faq-lead">The self-serve form funds a single campaign. For a recurring monthly budget, managed pacing, or a guaranteed top slot, email <a href="mailto:ads@contact.freeai.fyi">ads@contact.freeai.fyi</a> and we'll set it up.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary class="faq-q">What's the inventory, and can I target it?</summary>
+        <div class="faq-a">
+          <p class="faq-lead">Inventory is every "thinking" moment across Claude, ChatGPT and Gemini — in the browser, the CLI and the desktop. Today you control budget, CPM (placement priority) and creative (line, color, link); finer surface and audience targeting is on the roadmap — ask us if you need it now.</p>
+        </div>
+      </details>
+    </section>
+  </main>`;
+
+// Build the bespoke /advertisers page: same <head> machinery as the lander loop
+// (absolutized assets + per-page meta), then swap the whole homepage <main> for
+// ADV_MAIN. index.html is only read here — never rewritten — so the homepage and
+// every other lander keep the original checkout form byte-for-byte.
+function buildAdvertisersPage() {
+  let out = src;
+
+  // landers.css link + absolutize shared assets (mirrors the lander loop).
+  out = sub(
+    out,
+    "styles.css link",
+    /(<link rel="stylesheet" href="styles\.css\?v=[^"]*" \/>)/,
+    `$1\n  <link rel="stylesheet" href="/landers/landers.css?v=20260620a" />`,
+  );
+  out = out
+    .replace(/href="theme\.css/g, 'href="/theme.css')
+    .replace(/href="styles\.css/g, 'href="/styles.css')
+    .replace(/src="script\.js/g, 'src="/script.js');
+
+  const title = "FreeAI.fyi — Advertise where AI-native customers already are";
+  const description =
+    "Get your product in front of customers who are already AI-native. Higher conversion than every saturated channel, lower CPM. Bid on the sponsored line shown while Claude, ChatGPT and Gemini think.";
+  out = sub(out, "title", /<title>[\s\S]*?<\/title>/, `<title>${title}</title>`);
+  out = sub(
+    out,
+    "meta description",
+    /<meta name="description" content="[\s\S]*?" \/>/,
+    `<meta name="description" content="${description}" />`,
+  );
+  out = sub(
+    out,
+    "og:title",
+    /<meta property="og:title" content="[\s\S]*?" \/>/,
+    `<meta property="og:title" content="${title}" />`,
+  );
+  out = sub(
+    out,
+    "og:description",
+    /<meta property="og:description" content="[\s\S]*?" \/>/,
+    `<meta property="og:description" content="${description}" />`,
+  );
+  out = sub(
+    out,
+    "twitter:title",
+    /<meta name="twitter:title" content="[\s\S]*?" \/>/,
+    `<meta name="twitter:title" content="${title}" />`,
+  );
+  out = sub(
+    out,
+    "twitter:description",
+    /<meta name="twitter:description" content="[\s\S]*?" \/>/,
+    `<meta name="twitter:description" content="${description}" />`,
+  );
+  out = sub(
+    out,
+    "og:url",
+    /<meta property="og:url" content="[\s\S]*?" \/>/,
+    `<meta property="og:url" content="https://freeai.fyi/advertisers" />`,
+  );
+  out = sub(
+    out,
+    "canonical",
+    /<link rel="canonical" href="[\s\S]*?" \/>/,
+    `<link rel="canonical" href="https://freeai.fyi/advertisers" />`,
+  );
+
+  out = out.replace(/<body>/, `<body data-lander="advertisers">`);
+  out = sub(out, "main", /<main id="top">[\s\S]*?<\/main>/, ADV_MAIN);
+  return out;
 }
 
 mkdirSync(outDir, { recursive: true });
@@ -344,6 +549,19 @@ for (const l of LANDERS) {
   console.log(`  wrote landers/${l.slug}.html`);
 }
 
+// Bespoke /advertisers page — built separately (not an index.html clone) but
+// still emitted to landers/ and listed in the manifest + vercel rewrites.
+writeFileSync(join(outDir, "advertisers.html"), buildAdvertisersPage());
+written++;
+manifest.push({
+  slug: "advertisers",
+  url: "/advertisers",
+  headline: "Get your product in front of customers who are already AI-native.",
+  title: "FreeAI.fyi — Advertise where AI-native customers already are",
+  tool: "Advertisers",
+});
+console.log("  wrote landers/advertisers.html (bespoke)");
+
 // Manifest for the admin "Landers" tab (and anything else that wants the list).
 writeFileSync(join(outDir, "landers.json"), JSON.stringify(manifest, null, 2) + "\n");
 
@@ -355,10 +573,14 @@ const vercel = JSON.parse(readFileSync(vercelPath, "utf8"));
 const isLanderRewrite = (r) =>
   typeof r?.destination === "string" && r.destination.startsWith("/landers/");
 const preserved = (vercel.rewrites || []).filter((r) => !isLanderRewrite(r));
-const landerRewrites = LANDERS.map((l) => ({
-  source: `/${l.slug}`,
-  destination: `/landers/${l.slug}`,
-}));
+const landerRewrites = [
+  ...LANDERS.map((l) => ({
+    source: `/${l.slug}`,
+    destination: `/landers/${l.slug}`,
+  })),
+  // /advertisers is bespoke (not in LANDERS) but still served from landers/.
+  { source: "/advertisers", destination: "/landers/advertisers" },
+];
 vercel.rewrites = [...preserved, ...landerRewrites];
 writeFileSync(vercelPath, JSON.stringify(vercel, null, 2) + "\n");
 
