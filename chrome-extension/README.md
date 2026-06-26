@@ -2,7 +2,7 @@
 
 > Earn money while you use AI. Ads appear while **ChatGPT, Claude & Gemini** think — a share of revenue goes to you.
 
-While the assistant is thinking/streaming, FreeAI shows one subtle, clickable
+While the assistant is thinking/streaming, FreeAI shows one clickable
 sponsored line near the composer — and a share of the revenue becomes credits you
 redeem for Claude. It reads none of your prompts or the model's output, only the
 on/off "is it generating" state.

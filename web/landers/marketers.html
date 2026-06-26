@@ -7,7 +7,7 @@
        backend. Append ?dev=1 to the URL to flip the lander into mock-data mode. -->
   <meta name="freeai-api" content="https://wpjfhezklpczxzocgxsb.supabase.co/functions/v1/api" />
   <title>FreeAI.fyi — Earn Claude credits while you make content with AI</title>
-  <meta name="description" content="Generate campaigns, captions and briefs with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A subtle sponsored line shows while the AI thinks; 50% comes back." />
+  <meta name="description" content="Generate campaigns, captions and briefs with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A sponsored line shows while the AI thinks; 50% comes back." />
 
   <!-- Link previews. The rich card every chat app / social platform shows when
        someone shares a freeai.fyi link — built to make the product obvious at a
@@ -39,7 +39,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/theme.css?v=20260625a" />
-  <link rel="stylesheet" href="/styles.css?v=20260625i" />
+  <link rel="stylesheet" href="/styles.css?v=20260626d" />
   <link rel="stylesheet" href="/landers/landers.css?v=20260620a" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23d97757'/%3E%3Ctext x='50' y='72' font-size='58' font-family='monospace' font-weight='bold' fill='white' text-anchor='middle'%3EF$%3C/text%3E%3C/svg%3E" />
 </head>
@@ -62,7 +62,7 @@
     <section class="hero">
       <h1>Get paid for every prompt.</h1>
       <p class="sub">
-        Every campaign, caption and brief you generate with <strong>ChatGPT, Claude &amp; Gemini</strong> shows one subtle sponsored line while it thinks — and <strong>50%</strong> of the revenue comes back to you as <span class="hl">free Claude credits</span>.
+        Every campaign, caption and brief you generate with <strong>ChatGPT, Claude &amp; Gemini</strong> shows one sponsored line while it thinks — and <strong>50%</strong> of the revenue comes back to you as <span class="hl">free Claude credits</span>.
       </p>
 
       <!-- BEFORE / AFTER DEMO -->
@@ -121,8 +121,15 @@
            in the "Native everywhere it appears" section below. -->
 
       <p class="hero-note">
-        Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns becomes credits you redeem for Claude Pro or Max.
+        Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns becomes credits you redeem for Claude Pro or Max.
       </p>
+
+      <!-- Advertiser CTA under the hero note. HIDDEN FOR NOW — to switch it on
+           later, flip SHOW_ADV_CTA to true in script.js (or just delete the
+           `hidden` attribute below). -->
+      <div class="hero-adv" id="hero-adv" hidden>
+        <a class="wl-adv" href="#advertisers">Want to advertise?</a>
+      </div>
     </section>
 
     <!-- Section label for the quick-install row -->
@@ -140,8 +147,11 @@
               <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
               <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Join the waitlist
+            Coming soon
           </button>
+          <!-- Waitlist signup is injected here by script.js (#wl-slot), so it sits
+               under the Chrome column — the one product still on a waitlist. -->
+          <div class="wl-slot" id="wl-slot"></div>
         </div>
         <div class="dl-col">
           <span class="dl-label">2 · Terminal</span>
@@ -152,13 +162,13 @@
         </div>
         <div class="dl-col">
           <span class="dl-label">3 · Desktop app</span>
-          <button type="button" class="dl-btn dl-soon" disabled aria-disabled="true">
+          <a href="https://freeai.fyi/download/mac" class="dl-btn" aria-label="Download the Mac desktop app">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <rect x="3" y="4.5" width="18" height="12" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>
               <path d="M8.5 20h7M12 16.5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Join the waitlist
-          </button>
+            Download for Mac
+          </a>
         </div>
       </div>
     </section>
@@ -212,7 +222,7 @@
               </span>
               <span class="install-pill">
                 <span class="install-pill-label">Earn up to</span>
-                <span class="install-pill-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
+                <span class="install-pill-amt earn-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
               </span>
               <span class="install-arrow">→</span>
             </a>
@@ -249,6 +259,7 @@
                   </svg>
                 </span>
                 Paste this into your shell.
+                <span class="cli-earn">Earn up to <strong class="earn-amt">$76.71<span class="per">/mo</span></strong></span>
               </span>
               <div class="cli-code">
                 <code class="cli-cmd">npm install -g @freeai.fyi/terminal &amp;&amp; freeai claude setup</code>
@@ -278,6 +289,14 @@
               <span class="idx">Surface 03 — Desktop apps</span>
               <h3>Mac Native</h3>
               <p>In the native Claude and ChatGPT desktop apps the pill docks right above the composer.<br />Only appears when AI is thinking.</p>
+              <!-- Smaller download button, full width of the copy column -->
+              <a href="https://freeai.fyi/download/mac" class="scopy-dl">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+                  <rect x="3" y="4.5" width="18" height="12" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>
+                  <path d="M8.5 20h7M12 16.5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Download for Mac
+              </a>
             </div>
           </div>
         </div>
@@ -461,6 +480,6 @@
        user-facing copy production-only — no test/demo wording. The one developer
        affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
        handled in script.js, which never shows unless explicitly requested. -->
-  <script src="/script.js?v=20260625f"></script>
+  <script src="/script.js?v=20260626d"></script>
 </body>
 </html>

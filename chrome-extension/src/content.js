@@ -1,6 +1,6 @@
 // FreeAI.fyi — content script
 // Detects when the AI assistant on this page is "thinking"/streaming, and shows
-// ONE subtle, clickable sponsored line near the composer. 50% back as Claude credits.
+// ONE clickable sponsored line near the composer. 50% back as Claude credits.
 //
 // Works on the three sites our ICP lives in — ChatGPT, Claude, and Google
 // (Gemini / AI Studio) — plus a few more, via layered detection:

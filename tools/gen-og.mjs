@@ -198,7 +198,7 @@ const CARDS = [
   {
     file: "og.png",
     h1: `Get Claude <span class="pop">for free.</span>`,
-    sub: `A subtle sponsored line shows while <b>ChatGPT, Claude &amp; Gemini</b> think — and <b>50% of the revenue</b> comes back to you as Claude Pro &amp; Max credits.`,
+    sub: `A sponsored line shows while <b>ChatGPT, Claude &amp; Gemini</b> think — and <b>50% of the revenue</b> comes back to you as Claude Pro &amp; Max credits.`,
   },
   {
     file: "og-referral.png",

@@ -116,7 +116,7 @@
         '</div>' +
         '<span class="eyebrow">Get Claude for free</span>' +
         '<h1 class="h-title">Earn Claude credits while you work.</h1>' +
-        '<p class="h-sub">FreeAI shows <b>one</b> subtle sponsored line while your AI assistant is thinking — and gives you back <b>50%</b> of what it earns, as Claude credits.</p>' +
+        '<p class="h-sub">FreeAI shows <b>one</b> sponsored line while your AI assistant is thinking — and gives you back <b>50%</b> of what it earns, as Claude credits.</p>' +
         '<ul class="bullets">' +
           '<li><span class="tick">✓</span><div>Lives quietly in your menu bar. <b>No new app to open.</b></div></li>' +
           '<li><span class="tick">✓</span><div>Works with <b>ChatGPT, Claude &amp; Claude Code</b> out of the box.</div></li>' +

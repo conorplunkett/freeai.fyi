@@ -107,7 +107,7 @@ const marqueeHtml = (demoB64) => `<!doctype html><html><head><meta charset="utf-
   <div class="top">${logo(58, 31)}<div class="wordmark">FreeAI.fyi</div><div class="domain">freeai.fyi</div></div>
   <div class="eyebrow">Chrome extension</div>
   <h1>Get Claude <span class="pop">for free.</span></h1>
-  <p class="sub">A subtle sponsored line shows while <b>ChatGPT, Claude &amp; Gemini</b> think — and <b>50% of the revenue</b> comes back to you as Claude Pro &amp; Max credits.</p>
+  <p class="sub">A sponsored line shows while <b>ChatGPT, Claude &amp; Gemini</b> think — and <b>50% of the revenue</b> comes back to you as Claude Pro &amp; Max credits.</p>
   <div class="demoWrap"><div class="shot"><img src="data:image/png;base64,${demoB64}" alt="before/after"></div></div>
 </div></body></html>`;
 

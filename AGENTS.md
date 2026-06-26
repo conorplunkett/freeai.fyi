@@ -17,11 +17,22 @@ accurate.
 
 ## What FreeAI is
 
-FreeAI shows one subtle sponsored line while a web AI assistant (ChatGPT, Claude,
+FreeAI shows one sponsored line while a web AI assistant (ChatGPT, Claude,
 Gemini) is thinking, and returns **a share of the revenue to the user as Claude
 credits**. The product surfaces are the **Chrome extension**, the **Claude Code
 terminal client**, and the macOS overlay; a Node + Postgres backend runs the ad
 auction, an append-only credit ledger, and gift-card redemption.
+
+## Voice & copy
+
+The product is **one sponsored line** shown while a web AI assistant is thinking.
+Describe it plainly and confidently:
+
+- **Never** hedge it with a diminutive — no *"subtle sponsored line"*, no *"tiny
+  sponsored line"*. It reads as apologetic and undersells the product. Just call
+  it a **sponsored line** (or a **sponsored pill** for the styled chip).
+- Saying it shows *"while the AI thinks / is thinking"* is **fine** — that wait is
+  the moment the product owns. The only banned part is the hedging adjective.
 
 ## Tech stack
 

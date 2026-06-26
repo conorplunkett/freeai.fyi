@@ -53,7 +53,7 @@ const LANDERS = [
     slug: "developers",
     title: "FreeAI.fyi — Get Claude for free while you ship code",
     description:
-      "Earn Claude credits while you build with Claude Code, ChatGPT and Gemini. A subtle sponsored line shows while the model thinks — 50% of the revenue comes back to you as credits for Claude.",
+      "Earn Claude credits while you build with Claude Code, ChatGPT and Gemini. A sponsored line shows while the model thinks — 50% of the revenue comes back to you as credits for Claude.",
     ogTitle: "FreeAI.fyi — Get Claude for free while you ship code",
     ogDescription:
       "50% of the revenue comes back as Claude credits. Bid live for the most-watched spinner on Earth.",
@@ -63,7 +63,7 @@ const LANDERS = [
       "<strong>50%</strong> of the revenue comes back to you as " +
       "<span class=\"hl\">Claude monthly plans</span>, reducing your and your friends’ AI spend to $0.",
     heroNote:
-      "Works inside <strong>Claude Code, ChatGPT &amp; Gemini</strong> while you build. A subtle " +
+      "Works inside <strong>Claude Code, ChatGPT &amp; Gemini</strong> while you build. A " +
       "sponsored line appears while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
     // Claude look is the index.html default — no demo override needed.
@@ -72,17 +72,17 @@ const LANDERS = [
     slug: "chatgpt",
     title: "FreeAI.fyi — Earn Claude credits while you use ChatGPT",
     description:
-      "Already chatting with ChatGPT? A subtle sponsored line shows while it thinks, and 50% of the revenue comes back to you as free Claude credits. Free Chrome extension.",
+      "Already chatting with ChatGPT? A sponsored line shows while it thinks, and 50% of the revenue comes back to you as free Claude credits. Free Chrome extension.",
     ogTitle: "FreeAI.fyi — Earn Claude credits while you use ChatGPT",
     ogDescription:
       "Get paid to use the AI you already use. 50% of the revenue comes back as Claude credits.",
     h1: "Get paid to use ChatGPT.",
     sub:
       "We turned “Thinking…” into an ad marketplace. While <strong>ChatGPT</strong> " +
-      "answers, one subtle sponsored line appears — and <strong>50%</strong> of the revenue comes " +
+      "answers, one sponsored line appears — and <strong>50%</strong> of the revenue comes " +
       "back to you as <span class=\"hl\">free Claude credits</span>, reducing your AI spend to $0.",
     heroNote:
-      "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle " +
+      "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.chatgpt,
@@ -91,17 +91,17 @@ const LANDERS = [
     slug: "gemini",
     title: "FreeAI.fyi — Earn Claude credits while you use Gemini",
     description:
-      "Use Gemini for work or school? A subtle sponsored line shows while it thinks, and 50% of the revenue comes back to you as free Claude credits. Free Chrome extension.",
+      "Use Gemini for work or school? A sponsored line shows while it thinks, and 50% of the revenue comes back to you as free Claude credits. Free Chrome extension.",
     ogTitle: "FreeAI.fyi — Earn Claude credits while you use Gemini",
     ogDescription:
       "Get paid to use Gemini. 50% of the revenue comes back as Claude credits.",
     h1: "Get paid to use Gemini.",
     sub:
       "We turned “Thinking…” into an ad marketplace. While <strong>Gemini</strong> " +
-      "answers, one subtle sponsored line appears — and <strong>50%</strong> of the revenue comes " +
+      "answers, one sponsored line appears — and <strong>50%</strong> of the revenue comes " +
       "back to you as <span class=\"hl\">free Claude credits</span>, reducing your AI spend to $0.",
     heroNote:
-      "Works inside <strong>Gemini, ChatGPT &amp; Claude</strong> in your browser. A subtle " +
+      "Works inside <strong>Gemini, ChatGPT &amp; Claude</strong> in your browser. A " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.gemini,
@@ -110,18 +110,18 @@ const LANDERS = [
     slug: "students",
     title: "FreeAI.fyi — Free AI for students",
     description:
-      "Cut your AI spend to $0. Earn Claude credits while you use ChatGPT, Claude and Gemini for class — a subtle sponsored line shows while the AI thinks and 50% comes back to you.",
+      "Cut your AI spend to $0. Earn Claude credits while you use ChatGPT, Claude and Gemini for class — a sponsored line shows while the AI thinks and 50% comes back to you.",
     ogTitle: "FreeAI.fyi — Free AI for students",
     ogDescription:
       "Stop paying for AI. 50% of the revenue comes back to you as Claude credits — share it with your class.",
     h1: "Free AI for students.",
     sub:
-      "Stop paying for AI. A subtle sponsored line shows while <strong>ChatGPT, Claude &amp; " +
+      "Stop paying for AI. A sponsored line shows while <strong>ChatGPT, Claude &amp; " +
       "Gemini</strong> think — and <strong>50%</strong> of the revenue comes back to you as " +
       "<span class=\"hl\">Claude credits</span>, reducing your and your classmates’ AI spend to $0.",
     heroNote:
       "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser — free to install. " +
-      "A subtle sponsored line appears while the model thinks, and <strong>50%</strong> of what it " +
+      "A sponsored line appears while the model thinks, and <strong>50%</strong> of what it " +
       "earns becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.chatgpt,
   },
@@ -129,17 +129,17 @@ const LANDERS = [
     slug: "writers",
     title: "FreeAI.fyi — Earn Claude credits while you write with AI",
     description:
-      "Draft, edit and brainstorm with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A subtle sponsored line shows while the AI thinks; 50% comes back to you.",
+      "Draft, edit and brainstorm with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A sponsored line shows while the AI thinks; 50% comes back to you.",
     ogTitle: "FreeAI.fyi — Earn Claude credits while you write with AI",
     ogDescription:
       "Get paid for the AI you already write with. 50% of the revenue comes back as Claude credits.",
     h1: "Get paid while you write.",
     sub:
       "Every draft, rewrite and outline you run through <strong>ChatGPT, Claude &amp; Gemini</strong> " +
-      "shows one subtle sponsored line while it thinks — and <strong>50%</strong> of the revenue comes " +
+      "shows one sponsored line while it thinks — and <strong>50%</strong> of the revenue comes " +
       "back to you as <span class=\"hl\">free Claude credits</span>.",
     heroNote:
-      "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle " +
+      "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.chatgpt,
@@ -148,17 +148,17 @@ const LANDERS = [
     slug: "researchers",
     title: "FreeAI.fyi — Earn Claude credits while you research with AI",
     description:
-      "Run questions through Gemini, ChatGPT and Claude all day? A subtle sponsored line shows while they think, and 50% of the revenue comes back to you as Claude credits.",
+      "Run questions through Gemini, ChatGPT and Claude all day? A sponsored line shows while they think, and 50% of the revenue comes back to you as Claude credits.",
     ogTitle: "FreeAI.fyi — Earn Claude credits while you research with AI",
     ogDescription:
       "Turn your AI research habit into Claude credits. 50% of the revenue comes back to you.",
     h1: "Get paid while you research.",
     sub:
-      "Every question you run through <strong>Gemini, ChatGPT &amp; Claude</strong> shows one subtle " +
+      "Every question you run through <strong>Gemini, ChatGPT &amp; Claude</strong> shows one " +
       "sponsored line while it thinks — and <strong>50%</strong> of the revenue comes back to you as " +
       "<span class=\"hl\">Claude credits</span>, cutting your research stack to $0.",
     heroNote:
-      "Works inside <strong>Gemini, ChatGPT &amp; Claude</strong> in your browser. A subtle " +
+      "Works inside <strong>Gemini, ChatGPT &amp; Claude</strong> in your browser. A " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.gemini,
@@ -167,17 +167,17 @@ const LANDERS = [
     slug: "founders",
     title: "FreeAI.fyi — Cut your startup's AI bill to $0",
     description:
-      "Your team runs on Claude, ChatGPT and Gemini. A subtle sponsored line shows while they think, and 50% of the revenue comes back as Claude credits — turning AI spend into runway.",
+      "Your team runs on Claude, ChatGPT and Gemini. A sponsored line shows while they think, and 50% of the revenue comes back as Claude credits — turning AI spend into runway.",
     ogTitle: "FreeAI.fyi — Cut your startup's AI bill to $0",
     ogDescription:
       "Turn your team's AI spend into runway. 50% of the revenue comes back as Claude credits.",
     h1: "Turn AI spend into runway.",
     sub:
-      "Your team already runs on <strong>Claude, ChatGPT &amp; Gemini</strong>. A subtle sponsored " +
+      "Your team already runs on <strong>Claude, ChatGPT &amp; Gemini</strong>. A sponsored " +
       "line shows while they think — and <strong>50%</strong> of the revenue comes back as " +
       "<span class=\"hl\">Claude credits</span>, turning AI spend into runway.",
     heroNote:
-      "Works inside <strong>Claude, ChatGPT &amp; Gemini</strong> in your browser. A subtle " +
+      "Works inside <strong>Claude, ChatGPT &amp; Gemini</strong> in your browser. A " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits your team redeems for Claude Pro or Max.",
     demo: DEMO.claude,
@@ -186,17 +186,17 @@ const LANDERS = [
     slug: "marketers",
     title: "FreeAI.fyi — Earn Claude credits while you make content with AI",
     description:
-      "Generate campaigns, captions and briefs with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A subtle sponsored line shows while the AI thinks; 50% comes back.",
+      "Generate campaigns, captions and briefs with ChatGPT, Claude and Gemini — and earn free Claude credits while you do. A sponsored line shows while the AI thinks; 50% comes back.",
     ogTitle: "FreeAI.fyi — Earn Claude credits while you make content with AI",
     ogDescription:
       "Get paid for every AI prompt. 50% of the revenue comes back as Claude credits.",
     h1: "Get paid for every prompt.",
     sub:
       "Every campaign, caption and brief you generate with <strong>ChatGPT, Claude &amp; Gemini</strong> " +
-      "shows one subtle sponsored line while it thinks — and <strong>50%</strong> of the revenue comes " +
+      "shows one sponsored line while it thinks — and <strong>50%</strong> of the revenue comes " +
       "back to you as <span class=\"hl\">free Claude credits</span>.",
     heroNote:
-      "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A subtle " +
+      "Works inside <strong>ChatGPT, Claude &amp; Gemini</strong> in your browser. A " +
       "sponsored line appears only while the model thinks — and <strong>50%</strong> of what it earns " +
       "becomes credits you redeem for Claude Pro or Max.",
     demo: DEMO.chatgpt,

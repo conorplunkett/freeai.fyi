@@ -2,7 +2,7 @@
 
 > Get **Claude** for free with ads while you use **ChatGPT, Claude, Gemini, and Claude Code**. A share of the revenue comes back as Claude credits.
 
-FreeAI shows one subtle, clickable sponsored line while a web AI assistant or
+FreeAI shows one clickable sponsored line while a web AI assistant or
 Claude Code is thinking/streaming, and returns a share of the revenue to you as
 credits redeemable for Claude. The primary product is a **Chrome extension**,
 with a standalone Claude Code terminal client; a Node + Postgres backend handles
