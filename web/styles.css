@@ -218,6 +218,16 @@ a { color: inherit; text-decoration: none; }
   transition: transform .15s;
 }
 .install-card:hover .install-arrow { transform: translateX(3px); }
+/* Chrome surface CTA → inline waitlist form on click (a duplicate of the entry
+   above). The card is a button until clicked, then becomes the form. */
+#chrome-cta { cursor: pointer; }
+.install-card--wl { cursor: default; }
+.install-card--wl:hover { transform: none; border-color: var(--line); }
+.install-wl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.install-wl-label { font-weight: 800; font-size: 15px; letter-spacing: -.01em; color: var(--ink); }
+.install-wl .wl-row { justify-content: flex-start; flex-wrap: nowrap; gap: 8px; }
+.install-wl .wl-form { flex: 1 1 auto; max-width: 460px; gap: 8px; }
+.install-wl .wl-ok { margin: 0; white-space: nowrap; }
 
 /* CLI PASTE CARD — dark card (same surface as the install card) with a terminal
    one-liner and a copy button, for users who'd rather wire up Claude Code. */

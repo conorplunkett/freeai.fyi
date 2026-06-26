@@ -456,48 +456,17 @@ function waitlistSource() {
   if (!slug || /^index(\.html)?$/.test(slug)) return "index";
   return "lander:" + slug.replace(/\.html$/, "");
 }
-function initWaitlist() {
-  const note = document.querySelector(".hero-note");
-  if (!note || document.getElementById("wl")) return; // need a hero; inject once
-
-  const wl = document.createElement("div");
-  wl.className = "wl";
-  wl.id = "wl";
-  wl.innerHTML =
-    '<div class="wl-row">' +
-      '<form class="wl-form" id="wl-form" novalidate>' +
-        '<input class="wl-input" id="wl-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
-        '<button class="wl-btn" type="submit">Join waitlist</button>' +
-      '</form>' +
-    '</div>' +
-    // Kept (empty) so submit validation/errors still have somewhere to render;
-    // .wl-note:empty collapses it so there's no default copy under the row.
-    '<p class="wl-note" id="wl-note"></p>';
-  // Home page: the waitlist sits inside the Chrome column (#wl-slot) — the one
-  // product still on a waitlist — stacked under its "Coming soon" tile (.wl--col).
-  // Landers have no slot/downloads, so it stays right under the hero note.
-  const slot = document.getElementById("wl-slot");
-  if (slot) {
-    wl.classList.add("wl--col");
-    slot.appendChild(wl);
-  } else {
-    note.insertAdjacentElement("afterend", wl);
-  }
-
-  const form = wl.querySelector("#wl-form");
-  const email = wl.querySelector("#wl-email");
-  const btn = wl.querySelector(".wl-btn");
-  const noteEl = wl.querySelector("#wl-note");
-
+// Shared success line + submit wiring, reused by the hero/Chrome-column widget
+// and the inline Chrome-surface form so they behave identically.
+const WL_OK = '<p class="wl-ok">You’re on the list ✓ — we’ll email you.</p>';
+function wireWaitlist(form, email, btn, noteEl) {
+  if (!form || !email || !btn) return;
   const setNote = (msg, kind) => {
+    if (!noteEl) return;
     noteEl.textContent = msg;
     noteEl.className = "wl-note" + (kind ? " wl-note--" + kind : "");
   };
-  const succeed = () => {
-    form.outerHTML = '<p class="wl-ok">You’re on the list ✓ — we’ll email you when surfaces are live.</p>';
-    noteEl.remove();
-  };
-
+  const succeed = () => { form.outerHTML = WL_OK; if (noteEl) noteEl.remove(); };
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const value = (email.value || "").trim();
@@ -531,7 +500,85 @@ function initWaitlist() {
     btn.textContent = label;
   });
 }
+function initWaitlist() {
+  const note = document.querySelector(".hero-note");
+  if (!note || document.getElementById("wl")) return; // need a hero; inject once
+
+  const wl = document.createElement("div");
+  wl.className = "wl";
+  wl.id = "wl";
+  wl.innerHTML =
+    '<div class="wl-row">' +
+      '<form class="wl-form" id="wl-form" novalidate>' +
+        '<input class="wl-input" id="wl-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
+        '<button class="wl-btn" type="submit">Join waitlist</button>' +
+      '</form>' +
+    '</div>' +
+    // Kept (empty) so submit validation/errors still have somewhere to render;
+    // .wl-note:empty collapses it so there's no default copy under the row.
+    '<p class="wl-note" id="wl-note"></p>';
+  // Home page: the waitlist sits inside the Chrome column (#wl-slot) — the one
+  // product still on a waitlist — stacked under its "Coming soon" tile (.wl--col).
+  // Landers have no slot/downloads, so it stays right under the hero note.
+  const slot = document.getElementById("wl-slot");
+  if (slot) {
+    wl.classList.add("wl--col");
+    slot.appendChild(wl);
+  } else {
+    note.insertAdjacentElement("afterend", wl);
+  }
+
+  wireWaitlist(wl.querySelector("#wl-form"), wl.querySelector("#wl-email"), wl.querySelector(".wl-btn"), wl.querySelector("#wl-note"));
+}
 initWaitlist();
+
+// Chrome surface CTA ("Native everywhere it appears"): clicking it swaps the
+// "Add the Chrome extension" card for an inline waitlist form — a duplicate of
+// the entry above — with the email field focused, ready to type. Enter submits.
+function initChromeWaitlist() {
+  const cta = document.getElementById("chrome-cta");
+  if (!cta) return;
+  const chromeIcon =
+    '<span class="install-icon" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" width="22" height="22">' +
+        '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>' +
+        '<circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>' +
+        '<path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+      '</svg></span>';
+  const expand = () => {
+    if (cta.dataset.expanded) return;
+    cta.dataset.expanded = "1";
+    cta.classList.add("install-card--wl");
+    cta.removeAttribute("role");
+    cta.removeAttribute("tabindex");
+    cta.innerHTML =
+      chromeIcon +
+      '<span class="install-wl">' +
+        '<span class="install-wl-label">Coming soon — join the waitlist</span>' +
+        '<div class="wl-row">' +
+          '<form class="wl-form" novalidate>' +
+            '<input class="wl-input" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
+            '<button class="wl-btn" type="submit">Join waitlist</button>' +
+          '</form>' +
+        '</div>' +
+        '<p class="wl-note"></p>' +
+      '</span>';
+    wireWaitlist(cta.querySelector(".wl-form"), cta.querySelector(".wl-input"), cta.querySelector(".wl-btn"), cta.querySelector(".wl-note"));
+    cta.querySelector(".wl-input").focus();
+  };
+  // Only intercept until expanded — afterwards the inline form owns Enter/clicks
+  // (otherwise we'd preventDefault the form's own submit).
+  cta.addEventListener("click", (e) => {
+    if (cta.dataset.expanded) return;
+    e.preventDefault();
+    expand();
+  });
+  cta.addEventListener("keydown", (e) => {
+    if (cta.dataset.expanded) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expand(); }
+  });
+}
+initChromeWaitlist();
 
 // --- Surfaces showcase: provider-tab cross-fade ("Native everywhere it
 // appears"). Clicking a tab swaps the active screenshot within that surface
