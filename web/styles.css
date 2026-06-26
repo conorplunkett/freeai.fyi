@@ -100,6 +100,9 @@ a { color: inherit; text-decoration: none; }
 .navbtn-cta:hover { filter: brightness(1.05); box-shadow: var(--shadow-cta-hover); }
 .navbtn-cta:active { filter: brightness(.98); }
 .navbtn-cta:focus-visible { outline: none; box-shadow: var(--ring-focus), var(--shadow-cta); }
+/* Install CTA hidden for now — the styles above stay so re-enabling is just
+   removing this one rule. The link is kept in the markup on every page. */
+.nav-btns .navbtn-cta { display: none; }
 
 /* Motion — gate the transitions/transform behind a motion preference; the
    color / background / shadow swaps above still apply when motion is reduced. */
@@ -1004,7 +1007,8 @@ a { color: inherit; text-decoration: none; }
   .nav-btns { gap: 4px; padding: 4px; }
   .navbtn { padding: 8px 12px; font-size: 13px; }
   .navbtn-cta { padding: 8px 14px; }
-  .nav-btns a[href="#advertisers"] { display: none; }
+  .nav-btns a[href="#advertisers"],
+  .nav-btns a[href="/#advertisers"] { display: none; }
   .nav .logo { width: 32px; height: 32px; font-size: 14px; }
   .nav .brand-name { font-size: 15px; letter-spacing: -.03em; }
 
