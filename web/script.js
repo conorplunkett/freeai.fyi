@@ -112,12 +112,13 @@ setInterval(() => {
 if (rotator) { rotator.style.transition = "opacity .26s"; }
 if (chip) { chip.style.transition = "opacity .26s, background .26s"; }
 
-// --- Hero earnings pill: gently ticks up ---
-const earnPill = document.getElementById("earn-pill");
+// --- Earnings figures gently tick up (the Chrome card pill + the CLI card line) ---
+const earnEls = document.querySelectorAll(".earn-amt");
 let earn = 76.71;
 setInterval(() => {
   earn += Math.random() * 0.14;
-  if (earnPill) earnPill.innerHTML = "$" + earn.toFixed(2) + '<span class="per">/mo</span>';
+  const html = "$" + earn.toFixed(2) + '<span class="per">/mo</span>';
+  earnEls.forEach((el) => { el.innerHTML = html; });
 }, 1400);
 
 // --- Ad line character counter ---
@@ -301,16 +302,8 @@ const API_BASE = DEV_MODE
       ""
     ).replace(/\/+$/, "");
 
-if (DEV_MODE) {
-  const badge = document.createElement("div");
-  badge.textContent = "DEV · mock data";
-  badge.title = "Developer mode — mock data, no live API. Append ?dev=0 to exit.";
-  badge.style.cssText =
-    "position:fixed;bottom:14px;left:14px;z-index:99999;background:#1b1e25;color:#ffd54a;" +
-    "font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:8px 12px;border-radius:999px;" +
-    "border:1px solid #ffd54a;box-shadow:0 4px 16px rgba(0,0,0,.25);letter-spacing:.02em;";
-  (document.body || document.documentElement).appendChild(badge);
-}
+// (Dev mode still works via ?dev=1; the on-screen "DEV · mock data" badge was
+// removed by request.)
 
 const escapeHtml = (s) =>
   String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
@@ -450,6 +443,11 @@ if (adForm) {
 // button just jumps to the on-page advertiser form (#advertisers exists on all
 // of these pages). Where a lander already shows the big "FOR ADVERTISERS" jump
 // chevron under the tagline, we hide it so there's exactly one advertiser CTA.
+// Single switch for the hero "Want to advertise?" CTA (under the hero note).
+// Off for now — set to true to reveal it everywhere it's present.
+const SHOW_ADV_CTA = false;
+if (SHOW_ADV_CTA) document.getElementById("hero-adv")?.removeAttribute("hidden");
+
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 // Tag each signup with the page it came from so a lead's `source` is useful
 // later (e.g. "index", "lander:gemini").
@@ -471,27 +469,20 @@ function initWaitlist() {
         '<input class="wl-input" id="wl-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
         '<button class="wl-btn" type="submit">Join waitlist</button>' +
       '</form>' +
-      '<a class="wl-adv" href="#advertisers">Want to advertise?</a>' +
     '</div>' +
     // Kept (empty) so submit validation/errors still have somewhere to render;
     // .wl-note:empty collapses it so there's no default copy under the row.
     '<p class="wl-note" id="wl-note"></p>';
-  // On the home page the waitlist sits BELOW the 3-up downloads grid (so "Get it
-  // on your platform" reads directly under the hero note); the landers have no
-  // downloads section, so it stays right under the hero note there. .wl--wide
-  // widens the home variant to sit as one row under the three product columns.
-  const downloads = document.querySelector(".downloads");
-  if (downloads) {
-    wl.classList.add("wl--wide");
-    downloads.insertAdjacentElement("afterend", wl);
+  // Home page: the waitlist sits inside the Chrome column (#wl-slot) — the one
+  // product still on a waitlist — stacked under its "Coming soon" tile (.wl--col).
+  // Landers have no slot/downloads, so it stays right under the hero note.
+  const slot = document.getElementById("wl-slot");
+  if (slot) {
+    wl.classList.add("wl--col");
+    slot.appendChild(wl);
   } else {
     note.insertAdjacentElement("afterend", wl);
   }
-
-  // Drop the redundant hero "FOR ADVERTISERS · BID ON THIS LINE" jump (landers
-  // only) — the new "Want to advertise?" button now owns that jump.
-  const jump = note.parentElement && note.parentElement.querySelector(".jump");
-  if (jump) jump.style.display = "none";
 
   const form = wl.querySelector("#wl-form");
   const email = wl.querySelector("#wl-email");
@@ -506,12 +497,6 @@ function initWaitlist() {
     form.outerHTML = '<p class="wl-ok">You’re on the list ✓ — we’ll email you when surfaces are live.</p>';
     noteEl.remove();
   };
-
-  // Clicking "Want to advertise?" scrolls to the form (the anchor handles that)
-  // and focuses its email field once the smooth-scroll settles.
-  wl.querySelector(".wl-adv").addEventListener("click", () => {
-    setTimeout(() => document.querySelector('.adform input[name="email"]')?.focus({ preventScroll: true }), 600);
-  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

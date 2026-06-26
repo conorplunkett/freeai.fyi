@@ -256,6 +256,11 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--sans); transition: background .15s, border-color .15s;
 }
 .cli-copy:hover { background: rgba(var(--accent-rgb),.26); border-color: rgba(var(--accent-rgb),.5); }
+/* "Earn up to $X/mo" sitting at the top-right of the CLI card, on the same line
+   as "Paste this into your shell" — plain text, no background/pill. */
+.cli-earn { margin-left: auto; flex: none; white-space: nowrap; font: 600 13px/1 var(--sans); color: var(--gray); }
+.cli-earn .earn-amt { color: var(--accent-d); font-weight: 800; font-size: 14px; }
+.cli-earn .per { opacity: .75; font-weight: 600; font-size: 11px; }
 .cli-sub {
   display: block; margin-top: 12px; font-size: 12.5px; line-height: 1.55; color: var(--ov-dots);
 }
@@ -264,6 +269,8 @@ a { color: inherit; text-decoration: none; }
 
 .hero-note { font-size: 14.5px; color: var(--gray-2); margin: 0 auto 8px; line-height: 1.55; max-width: 620px; }
 .hero-note strong { color: var(--gray); }
+/* Advertiser CTA under the hero note (centered; hidden until enabled). */
+.hero-adv { margin-top: 14px; text-align: center; }
 
 /* ── Hero waitlist — pre-account email capture, injected under .hero-note by
    script.js on the home page and every lander. Reuses the .btn-green gradient
@@ -318,16 +325,19 @@ a { color: inherit; text-decoration: none; }
    column 1 is the email + Join button, column 2 is the advertise button. The
    email input is kept compact and there's a clear gap between the signup and
    the advertise button. */
-.wl--wide { max-width: 760px; margin-top: 22px; padding: 0 28px; }
-.wl--wide .wl-row { flex-wrap: nowrap; gap: 36px; }
-.wl--wide .wl-form { flex: 0 1 auto; }
-.wl--wide .wl-input { flex: 0 1 230px; width: 230px; }
+/* Home: the waitlist is stacked inside the Chrome column (#wl-slot), under its
+   "Coming soon" tile — so it spans the column: email over a full-width Join, with
+   the advertise link beneath. */
+.wl--col { max-width: none; margin: 4px 0 0; padding: 0; }
+.wl--col .wl-row { flex-direction: column; flex-wrap: nowrap; gap: 8px; align-items: stretch; }
+.wl--col .wl-form { flex: 0 0 auto; width: 100%; gap: 8px; }
+.wl--col .wl-input { flex: 1 1 auto; width: auto; min-width: 0; }
+.wl--col .wl-adv { width: 100%; }
 
 @media (max-width: 560px) {
   /* Stack vertically on mobile, advertise button on top of the waitlist. */
-  .wl-row, .wl--wide .wl-row { flex-direction: column; flex-wrap: wrap; gap: 12px; }
-  .wl-form, .wl-adv, .wl--wide .wl-form, .wl--wide .wl-adv { flex-basis: 100%; width: 100%; }
-  .wl--wide .wl-input { flex: 1 1 auto; width: auto; }
+  .wl-row { flex-direction: column; flex-wrap: wrap; gap: 12px; }
+  .wl-form, .wl-adv { flex-basis: 100%; width: 100%; }
   .wl-adv { order: -1; }
 }
 
@@ -448,6 +458,17 @@ a { color: inherit; text-decoration: none; }
 .surfaces .scopy .idx { font-family: var(--mono); font-size: var(--text-label-sm); color: var(--accent); letter-spacing: var(--tracking-label); font-weight: var(--fw-bold); }
 .surfaces .scopy h3 { font-size: var(--text-h3); font-weight: var(--fw-extrabold); letter-spacing: var(--tracking-snug); margin: 12px 0 0; }
 .surfaces .scopy p { color: var(--gray); font-size: var(--text-body-lg); line-height: var(--leading-relaxed); margin: 14px 0 0; max-width: 420px; text-wrap: pretty; }
+/* "Download for Mac" — a chunky orange CTA, full width of the copy column. */
+.surfaces .scopy-dl {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; margin: 22px 0 0; padding: 15px 18px; min-height: 54px;
+  border: none; border-radius: 12px; color: #fff;
+  background: linear-gradient(180deg, var(--green-grad-a), var(--green-grad-b));
+  font-family: var(--sans); font-weight: 800; font-size: 15px;
+  box-shadow: 0 12px 28px -14px rgba(var(--accent-rgb), .7);
+  transition: transform .15s ease, filter .15s ease;
+}
+.surfaces .scopy-dl:hover { transform: translateY(-2px); filter: brightness(1.04); }
 
 /* Window chrome (shared) */
 .surfaces .win { border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-card); border: 1px solid var(--line); }
