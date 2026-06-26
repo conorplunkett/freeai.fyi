@@ -476,14 +476,13 @@ function initWaitlist() {
     // Kept (empty) so submit validation/errors still have somewhere to render;
     // .wl-note:empty collapses it so there's no default copy under the row.
     '<p class="wl-note" id="wl-note"></p>';
-  // On the home page the waitlist sits BELOW the 3-up downloads grid (so "Get it
-  // on your platform" reads directly under the hero note); the landers have no
-  // downloads section, so it stays right under the hero note there. .wl--wide
-  // widens the home variant to sit as one row under the three product columns.
-  const downloads = document.querySelector(".downloads");
-  if (downloads) {
-    wl.classList.add("wl--wide");
-    downloads.insertAdjacentElement("afterend", wl);
+  // Home page: the waitlist sits inside the Chrome column (#wl-slot) — the one
+  // product still on a waitlist — stacked under its "Coming soon" tile (.wl--col).
+  // Landers have no slot/downloads, so it stays right under the hero note.
+  const slot = document.getElementById("wl-slot");
+  if (slot) {
+    wl.classList.add("wl--col");
+    slot.appendChild(wl);
   } else {
     note.insertAdjacentElement("afterend", wl);
   }
