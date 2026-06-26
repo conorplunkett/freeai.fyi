@@ -471,7 +471,6 @@ function initWaitlist() {
         '<input class="wl-input" id="wl-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
         '<button class="wl-btn" type="submit">Join waitlist</button>' +
       '</form>' +
-      '<a class="wl-adv" href="#advertisers">Want to advertise?</a>' +
     '</div>' +
     // Kept (empty) so submit validation/errors still have somewhere to render;
     // .wl-note:empty collapses it so there's no default copy under the row.
@@ -487,11 +486,6 @@ function initWaitlist() {
     note.insertAdjacentElement("afterend", wl);
   }
 
-  // Drop the redundant hero "FOR ADVERTISERS · BID ON THIS LINE" jump (landers
-  // only) — the new "Want to advertise?" button now owns that jump.
-  const jump = note.parentElement && note.parentElement.querySelector(".jump");
-  if (jump) jump.style.display = "none";
-
   const form = wl.querySelector("#wl-form");
   const email = wl.querySelector("#wl-email");
   const btn = wl.querySelector(".wl-btn");
@@ -505,12 +499,6 @@ function initWaitlist() {
     form.outerHTML = '<p class="wl-ok">You’re on the list ✓ — we’ll email you when surfaces are live.</p>';
     noteEl.remove();
   };
-
-  // Clicking "Want to advertise?" scrolls to the form (the anchor handles that)
-  // and focuses its email field once the smooth-scroll settles.
-  wl.querySelector(".wl-adv").addEventListener("click", () => {
-    setTimeout(() => document.querySelector('.adform input[name="email"]')?.focus({ preventScroll: true }), 600);
-  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
