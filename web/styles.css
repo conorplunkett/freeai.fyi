@@ -100,9 +100,6 @@ a { color: inherit; text-decoration: none; }
 .navbtn-cta:hover { filter: brightness(1.05); box-shadow: var(--shadow-cta-hover); }
 .navbtn-cta:active { filter: brightness(.98); }
 .navbtn-cta:focus-visible { outline: none; box-shadow: var(--ring-focus), var(--shadow-cta); }
-/* Install CTA hidden for now — the styles above stay so re-enabling is just
-   removing this one rule. The link is kept in the markup on every page. */
-.nav-btns .navbtn-cta { display: none; }
 
 /* Motion — gate the transitions/transform behind a motion preference; the
    color / background / shadow swaps above still apply when motion is reduced. */
@@ -997,18 +994,13 @@ a { color: inherit; text-decoration: none; }
   .tick { padding: 0 18px; font-size: 11.5px; }
 
   /* nav — tighter segments + a smaller brand so the whole control fits a phone.
-     The Advertisers segment is dropped here because the hero already carries a
-     prominent "FOR ADVERTISERS" jump link — keeping User Login · Products ·
-     Install uncramped with the coral CTA always visible. (Attribute selector →
-     no HTML edit, applies to every page that shares this nav, incl. the
-     generated landers. The .nav-scoped brand rules below need .nav specificity
-     to override the desktop sizing.) */
+     All three items stay (Products · User Login · Advertise) with the coral
+     Advertise CTA always visible. (The .nav-scoped brand rules below need .nav
+     specificity to override the desktop sizing.) */
   .nav { padding: 10px 12px; gap: 10px; }
   .nav-btns { gap: 4px; padding: 4px; }
   .navbtn { padding: 8px 12px; font-size: 13px; }
   .navbtn-cta { padding: 8px 14px; }
-  .nav-btns a[href="#advertisers"],
-  .nav-btns a[href="/#advertisers"] { display: none; }
   .nav .logo { width: 32px; height: 32px; font-size: 14px; }
   .nav .brand-name { font-size: 15px; letter-spacing: -.03em; }
 
