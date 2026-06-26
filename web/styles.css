@@ -256,12 +256,11 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--sans); transition: background .15s, border-color .15s;
 }
 .cli-copy:hover { background: rgba(var(--accent-rgb),.26); border-color: rgba(var(--accent-rgb),.5); }
-/* "Earn up to $X/mo" on the CLI card's beige bar, just left of Copy — plain text
-   on the existing background, no pill. */
-.cli-earn { flex: none; white-space: nowrap; font: 600 13px/1 var(--sans); color: var(--gray); }
+/* "Earn up to $X/mo" sitting at the top-right of the CLI card, on the same line
+   as "Paste this into your shell" — plain text, no background/pill. */
+.cli-earn { margin-left: auto; flex: none; white-space: nowrap; font: 600 13px/1 var(--sans); color: var(--gray); }
 .cli-earn .earn-amt { color: var(--accent-d); font-weight: 800; font-size: 14px; }
 .cli-earn .per { opacity: .75; font-weight: 600; font-size: 11px; }
-@media (max-width: 560px) { .cli-earn { display: none; } }
 .cli-sub {
   display: block; margin-top: 12px; font-size: 12.5px; line-height: 1.55; color: var(--ov-dots);
 }
@@ -459,6 +458,15 @@ a { color: inherit; text-decoration: none; }
 .surfaces .scopy .idx { font-family: var(--mono); font-size: var(--text-label-sm); color: var(--accent); letter-spacing: var(--tracking-label); font-weight: var(--fw-bold); }
 .surfaces .scopy h3 { font-size: var(--text-h3); font-weight: var(--fw-extrabold); letter-spacing: var(--tracking-snug); margin: 12px 0 0; }
 .surfaces .scopy p { color: var(--gray); font-size: var(--text-body-lg); line-height: var(--leading-relaxed); margin: 14px 0 0; max-width: 420px; text-wrap: pretty; }
+/* Smaller "Download for Mac" button, full width of the copy column. */
+.surfaces .scopy-dl {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; margin: 20px 0 0; padding: 11px 16px;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink);
+  font-family: var(--sans); font-weight: 700; font-size: 14px; box-shadow: var(--shadow-sm);
+  transition: transform .12s ease, border-color .12s ease;
+}
+.surfaces .scopy-dl:hover { transform: translateY(-2px); border-color: rgba(var(--accent-rgb), .5); }
 
 /* Window chrome (shared) */
 .surfaces .win { border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-card); border: 1px solid var(--line); }
