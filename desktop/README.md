@@ -246,10 +246,15 @@ xcrun notarytool submit build/SponsorOverlay.dmg --keychain-profile freeai --wai
 xcrun stapler staple build/SponsorOverlay.dmg
 # 3. prove it'll open on a stranger's Mac — want "accepted" / "source=Notarized Developer ID"
 spctl -a -t open --context context:primary-signature -v build/SponsorOverlay.dmg
-# 4. publish — '#FreeAI.dmg' renames the asset so the site's download URL stays stable
-gh release create desktop-v0.1.0 "build/SponsorOverlay.dmg#FreeAI.dmg" \
+# 4. publish — the asset filename MUST be FreeAI.dmg so /download/mac resolves.
+#    (gh's "file#text" sets the display *label*, not the filename — the download
+#    URL uses the filename — so upload a copy literally named FreeAI.dmg.)
+cp build/SponsorOverlay.dmg build/FreeAI.dmg
+gh release create desktop-v0.1.0 build/FreeAI.dmg \
   --title "FreeAI Desktop 0.1.0" \
   --notes "macOS FreeAI.fyi overlay tool for Claude & ChatGPT Desktop."
+# Re-releasing the same tag? Don't `create` — upload over the existing asset:
+#   gh release upload desktop-v0.1.0 build/FreeAI.dmg --clobber
 ```
 
 **Hosting + the site link — no per-release site edit.** The dmg lives in
