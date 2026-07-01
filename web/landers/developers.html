@@ -136,22 +136,19 @@
     <div class="tryit">Get it on your platform</div>
 
     <!-- DOWNLOAD CTAs — three quick installs above the surfaces showcase.
-         Chrome + Desktop are greyed "coming soon"; Terminal is the live one-liner. -->
+         All three are live: Chrome, Terminal, Desktop (Mac). -->
     <section class="downloads">
       <div class="dl-grid">
         <div class="dl-col">
           <span class="dl-label">1 · Chrome</span>
-          <button type="button" class="dl-btn dl-soon" disabled aria-disabled="true">
+          <a href="https://chromewebstore.google.com/detail/freeaifyi-%E2%80%94-earn-from-cha/himeomhnejkhdjcilclhmemkppipoiaj" class="dl-btn" aria-label="Add the FreeAI Chrome extension">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
               <circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>
               <path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Coming soon
-          </button>
-          <!-- Waitlist signup is injected here by script.js (#wl-slot), so it sits
-               under the Chrome column — the one product still on a waitlist. -->
-          <div class="wl-slot" id="wl-slot"></div>
+            Add to Chrome
+          </a>
         </div>
         <div class="dl-col">
           <span class="dl-label">2 · Terminal</span>
@@ -208,9 +205,9 @@
               <h3>Chrome extension</h3>
               <p>Inserts an ad pill under the thinking spinner of Claude, ChatGPT, or Gemini.</p>
             </div>
-            <!-- Chrome CTA, folded full-width under the browser surface. Clicking
-                 it swaps in an inline waitlist form (handled in script.js). -->
-            <div class="install-card surface-cta" id="chrome-cta" role="button" tabindex="0">
+            <!-- Chrome CTA, folded full-width under the browser surface — links
+                 straight to the Chrome Web Store listing. -->
+            <a href="https://chromewebstore.google.com/detail/freeaifyi-%E2%80%94-earn-from-cha/himeomhnejkhdjcilclhmemkppipoiaj" class="install-card surface-cta">
               <span class="install-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="22" height="22">
                   <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -226,7 +223,7 @@
                 <span class="install-pill-amt earn-amt" id="earn-pill">$76.71<span class="per">/mo</span></span>
               </span>
               <span class="install-arrow">→</span>
-            </div>
+            </a>
           </div>
 
           <!-- Surface 02 — terminal -->
@@ -456,6 +453,6 @@
        user-facing copy production-only — no test/demo wording. The one developer
        affordance is an opt-in mock-data mode at ?dev=1 (sticky; ?dev=0 to exit),
        handled in script.js, which never shows unless explicitly requested. -->
-  <script src="/script.js?v=20260626e"></script>
+  <script src="/script.js?v=20260627a"></script>
 </body>
 </html>

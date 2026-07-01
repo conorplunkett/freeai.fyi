@@ -530,55 +530,12 @@ function initWaitlist() {
 
   wireWaitlist(wl.querySelector("#wl-form"), wl.querySelector("#wl-email"), wl.querySelector(".wl-btn"), wl.querySelector("#wl-note"));
 }
-initWaitlist();
-
-// Chrome surface CTA ("Native everywhere it appears"): clicking it swaps the
-// "Add the Chrome extension" card for an inline waitlist form — a duplicate of
-// the entry above — with the email field focused, ready to type. Enter submits.
-function initChromeWaitlist() {
-  const cta = document.getElementById("chrome-cta");
-  if (!cta) return;
-  const chromeIcon =
-    '<span class="install-icon" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="22" height="22">' +
-        '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>' +
-        '<circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>' +
-        '<path d="M12 8.6h8.4M9 13.5 4.8 6.3M15 13.5l-4.2 7.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-      '</svg></span>';
-  const expand = () => {
-    if (cta.dataset.expanded) return;
-    cta.dataset.expanded = "1";
-    cta.classList.add("install-card--wl");
-    cta.removeAttribute("role");
-    cta.removeAttribute("tabindex");
-    cta.innerHTML =
-      chromeIcon +
-      '<span class="install-wl">' +
-        '<span class="install-wl-label">Coming soon — join the waitlist</span>' +
-        '<div class="wl-row">' +
-          '<form class="wl-form" novalidate>' +
-            '<input class="wl-input" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-label="Email for the FreeAI waitlist" required />' +
-            '<button class="wl-btn" type="submit">Join waitlist</button>' +
-          '</form>' +
-        '</div>' +
-        '<p class="wl-note"></p>' +
-      '</span>';
-    wireWaitlist(cta.querySelector(".wl-form"), cta.querySelector(".wl-input"), cta.querySelector(".wl-btn"), cta.querySelector(".wl-note"));
-    cta.querySelector(".wl-input").focus();
-  };
-  // Only intercept until expanded — afterwards the inline form owns Enter/clicks
-  // (otherwise we'd preventDefault the form's own submit).
-  cta.addEventListener("click", (e) => {
-    if (cta.dataset.expanded) return;
-    e.preventDefault();
-    expand();
-  });
-  cta.addEventListener("keydown", (e) => {
-    if (cta.dataset.expanded) return;
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expand(); }
-  });
-}
-initChromeWaitlist();
+// Chrome now ships live (Chrome Web Store), so nothing on the site is gated
+// behind the waitlist anymore — initWaitlist() is dormant rather than deleted
+// in case a future platform (Firefox, Windows, ...) needs the same capture
+// widget again. wireWaitlist()/waitlistSource() stay so re-enabling is a
+// one-line change.
+// initWaitlist();
 
 // --- Surfaces showcase: provider-tab cross-fade ("Native everywhere it
 // appears"). Clicking a tab swaps the active screenshot within that surface
